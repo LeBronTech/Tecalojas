@@ -202,7 +202,7 @@ const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, 
 interface AddEditProductModalProps {
   product: Product | null;
   onClose: () => void;
-  onSave: (product: Product) => void;
+  onSave: (product: Product) => Promise<void>;
   categories: string[];
 }
 
@@ -255,6 +255,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
   const [isGeneratingShowcase, setIsGeneratingShowcase] = useState(false);
   const [showcaseAiError, setShowcaseAiError] = useState<string | null>(null);
   const [addVariationSize, setAddVariationSize] = useState<CushionSize | ''>('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -473,9 +475,23 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
     };
 
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await onSave(formData);
+      // onSave will close the modal if successful
+    } catch (error: any) {
+      if (error.code === 'permission-denied') {
+        setSaveError('Permissão negada. Você não tem autorização para salvar produtos.');
+      } else {
+        setSaveError('Falha ao salvar o produto. Tente novamente.');
+      }
+      console.error(error);
+    } finally {
+      setIsSaving(false);
+    }
   };
   
   const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
@@ -647,13 +663,13 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
               {variationsAiError && <p className="text-red-500 text-xs mt-2 text-center">{variationsAiError}</p>}
             </div>
 
-
+            {saveError && <p className="text-red-500 text-sm text-center -mt-2 mb-4 font-semibold">{saveError}</p>}
             <div className="flex justify-end items-center pt-4 gap-4">
               <button type="button" onClick={onClose} className={`font-bold py-3 px-6 rounded-lg transition ${cancelBtnClasses}`}>
                 Cancelar
               </button>
-              <button type="submit" className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500">
-                {product ? 'Salvar Alterações' : 'Adicionar Produto'}
+              <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100 min-w-[180px]">
+                {isSaving ? 'Salvando...' : (product ? 'Salvar Alterações' : 'Adicionar Produto')}
               </button>
             </div>
           </form>

@@ -27,10 +27,13 @@ const SignUpModal: React.FC<SignUpModalProps> = ({ onClose, onSignUp }) => {
             await onSignUp(email, password);
             // O fechamento do modal e o redirecionamento são feitos no App.tsx
         } catch (err: any) {
-            if (err.message.includes('auth/email-already-in-use')) {
+            if (err.code === 'auth/email-already-in-use') {
                 setError('Este e-mail já está em uso.');
+            } else if (err.code === 'auth/operation-not-allowed' || err.code === 'auth/admin-restricted-operation') {
+                setError('Cadastro por e-mail desativado. Habilite-o no Console do Firebase.');
             } else {
                 setError('Ocorreu um erro ao criar a conta.');
+                console.error(err);
             }
         } finally {
             setIsLoading(false);

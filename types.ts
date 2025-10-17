@@ -46,5 +46,6 @@ export type Theme = 'light' | 'dark';
 
 export interface User {
   uid: string;
-  email: string;
+  email: string | null;
+  role?: 'admin' | 'user';
 }

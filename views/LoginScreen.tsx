@@ -23,28 +23,36 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onVis
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      setError("Por favor, preencha e-mail e senha.");
-      return;
-    }
+  const handleAuth = async (authFunction: () => Promise<void>) => {
     setError(null);
     setIsLoading(true);
     try {
-      await onLogin(email, password);
+      await authFunction();
     } catch (err: any) {
-      if (err.message.includes('auth/user-not-found')) {
-        setError('Usuário não encontrado.');
-      } else if (err.message.includes('auth/wrong-password')) {
-        setError('Senha incorreta.');
+      if (err.code === 'auth/unauthorized-domain') {
+        setError('Domínio não autorizado. Adicione este domínio ao seu console do Firebase.');
+      } else if (err.code === 'auth/operation-not-allowed' || err.code === 'auth/admin-restricted-operation') {
+        setError('Método de login desativado. Habilite-o no Console do Firebase.');
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setError('E-mail ou senha incorretos.');
       } else {
-        setError('Ocorreu um erro ao fazer login.');
+        setError('Ocorreu um erro. Tente novamente.');
+        console.error(err);
       }
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError("Por favor, preencha e-mail e senha.");
+      return;
+    }
+    handleAuth(() => onLogin(email, password));
+  };
+
 
   return (
     <div className="h-full w-full relative overflow-hidden flex flex-col items-center p-6 bg-[#E0D6F5] font-sans">
@@ -68,7 +76,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onVis
       </div>
 
       <div className="w-full max-w-xs bg-white/30 backdrop-blur-lg rounded-2xl p-6 border-2 border-white/80 shadow-xl z-10">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleEmailSubmit}>
           <div className="relative mb-4">
             <input
               type="email"
@@ -93,7 +101,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onVis
             disabled={isLoading}
             className="w-full bg-[#48C9B0] text-white font-bold py-3 rounded-lg text-lg shadow-lg shadow-teal-500/30 hover:bg-[#40b19b] transition disabled:bg-gray-400"
           >
-            {isLoading ? 'Entrando...' : 'LOGIN'}
+            {isLoading ? 'Aguarde...' : 'LOGIN'}
           </button>
         </form>
          <p className="text-xs text-center mt-4 text-gray-600">
@@ -104,11 +112,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onVis
             <span className="flex-shrink mx-4 text-gray-500 text-xs">OU</span>
             <div className="flex-grow border-t border-gray-400"></div>
         </div>
-        <button onClick={onGoogleLogin} className="w-full flex items-center justify-center bg-white text-gray-700 font-semibold py-2.5 px-4 rounded-lg border border-gray-300 shadow-sm hover:bg-gray-50 transition">
+        <button onClick={() => handleAuth(onGoogleLogin)} disabled={isLoading} className="w-full flex items-center justify-center bg-white text-gray-700 font-semibold py-2.5 px-4 rounded-lg border border-gray-300 shadow-sm hover:bg-gray-50 transition disabled:opacity-50">
             <GoogleIcon />
             Entrar com Google
         </button>
-         <button onClick={onVisitorLogin} className="w-full text-center text-sm text-gray-600 hover:text-[#8e44ad] font-semibold mt-3 transition">
+         <button onClick={() => handleAuth(onVisitorLogin)} disabled={isLoading} className="w-full text-center text-sm text-gray-600 hover:text-[#8e44ad] font-semibold mt-3 transition disabled:opacity-50">
             Entrar como visitante
         </button>
       </div>

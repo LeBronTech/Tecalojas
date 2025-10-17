@@ -7,6 +7,7 @@ import StockManagementScreen from './views/StockManagementScreen';
 import AddEditProductModal from './components/AddEditProductModal';
 import SignUpModal from './components/SignUpModal';
 import Header from './components/Header';
+import BottomNav from './components/BottomNav';
 import * as api from './firebase';
 
 // --- Constants for localStorage keys ---
@@ -69,21 +70,50 @@ const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ onClose }) => {
     );
 };
 
+const HomeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+    </svg>
+);
+
+const InventoryIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+    </svg>
+);
+
+
 // --- Side Menu Component ---
 interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
   onLogout: () => void;
   onPixClick: () => void;
+  activeView: View;
+  onNavigate: (view: View) => void;
 }
 
-const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixClick }) => {
+const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixClick, activeView, onNavigate }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   const menuBgColor = theme === 'dark' ? 'bg-[#1A1129]' : 'bg-white';
   const textColor = theme === 'dark' ? 'text-gray-200' : 'text-gray-800';
   const itemBgHover = theme === 'dark' ? 'hover:bg-purple-900/50' : 'hover:bg-gray-100';
   const borderColor = theme === 'dark' ? 'border-r-purple-500/20' : 'border-r-gray-200';
+
+  const NavItem: React.FC<{ label: string; view: View; icon: React.ReactNode }> = ({ label, view, icon }) => {
+    const isActive = activeView === view;
+    const activeClasses = theme === 'dark' ? 'bg-purple-900/50 text-fuchsia-300' : 'bg-gray-100 text-purple-600';
+    return (
+      <button 
+        onClick={() => { onNavigate(view); onClose(); }}
+        className={`w-full flex items-center p-3 rounded-lg text-left transition-colors ${itemBgHover} ${isActive ? activeClasses : ''}`}
+      >
+        <span className="mr-3">{icon}</span>
+        <span className="font-semibold">{label}</span>
+      </button>
+    );
+  };
 
   return (
     <>
@@ -97,6 +127,11 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixCli
         <div className={`p-6 ${textColor}`}>
           <h2 className="text-2xl font-bold text-fuchsia-500 mb-8">Menu</h2>
           <nav className="flex flex-col space-y-2">
+            <NavItem label="Vitrine" view={View.SHOWCASE} icon={<HomeIcon />} />
+            <NavItem label="Estoque" view={View.STOCK} icon={<InventoryIcon />} />
+            
+            <div className={`border-b pt-2 my-2 ${theme === 'dark' ? 'border-purple-500/20' : 'border-gray-200'}`}></div>
+
             <button 
               onClick={toggleTheme}
               className={`w-full flex items-center p-3 rounded-lg text-left transition-colors ${itemBgHover}`}
@@ -163,21 +198,35 @@ export default function App() {
   
   // Effect for listening to real-time product updates
   useEffect(() => {
+    // If there is no user, we show local data.
     if (!currentUser) {
-      setProducts([]); // Clear products on logout
+      setProducts(INITIAL_PRODUCTS);
       setProductsLoading(false);
       return;
     }
 
-    setProductsLoading(true);
-    
-    // Seed database on first load if empty
-    api.seedDatabaseIfEmpty(INITIAL_PRODUCTS);
-
-    const unsubscribe = api.onProductsUpdate((updatedProducts) => {
-      setProducts(updatedProducts);
+    // If the user is a visitor (anonymous), also show local data.
+    const isVisitor = currentUser.email === null;
+    if (isVisitor) {
+      setProducts(INITIAL_PRODUCTS);
       setProductsLoading(false);
-    });
+      return;
+    }
+
+    // For registered users, try to fetch from Firestore.
+    setProductsLoading(true);
+    const unsubscribe = api.onProductsUpdate(
+      (updatedProducts) => {
+        setProducts(updatedProducts);
+        setProductsLoading(false);
+      },
+      (error) => {
+        // If there's a permission error, fall back to local data.
+        console.warn("Firestore permission error. Falling back to local data.", error);
+        setProducts(INITIAL_PRODUCTS);
+        setProductsLoading(false);
+      }
+    );
     return () => unsubscribe();
   }, [currentUser]);
 
@@ -210,11 +259,8 @@ export default function App() {
       setView(View.SHOWCASE);
   };
   
-  const handleVisitorLogin = () => {
-      const user = { email: 'visitor@guest.com', uid: 'visitor' };
-      // Note: This is a temporary guest access, not a real user.
-      // Firestore rules should be configured to handle this case if needed.
-      setCurrentUser(user);
+  const handleVisitorLogin = async () => {
+      await api.signInAsVisitor();
       setView(View.SHOWCASE);
   };
 
@@ -233,29 +279,36 @@ export default function App() {
         const { id, ...productData } = productToSave;
         await api.addProduct(productData as Omit<Product, 'id'>);
       }
+      setEditingProduct(null); // Close modal on success
     } catch (error) {
       console.error("Failed to save product:", error);
-      // Here you could show an error message to the user
+      // Re-throw error to be caught by the modal for displaying a message
+      throw error;
     }
-    setEditingProduct(null);
   }, []);
 
   const handleDeleteProduct = useCallback(async (productId: string) => {
     if (window.confirm("Tem certeza que deseja excluir este produto? A ação não pode ser desfeita.")) {
       try {
         await api.deleteProduct(productId);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to delete product:", error);
-        // Show error message
+        if (error.code === 'permission-denied') {
+            window.alert('Permissão negada. Você não tem autorização para excluir produtos.');
+        } else {
+            window.alert('Falha ao excluir o produto. Tente novamente.');
+        }
       }
     }
   }, []);
 
   const uniqueCategories = [...new Set(products.map(p => p.category))];
+  
+  // Determine if the user has management permissions based on their role.
+  const canManageStock = currentUser?.role === 'admin';
 
   const renderView = () => {
     const mainScreenProps = {
-      onNavigate: handleNavigate,
       onMenuClick: () => setIsMenuOpen(true),
     };
     
@@ -273,6 +326,7 @@ export default function App() {
             onEditProduct={setEditingProduct}
             onDeleteProduct={handleDeleteProduct}
             onAddProduct={() => setEditingProduct('new')}
+            canManageStock={canManageStock}
             {...mainScreenProps}
           />
         );
@@ -317,8 +371,8 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      <div className={`min-h-screen ${bgClass} flex items-center justify-center p-4 font-sans`}>
-        <div className={`w-full max-w-sm h-[95vh] max-h-[844px] ${mainContainerBgClass} rounded-[40px] shadow-2xl overflow-hidden flex flex-col relative`}>
+      <div className={`min-h-screen ${bgClass} font-sans`}>
+        <div className={`w-full max-w-6xl mx-auto h-screen ${mainContainerBgClass} md:rounded-[40px] md:shadow-2xl flex flex-col relative md:my-4 md:h-[calc(100vh-2rem)] max-h-[1200px]`}>
           <Header onMenuClick={() => setIsMenuOpen(true)} />
           {renderView()}
           
@@ -327,7 +381,12 @@ export default function App() {
             onClose={() => setIsMenuOpen(false)}
             onLogout={handleLogout}
             onPixClick={() => setIsPixModalOpen(true)}
+            activeView={view}
+            onNavigate={handleNavigate}
           />
+          <div className="md:hidden">
+            <BottomNav activeView={view} onNavigate={handleNavigate} />
+          </div>
         </div>
 
         {editingProduct && (
@@ -341,7 +400,6 @@ export default function App() {
 
         {isPixModalOpen && <PixPaymentModal onClose={() => setIsPixModalOpen(false)} />}
       </div>
-    {/* FIX: Corrected typo in closing tag from Theme-context.Provider to ThemeContext.Provider */}
     </ThemeContext.Provider>
   );
 }

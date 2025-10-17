@@ -7,7 +7,8 @@ import {
   GoogleAuthProvider, 
   signOut as firebaseSignOut,
   onAuthStateChanged as firebaseOnAuthStateChanged,
-  User as FirebaseUser
+  User as FirebaseUser,
+  signInAnonymously
 } from "firebase/auth";
 import { 
   getFirestore, 
@@ -17,8 +18,10 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
-  writeBatch
+  writeBatch,
+  FirestoreError
 } from "firebase/firestore";
 
 import { User, Product } from './types';
@@ -34,22 +37,42 @@ const provider = new GoogleAuthProvider();
 
 // --- AUTHENTICATION ---
 
+// Function to get user profile from Firestore
+const getUserProfile = async (uid: string): Promise<Pick<User, 'role'>> => {
+    const userDocRef = doc(db, 'users', uid);
+    const userDocSnap = await getDoc(userDocRef);
+    if (userDocSnap.exists()) {
+        return userDocSnap.data() as Pick<User, 'role'>;
+    }
+    return { role: 'user' }; // Default role if no document is found
+};
+
 export const signUp = async (email: string, password: string): Promise<User> => {
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   const { uid } = userCredential.user;
-  return { uid, email };
+  // Note: In a real app, you might want to create a user profile document here.
+  return { uid, email, role: 'user' };
 };
 
 export const signIn = async (email: string, password: string): Promise<User> => {
   const userCredential = await signInWithEmailAndPassword(auth, email, password);
   const { uid } = userCredential.user;
-  return { uid, email };
+  const profile = await getUserProfile(uid);
+  return { uid, email, role: profile.role };
 };
 
 export const signInWithGoogle = async (): Promise<User> => {
   const result = await signInWithPopup(auth, provider);
   const user = result.user;
-  return { uid: user.uid, email: user.email! };
+  // Note: In a real app, you might check if the user profile exists and create it if not.
+  const profile = await getUserProfile(user.uid);
+  return { uid: user.uid, email: user.email!, role: profile.role };
+};
+
+export const signInAsVisitor = async (): Promise<User> => {
+  const userCredential = await signInAnonymously(auth);
+  const { uid, email } = userCredential.user;
+  return { uid, email }; // Visitors don't have roles
 };
 
 export const signOut = (): Promise<void> => {
@@ -57,9 +80,14 @@ export const signOut = (): Promise<void> => {
 };
 
 export const onAuthStateChanged = (callback: (user: User | null) => void) => {
-  return firebaseOnAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+  return firebaseOnAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
     if (firebaseUser) {
-      callback({ uid: firebaseUser.uid, email: firebaseUser.email! });
+      if (firebaseUser.isAnonymous) {
+         callback({ uid: firebaseUser.uid, email: null });
+      } else {
+        const profile = await getUserProfile(firebaseUser.uid);
+        callback({ uid: firebaseUser.uid, email: firebaseUser.email, role: profile.role });
+      }
     } else {
       callback(null);
     }
@@ -69,14 +97,24 @@ export const onAuthStateChanged = (callback: (user: User | null) => void) => {
 
 // --- FIRESTORE (PRODUCTS) ---
 
-export const onProductsUpdate = (callback: (products: Product[]) => void) => {
-  return onSnapshot(productsCollection, (snapshot) => {
-    const products = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    } as Product));
-    callback(products);
-  });
+export const onProductsUpdate = (
+  onSuccess: (products: Product[]) => void,
+  onError: (error: FirestoreError) => void
+) => {
+  return onSnapshot(
+    productsCollection,
+    (snapshot) => {
+      const products = snapshot.docs.map(
+        (doc) =>
+          ({
+            id: doc.id,
+            ...doc.data(),
+          } as Product)
+      );
+      onSuccess(products);
+    },
+    onError
+  );
 };
 
 export const addProduct = (productData: Omit<Product, 'id'>): Promise<any> => {
@@ -91,22 +129,4 @@ export const updateProduct = (productId: string, productData: Omit<Product, 'id'
 export const deleteProduct = (productId: string): Promise<void> => {
     const productDoc = doc(db, "products", productId);
     return deleteDoc(productDoc);
-};
-
-// --- DATABASE SEEDING ---
-
-export const seedDatabaseIfEmpty = async (initialProducts: Product[]) => {
-  const snapshot = await getDocs(productsCollection);
-  if (snapshot.empty) {
-    console.log("Database is empty, seeding with initial products...");
-    const batch = writeBatch(db);
-    initialProducts.forEach((product) => {
-        // Firestore generates the ID, so we don't need to provide one.
-        const { id, ...productData } = product;
-        const docRef = doc(productsCollection); // Create a new doc with a generated ID
-        batch.set(docRef, productData);
-    });
-    await batch.commit();
-    console.log("Database seeded successfully!");
-  }
 };

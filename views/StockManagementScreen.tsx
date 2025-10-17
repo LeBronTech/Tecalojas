@@ -1,6 +1,5 @@
 import React, { useContext } from 'react';
 import { Product, StoreName, View } from '../types';
-import BottomNav from '../components/BottomNav';
 import { ThemeContext } from '../App';
 
 interface StockItemProps {
@@ -8,9 +7,10 @@ interface StockItemProps {
     index: number;
     onEdit: (product: Product) => void;
     onDelete: (productId: string) => void;
+    canManageStock: boolean;
 }
 
-const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete }) => {
+const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete, canManageStock }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
@@ -31,6 +31,7 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete 
     const deleteBtnClasses = isDark
         ? "text-gray-300 hover:text-red-500 hover:bg-red-500/10"
         : "text-gray-500 hover:text-red-600 hover:bg-red-500/10";
+    const disabledBtnClasses = isDark ? "text-gray-500 opacity-50 cursor-not-allowed" : "text-gray-400 opacity-50 cursor-not-allowed";
 
     return (
         <div 
@@ -61,8 +62,9 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete 
                 </div>
                 <div className="flex items-center space-x-1">
                     <button 
-                        onClick={() => onEdit(product)} 
-                        className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${actionBtnClasses}`}
+                        onClick={() => onEdit(product)}
+                        disabled={!canManageStock}
+                        className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? actionBtnClasses : disabledBtnClasses}`}
                         aria-label={`Editar ${product.name}`}
                     >
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -70,8 +72,9 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete 
                         </svg>
                     </button>
                     <button 
-                        onClick={() => onDelete(product.id)} 
-                        className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${deleteBtnClasses}`}
+                        onClick={() => onDelete(product.id)}
+                        disabled={!canManageStock}
+                        className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? deleteBtnClasses : disabledBtnClasses}`}
                         aria-label={`Excluir ${product.name}`}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -87,14 +90,14 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete 
 
 interface StockManagementScreenProps {
   products: Product[];
-  onNavigate: (view: View) => void;
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
   onAddProduct: () => void;
   onMenuClick: () => void;
+  canManageStock: boolean;
 }
 
-const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products, onNavigate, onEditProduct, onDeleteProduct, onAddProduct, onMenuClick }) => {
+const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products, onEditProduct, onDeleteProduct, onAddProduct, canManageStock }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
 
@@ -122,27 +125,32 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
         </div>
       </div>
       
-      <main className="flex-grow overflow-y-auto px-4 space-y-3 pb-32 z-10 no-scrollbar">
+      <main className="flex-grow overflow-y-auto px-4 space-y-3 pb-24 md:pb-6 z-10 no-scrollbar">
         {products.map((product, index) => (
-          <StockItem key={product.id} product={product} index={index} onEdit={onEditProduct} onDelete={onDeleteProduct} />
+          <StockItem key={product.id} product={product} index={index} onEdit={onEditProduct} onDelete={onDeleteProduct} canManageStock={canManageStock} />
         ))}
       </main>
 
        <div 
-         className="absolute bottom-24 left-0 right-0 p-6 z-20" 
+         className="absolute bottom-24 md:bottom-6 left-0 right-0 p-6 z-20" 
          style={{
-           background: `linear-gradient(to top, ${isDark ? '#1A1129' : 'rgb(255 255 255)'}, transparent)`
+           background: `linear-gradient(to top, ${isDark ? '#1A1129f0' : '#fffffff0'}, transparent)`
          }}
        >
-        <button onClick={onAddProduct} className="w-full bg-fuchsia-600 text-white font-bold py-4 rounded-2xl text-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2">
-           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          ADICIONAR NOVO ITEM
-        </button>
+        {canManageStock ? (
+            <button onClick={onAddProduct} className="w-full bg-fuchsia-600 text-white font-bold py-4 rounded-2xl text-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                ADICIONAR NOVO ITEM
+            </button>
+        ) : (
+            <div className={`text-center p-4 rounded-2xl ${isDark ? 'bg-black/20 text-gray-400' : 'bg-yellow-100 text-yellow-800'}`}>
+                <p className="font-semibold">Modo somente leitura</p>
+                <p className="text-sm">Você não tem permissão para gerenciar o estoque.</p>
+            </div>
+        )}
       </div>
-      
-      <BottomNav activeView={View.STOCK} onNavigate={onNavigate} />
     </div>
   );
 };
