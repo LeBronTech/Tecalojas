@@ -1,8 +1,9 @@
 // FIX: Switched to Firebase v8 compatibility API to resolve module export errors.
 // This involves changing imports and updating Firestore/Auth method calls to the namespaced syntax (e.g., `auth.signInWith...` instead of `signInWith... (auth, ...)`).
-import firebase from "firebase/app";
-import "firebase/auth";
-import "firebase/firestore";
+// FIX: Updated Firebase imports to use the v9 compatibility layer ('firebase/compat/*'). The previous imports were for v8 and caused type errors with a v9+ installation. This aligns the imports with the existing v8-style code.
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
+import "firebase/compat/firestore";
 
 import { User, Product } from './types';
 import { firebaseConfig, googleCordovaWebClientId } from './firebaseConfig';
