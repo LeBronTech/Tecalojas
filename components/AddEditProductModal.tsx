@@ -255,7 +255,7 @@ const FormInput = ({ label, ...props }: { label: string } & React.InputHTMLAttri
     );
 };
 
-const resizeImage = (base64Str: string, maxWidth = 800, maxHeight = 800): Promise<string> => {
+const resizeImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promise<string> => {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.src = base64Str;
@@ -283,7 +283,7 @@ const resizeImage = (base64Str: string, maxWidth = 800, maxHeight = 800): Promis
             }
             ctx.drawImage(img, 0, 0, width, height);
             
-            resolve(canvas.toDataURL('image/jpeg', 0.9));
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
         };
         img.onerror = (error) => {
             reject(error);
