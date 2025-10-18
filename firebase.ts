@@ -1,6 +1,39 @@
-// FIX: Switched to Firebase v8 compatibility API to resolve module export errors.
-// This involves changing imports and updating Firestore/Auth method calls to the namespaced syntax (e.g., `auth.signInWith...` instead of `signInWith... (auth, ...)`).
-// FIX: Updated Firebase imports to use the v9 compatibility layer ('firebase/compat/*'). The previous imports were for v8 and caused type errors with a v9+ installation. This aligns the imports with the existing v8-style code.
+// =================================================================================
+// 🔥🔥🔥 PASSO FINAL E OBRIGATÓRIO: Aplicar Regras de Segurança (Método Visual) 🔥🔥🔥
+// =================================================================================
+// Olá! Para que o sistema de administrador funcione e seus dados fiquem seguros,
+// você PRECISA aplicar as regras de segurança que criei para você.
+//
+// É muito simples e não precisa de nenhuma linha de comando (bash). Siga estes passos:
+//
+// 1. ABRA O ARQUIVO `firestoreT2.rules` que criei para você.
+//
+// 2. COPIE todo o conteúdo dele.
+//
+// 3. ACESSE O SITE do Firebase Console: https://console.firebase.google.com/
+//    e entre no seu projeto.
+//
+// 4. No menu à esquerda, clique em "Construir" (Build) e depois em "Firestore Database".
+//
+// 5. No topo da página do Firestore, clique na aba "REGRAS" (Rules).
+//
+// 6. Você verá um editor de texto. APAGUE todo o conteúdo que estiver lá.
+//
+// 7. COLE o conteúdo que você copiou do arquivo `firestoreT2.rules`.
+//
+// 8. Clique no botão azul "PUBLICAR" (Publish) no topo.
+//
+// Assim que fizer isso, o modo "somente leitura" para o admin irá desaparecer!
+// =================================================================================
+//
+// 🔥 PARA DEFINIR UM USUÁRIO COMO ADMIN:
+// 1. Crie um usuário normal através do aplicativo.
+// 2. No Firebase Console, vá para o "Firestore Database".
+// 3. Encontre a coleção chamada 'users'.
+// 4. Encontre o documento do usuário que você quer promover (o ID do documento é o mesmo ID do usuário).
+// 5. Adicione um novo campo chamado 'role' e defina o valor dele como a palavra "admin" (em minúsculas).
+// =================================================================================
+
 import firebase from "firebase/compat/app";
 import "firebase/compat/auth";
 import "firebase/compat/firestore";
@@ -27,46 +60,6 @@ const productsCollection = db.collection("products");
 const provider = new firebase.auth.GoogleAuthProvider();
 
 // --- AUTHENTICATION ---
-
-/**
- * Recupera o perfil de um usuário da coleção 'users' no Firestore.
- * A permissão do usuário é determinada pelo campo 'role' em seu documento.
- * 
- * =================================================================================
- * 🔥🔥🔥 PASSO FINAL E OBRIGATÓRIO: Aplicar Regras de Segurança (Método Visual) 🔥🔥🔥
- * =================================================================================
- * Olá! Para que o sistema de administrador funcione e seus dados fiquem seguros,
- * você PRECISA aplicar as regras de segurança que criei para você.
- *
- * É muito simples e não precisa de linha de comando (bash). Siga estes passos:
- *
- * 1. PROCURE NA LISTA DE ARQUIVOS: Eu criei um novo arquivo para você chamado `firestore.rules`.
- *
- * 2. ABRA este arquivo `firestore.rules` e COPIE todo o conteúdo dele.
- *
- * 3. ACESSE O SITE do Firebase Console: https://console.firebase.google.com/
- *    e entre no seu projeto.
- *
- * 4. No menu à esquerda, clique em "Construir" (Build) e depois em "Firestore Database".
- *
- * 5. No topo da página do Firestore, clique na aba "REGRAS" (Rules).
- *
- * 6. Você verá um editor de texto. APAGUE todo o conteúdo que estiver lá.
- *
- * 7. COLE o conteúdo que você copiou do arquivo `firestore.rules`.
- *
- * 8. Clique no botão azul "PUBLICAR" (Publish) no topo.
- *
- * Assim que fizer isso, o modo "somente leitura" para o admin irá desaparecer!
- * =================================================================================
- *
- * 🔥 PARA DEFINIR UM USUÁRIO COMO ADMIN:
- * 1. Crie um usuário normal através do aplicativo.
- * 2. No Firebase Console, vá para o "Firestore Database".
- * 3. Encontre a coleção chamada 'users'.
- * 4. Encontre o documento do usuário que você quer promover (o ID do documento é o mesmo ID do usuário).
- * 5. Adicione um novo campo chamado 'role' e defina o valor dele como a palavra "admin" (em minúsculas).
- */
 const getUserProfile = async (uid: string): Promise<Pick<User, 'role'>> => {
     const userDocRef = db.collection('users').doc(uid);
     const userDocSnap = await userDocRef.get();
