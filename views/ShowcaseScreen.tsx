@@ -82,9 +82,11 @@ interface ShowcaseScreenProps {
   onMenuClick: () => void;
   onSaveProduct: (product: Product) => void;
   hasFetchError: boolean;
+  apiKey: string | null;
+  onRequestApiKey: () => void;
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onSaveProduct, hasFetchError }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onSaveProduct, hasFetchError, apiKey, onRequestApiKey }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const { theme } = useContext(ThemeContext);
@@ -175,6 +177,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onSaveProduct
           <ProductDetailModal
               product={selectedProduct}
               onClose={() => setSelectedProduct(null)}
+              apiKey={apiKey}
+              onRequestApiKey={onRequestApiKey}
           />
       )}
     </>

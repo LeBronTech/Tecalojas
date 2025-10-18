@@ -204,6 +204,8 @@ interface AddEditProductModalProps {
   onClose: () => void;
   onSave: (product: Product) => Promise<void>;
   categories: string[];
+  apiKey: string | null;
+  onRequestApiKey: () => void;
 }
 
 const defaultFabricInfo = BRAND_FABRIC_MAP[Brand.MARCA_PROPRIA];
@@ -285,7 +287,7 @@ const resizeImage = (base64Str: string, maxWidth = 800, maxHeight = 800): Promis
 };
 
 
-const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onClose, onSave, categories }) => {
+const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onClose, onSave, categories, apiKey, onRequestApiKey }) => {
   const [formData, setFormData] = useState<Product>(initialFormState);
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -299,6 +301,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
   
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
+  const noApiKeyTitle = "Adicionar chave de API da Gemini para usar IA";
 
   useEffect(() => {
     if (product) {
@@ -426,6 +429,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
   };
 
   const handleGenerateVariationImage = async (index: number) => {
+    if (!apiKey) {
+        onRequestApiKey();
+        return;
+    }
     const variation = formData.variations[index];
     if (!formData.baseImageUrl) {
         setVariationsAiError("Primeiro, adicione uma imagem base para o produto.");
@@ -446,7 +453,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
             reader.readAsDataURL(blob);
         });
 
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = new GoogleGenAI({ apiKey });
         const imagePart = { inlineData: { data: base64Data, mimeType: blob.type } };
         const textPart = { text: getAiPromptForSize(variation.size) };
 
@@ -475,6 +482,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
   };
 
   const generateShowcaseImage = async () => {
+    if (!apiKey) {
+        onRequestApiKey();
+        return;
+    }
     if (!formData.baseImageUrl) {
         setShowcaseAiError("Adicione uma imagem base antes de gerar uma vitrine.");
         return;
@@ -493,7 +504,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
             reader.readAsDataURL(blob);
         });
 
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = new GoogleGenAI({ apiKey });
         const imagePart = { inlineData: { data: base64Data, mimeType: blob.type } };
         const textPart = { text: 'Crie uma imagem de vitrine de alta qualidade para esta almofada, colocando-a sobre um fundo branco liso. A imagem deve ter qualidade de estúdio, com foco total na textura e design do produto, sem distrações.' };
 
@@ -598,7 +609,12 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
                             <button type="button" onClick={() => setIsImagePickerOpen(true)} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
                                 Alterar Imagem
                             </button>
-                            <button type="button" onClick={generateShowcaseImage} disabled={isGeneratingShowcase || !formData.baseImageUrl} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
+                            <button 
+                                type="button" 
+                                onClick={apiKey ? generateShowcaseImage : onRequestApiKey}
+                                disabled={isGeneratingShowcase || !formData.baseImageUrl} 
+                                title={!apiKey ? noApiKeyTitle : "Gerar imagem de vitrine com IA"}
+                                className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
                                 {isGeneratingShowcase ? <Spinner /> : 'Gerar Vitrine com IA'}
                             </button>
                             {showcaseAiError && <p className="text-xs text-red-500 mt-1">{showcaseAiError}</p>}
@@ -676,7 +692,12 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
                                         <div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>
                                             {v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}
                                         </div>
-                                        <button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>
+                                        <button 
+                                            type="button" 
+                                            disabled={aiGenerating[v.size] || !formData.baseImageUrl} 
+                                            onClick={() => handleGenerateVariationImage(i)}
+                                            title={!apiKey ? noApiKeyTitle : `Gerar imagem para variação ${v.size}`}
+                                            className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>
                                             {aiGenerating[v.size] ? <Spinner /> : 'Gerar Imagem IA'}
                                         </button>
                                     </div>

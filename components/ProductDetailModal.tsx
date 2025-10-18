@@ -7,6 +7,8 @@ import { WATER_RESISTANCE_INFO, BRAND_LOGOS } from '../constants';
 interface ProductDetailModalProps {
     product: Product;
     onClose: () => void;
+    apiKey: string | null;
+    onRequestApiKey: () => void;
 }
 
 const Spinner = () => (
@@ -17,13 +19,14 @@ const Spinner = () => (
 );
 
 
-const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClose }) => {
+const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClose, apiKey, onRequestApiKey }) => {
     const { theme } = useContext(ThemeContext);
     const [variationIndex, setVariationIndex] = useState(0);
     const [displayImageUrl, setDisplayImageUrl] = useState(product.baseImageUrl);
     const [isGenerating, setIsGenerating] = useState(false);
     const [generationError, setGenerationError] = useState<string | null>(null);
     const [rotation, setRotation] = useState(0);
+    const noApiKeyTitle = "Adicionar chave de API da Gemini para usar IA";
 
     useEffect(() => {
         // Reset main image and rotation when product changes
@@ -59,6 +62,10 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
     };
 
     const handleGenerateBackground = async (background: 'Quarto' | 'Sala' | 'Varanda') => {
+        if (!apiKey) {
+            onRequestApiKey();
+            return;
+        }
         if (!product.baseImageUrl) {
             setGenerationError("Produto sem imagem base para gerar ambiente.");
             return;
@@ -77,7 +84,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
                 reader.readAsDataURL(blob);
             });
 
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new GoogleGenAI({ apiKey });
             const imagePart = { inlineData: { data: base64Data, mimeType: blob.type } };
             const textPart = { text: getPromptForBackground(background) };
 
@@ -152,7 +159,12 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                             {(['Quarto', 'Sala', 'Varanda'] as const).map(bg => (
-                                <button key={bg} onClick={() => handleGenerateBackground(bg)} disabled={isGenerating} className={`text-xs font-semibold py-2 rounded-lg transition ${bgGenBtnClasses} disabled:opacity-50`}>
+                                <button 
+                                    key={bg} 
+                                    onClick={apiKey ? () => handleGenerateBackground(bg) : onRequestApiKey}
+                                    disabled={isGenerating}
+                                    title={!apiKey ? noApiKeyTitle : `Gerar fundo de ${bg}`}
+                                    className={`text-xs font-semibold py-2 rounded-lg transition ${bgGenBtnClasses} disabled:opacity-50`}>
                                     {bg}
                                 </button>
                             ))}

@@ -8,10 +8,12 @@ import AddEditProductModal from './components/AddEditProductModal';
 import SignUpModal from './components/SignUpModal';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
+import ApiKeyModal from './components/ApiKeyModal';
 import * as api from './firebase';
 
 // --- Constants for localStorage keys ---
 const THEME_STORAGE_KEY = 'pillow-oasis-theme';
+const API_KEY_STORAGE_KEY = 'pillow-oasis-api-key';
 
 // --- Theme Context ---
 interface ThemeContextType {
@@ -186,6 +188,8 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPixModalOpen, setIsPixModalOpen] = useState(false);
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
+  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY));
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
 
   // Effect for handling auth state changes
   useEffect(() => {
@@ -252,6 +256,12 @@ export default function App() {
     setCurrentUser(null);
     setIsMenuOpen(false);
     setView(View.SHOWCASE); // Go back to showcase on logout
+  };
+
+  const handleSaveApiKey = (key: string) => {
+    setApiKey(key);
+    localStorage.setItem(API_KEY_STORAGE_KEY, key);
+    setIsApiKeyModalOpen(false);
   };
 
   const handleSaveProduct = useCallback(async (productToSave: Product) => {
@@ -352,7 +362,7 @@ export default function App() {
 
     switch (view) {
       case View.SHOWCASE:
-        return <ShowcaseScreen products={products} onSaveProduct={handleSaveProduct} hasFetchError={hasFetchError} {...mainScreenProps} />;
+        return <ShowcaseScreen products={products} onSaveProduct={handleSaveProduct} hasFetchError={hasFetchError} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} {...mainScreenProps} />;
       case View.STOCK:
         return (
           <StockManagementScreen
@@ -367,7 +377,7 @@ export default function App() {
           />
         );
       default:
-        return <ShowcaseScreen products={products} onSaveProduct={handleSaveProduct} hasFetchError={hasFetchError} {...mainScreenProps} />;
+        return <ShowcaseScreen products={products} onSaveProduct={handleSaveProduct} hasFetchError={hasFetchError} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} {...mainScreenProps} />;
     }
   };
 
@@ -401,6 +411,8 @@ export default function App() {
             onClose={() => setEditingProduct(null)}
             onSave={handleSaveProduct}
             categories={uniqueCategories}
+            apiKey={apiKey}
+            onRequestApiKey={() => setIsApiKeyModalOpen(true)}
           />
         )}
          {isSignUpModalOpen && (
@@ -410,6 +422,12 @@ export default function App() {
             />
         )}
         {isPixModalOpen && <PixPaymentModal onClose={() => setIsPixModalOpen(false)} />}
+        {isApiKeyModalOpen && (
+            <ApiKeyModal
+                onClose={() => setIsApiKeyModalOpen(false)}
+                onSave={handleSaveApiKey}
+            />
+        )}
       </div>
     </ThemeContext.Provider>
   );
