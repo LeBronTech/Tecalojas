@@ -13,3 +13,7 @@ export const firebaseConfig = {
   messagingSenderId: "590424780483",
   appId: "1:590424780483:web:3f746f5a885381a8d27c76"
 };
+
+// IMPORTANT: Replace this with the "Web application" client ID from your Google Cloud project credentials.
+// This is required for the Cordova Google Sign-In plugin.
+export const googleCordovaWebClientId = "590424780483-0dgu3vj9bldb68l2g9m9erhq96ds7aac.apps.googleusercontent.com";

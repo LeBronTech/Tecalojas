@@ -7,7 +7,8 @@ import {
   GoogleAuthProvider, 
   signOut as firebaseSignOut,
   onAuthStateChanged as firebaseOnAuthStateChanged,
-  User as FirebaseUser
+  User as FirebaseUser,
+  signInWithCredential
 } from "firebase/auth";
 import { 
   getFirestore, 
@@ -24,7 +25,10 @@ import {
 } from "firebase/firestore";
 
 import { User, Product } from './types';
-import { firebaseConfig } from './firebaseConfig';
+import { firebaseConfig, googleCordovaWebClientId } from './firebaseConfig';
+
+// TypeScript declarations for Cordova plugins
+declare const window: any;
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -60,15 +64,67 @@ export const signIn = async (email: string, password: string): Promise<User> => 
   return { uid, email, role: profile.role };
 };
 
-export const signInWithGoogle = async (): Promise<User> => {
-  const result = await signInWithPopup(auth, provider);
-  const user = result.user;
-  // Note: In a real app, you might check if the user profile exists and create it if not.
-  const profile = await getUserProfile(user.uid);
-  return { uid: user.uid, email: user.email!, role: profile.role };
+/**
+ * Handles Google Sign-In for Cordova environments using the native plugin.
+ * It gets an idToken from the native flow and uses it to sign in with Firebase.
+ */
+const signInWithGoogleCordova = (): Promise<User> => {
+  return new Promise((resolve, reject) => {
+    if (!window.plugins || !window.plugins.googleplus) {
+      reject(new Error("Plugin do Google não encontrado. Verifique a instalação."));
+      return;
+    }
+
+    window.plugins.googleplus.login(
+      {
+        'webClientId': googleCordovaWebClientId,
+        'offline': false,
+      },
+      async (userData: any) => {
+        try {
+          // The most important piece of data is the idToken.
+          // We use it to create a Firebase credential.
+          const credential = GoogleAuthProvider.credential(userData.idToken);
+          const userCredential = await signInWithCredential(auth, credential);
+          
+          const user = userCredential.user;
+          const profile = await getUserProfile(user.uid);
+          resolve({ uid: user.uid, email: user.email!, role: profile.role });
+        } catch (error) {
+          console.error("Firebase signInWithCredential error:", error);
+          reject(error);
+        }
+      },
+      (msg: string) => {
+        console.error("Cordova Google login error:", msg);
+        reject(new Error(`Erro no login: ${msg}`));
+      }
+    );
+  });
 };
 
+/**
+ * Dispatches to the correct Google Sign-In method based on the environment (web vs. Cordova).
+ */
+export const signInWithGoogle = async (): Promise<User> => {
+  // Check if running in a Cordova environment
+  if (window.cordova) {
+    return signInWithGoogleCordova();
+  } else {
+    // Standard web-based sign-in flow
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+    const profile = await getUserProfile(user.uid);
+    return { uid: user.uid, email: user.email!, role: profile.role };
+  }
+};
+
+
 export const signOut = (): Promise<void> => {
+  // Also disconnect from Google if logged in via the plugin
+  if (window.cordova && window.plugins && window.plugins.googleplus) {
+      window.plugins.googleplus.disconnect();
+  }
   return firebaseSignOut(auth);
 };
 

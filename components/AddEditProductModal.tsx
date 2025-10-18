@@ -4,6 +4,11 @@ import { IMAGE_BANK_URLS, VARIATION_DEFAULTS, BRAND_FABRIC_MAP, STORE_NAMES, BRA
 import { ThemeContext } from '../App';
 import { GoogleGenAI, Modality } from '@google/genai';
 
+// --- Cordova/TypeScript Declarations ---
+declare var navigator: any;
+declare var Camera: any;
+
+
 // --- CameraView Component ---
 interface CameraViewProps {
   onCapture: (imageDataUrl: string) => void;
@@ -612,6 +617,36 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
         setIsSaving(false);
     }
   };
+  
+  const handleTakePhoto = () => {
+    setIsImagePickerOpen(false);
+
+    if (navigator.camera && typeof Camera !== 'undefined') {
+        const onSucessoFoto = (imageData: string) => {
+            console.log("Foto tirada com sucesso!");
+            const imageUrl = "data:image/jpeg;base64," + imageData;
+            handleImageSelect(imageUrl);
+        };
+
+        const onFalhaFoto = (mensagem: string) => {
+            alert('Falha ao tirar foto: ' + mensagem);
+        };
+        
+        navigator.camera.getPicture(onSucessoFoto, onFalhaFoto, {
+            quality: 50,
+            destinationType: Camera.DestinationType.DATA_URL,
+            sourceType: Camera.PictureSourceType.CAMERA,
+            allowEdit: false,
+            encodingType: Camera.EncodingType.JPEG,
+            targetWidth: 800,
+            targetHeight: 800,
+            saveToPhotoAlbum: false
+        });
+    } else {
+        console.log("Plugin da câmera Cordova não encontrado. Usando a câmera do navegador.");
+        setIsCameraOpen(true);
+    }
+  };
 
   const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
   const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
@@ -839,7 +874,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
                 </div>
             </form>
         </div>
-        {isImagePickerOpen && <ImagePickerModal onSelect={handleImageSelect} onClose={() => setIsImagePickerOpen(false)} onTakePhoto={() => { setIsImagePickerOpen(false); setIsCameraOpen(true); }} />}
+        {isImagePickerOpen && <ImagePickerModal onSelect={handleImageSelect} onClose={() => setIsImagePickerOpen(false)} onTakePhoto={handleTakePhoto} />}
         {isCameraOpen && <CameraView onCapture={handleImageSelect} onClose={() => setIsCameraOpen(false)} />}
     </>
   );

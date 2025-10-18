@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, createContext, useContext, useEffect } from 'react';
 import { Product, View, Theme, User, StoreName, Variation, CushionSize } from './types';
 import { INITIAL_PRODUCTS } from './constants';
@@ -10,6 +11,21 @@ import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import ApiKeyModal from './components/ApiKeyModal';
 import * as api from './firebase';
+
+// --- Cordova/TypeScript Declarations ---
+declare global {
+  interface Window {
+    cordova?: any;
+    plugins?: any;
+  }
+  // FIX: Extend the Navigator interface to include the 'connection' property for the Cordova network plugin, instead of redeclaring the 'navigator' variable which caused a type conflict.
+  interface Navigator {
+    connection: any;
+  }
+  var Connection: any;
+  var Camera: any;
+}
+
 
 // --- Constants for localStorage keys ---
 const THEME_STORAGE_KEY = 'pillow-oasis-theme';
@@ -198,6 +214,38 @@ export default function App() {
       setAuthLoading(false);
     });
     return () => unsubscribe();
+  }, []);
+
+  // Effect for Cordova device ready and network status
+  useEffect(() => {
+    const onOffline = () => {
+      alert("Conexão perdida!");
+    };
+
+    const onOnline = () => {
+      console.log("Conexão recuperada!");
+    };
+
+    const onDeviceReady = () => {
+      console.log('Dispositivo pronto e plugins carregados.');
+      if (navigator.connection && typeof Connection !== 'undefined') {
+        if (navigator.connection.type === Connection.NONE) {
+          alert("Você está offline. Este app precisa de internet para funcionar.");
+        } else {
+          console.log("Conexão OK: " + navigator.connection.type);
+        }
+      }
+      document.addEventListener("offline", onOffline, false);
+      document.addEventListener("online", onOnline, false);
+    };
+
+    document.addEventListener('deviceready', onDeviceReady, false);
+
+    return () => {
+      document.removeEventListener('deviceready', onDeviceReady, false);
+      document.removeEventListener("offline", onOffline, false);
+      document.removeEventListener("online", onOnline, false);
+    };
   }, []);
   
   // Effect for listening to real-time product updates.

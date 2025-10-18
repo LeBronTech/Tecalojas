@@ -3,7 +3,8 @@ import { STORE_IMAGE_URLS } from '../constants';
 
 interface LoginScreenProps {
   onLogin: (email: string, pass: string) => Promise<void>;
-  onGoogleLogin: () => void;
+  // FIX: onGoogleLogin should return a Promise to match the async function passed to it.
+  onGoogleLogin: () => Promise<void>;
   onOpenSignUp: () => void;
 }
 
