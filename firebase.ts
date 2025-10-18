@@ -1,5 +1,3 @@
-
-
 // FIX: Switched to Firebase v8 compatibility API to resolve module export errors.
 // This involves changing imports and updating Firestore/Auth method calls to the namespaced syntax (e.g., `auth.signInWith...` instead of `signInWith... (auth, ...)`).
 import firebase from "firebase/app";
@@ -34,16 +32,16 @@ const provider = new firebase.auth.GoogleAuthProvider();
  * A permissão do usuário é determinada pelo campo 'role' em seu documento.
  * 
  * =================================================================================
- * 🔥🔥🔥 AÇÃO CRÍTICA E OBRIGATÓRIA: APLICAR REGRAS DE SEGURANÇA (MÉTODO VISUAL) 🔥🔥🔥
+ * 🔥🔥🔥 PASSO FINAL E OBRIGATÓRIO: Aplicar Regras de Segurança (Método Visual) 🔥🔥🔥
  * =================================================================================
- * Para que o sistema de administrador funcione e seus dados fiquem seguros,
- * você PRECISA aplicar as regras de segurança no seu banco de dados.
+ * Olá! Para que o sistema de administrador funcione e seus dados fiquem seguros,
+ * você PRECISA aplicar as regras de segurança que criei para você.
  *
- * SIGA ESTES PASSOS (NÃO PRECISA DE TERMINAL/BASH):
+ * É muito simples e não precisa de linha de comando (bash). Siga estes passos:
  *
- * 1. ABRA O ARQUIVO `firestore.rules` que está na pasta do seu projeto.
+ * 1. PROCURE NA LISTA DE ARQUIVOS: Eu criei um novo arquivo para você chamado `firestore.rules`.
  *
- * 2. SELECIONE E COPIE TODO o conteúdo do arquivo `firestore.rules`.
+ * 2. ABRA este arquivo `firestore.rules` e COPIE todo o conteúdo dele.
  *
  * 3. ACESSE O SITE do Firebase Console: https://console.firebase.google.com/
  *    e entre no seu projeto.
@@ -54,11 +52,11 @@ const provider = new firebase.auth.GoogleAuthProvider();
  *
  * 6. Você verá um editor de texto. APAGUE todo o conteúdo que estiver lá.
  *
- * 7. COLE o conteúdo que você copiou do arquivo `firestore.rules` nesse editor.
+ * 7. COLE o conteúdo que você copiou do arquivo `firestore.rules`.
  *
  * 8. Clique no botão azul "PUBLICAR" (Publish) no topo.
  *
- * PRONTO! Suas regras de segurança estarão ativas.
+ * Assim que fizer isso, o modo "somente leitura" para o admin irá desaparecer!
  * =================================================================================
  *
  * 🔥 PARA DEFINIR UM USUÁRIO COMO ADMIN:
