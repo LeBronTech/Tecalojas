@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { STORE_IMAGE_URLS } from '../constants';
 
@@ -62,7 +63,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onOpe
 
 
   return (
-    <div className="h-full w-full relative overflow-hidden flex flex-col items-center justify-center p-6 bg-[#E0D6F5] font-sans">
+    <div className="h-full w-full relative overflow-y-auto no-scrollbar flex flex-col items-center justify-center px-6 pt-6 pb-24 bg-[#E0D6F5] font-sans">
       <div className="absolute inset-0 bg-gradient-to-br from-[#E0D6F5] to-[#D8C6F8] opacity-80"></div>
       <div className="absolute top-0 left-0 w-full h-full opacity-30" style={{
           backgroundImage: 'radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.3) 0%, transparent 30%), radial-gradient(circle at 80% 90%, rgba(175, 225, 255, 0.3) 0%, transparent 30%), radial-gradient(circle at 50% 50%, rgba(255, 197, 222, 0.2) 0%, transparent 25%)'

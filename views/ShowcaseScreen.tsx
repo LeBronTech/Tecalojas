@@ -1,3 +1,4 @@
+
 import React, { useState, useContext } from 'react';
 import { Product, View } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
@@ -122,7 +123,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
             )}
         </div>
 
-          <main className="flex-grow overflow-y-auto px-6 pt-20 pb-24 md:pb-6 flex flex-col no-scrollbar z-10">
+          <main className="flex-grow overflow-y-auto px-6 pt-20 pb-36 md:pb-6 flex flex-col no-scrollbar z-10">
               {hasFetchError && (
                 <div className={`p-4 mb-4 rounded-xl text-center font-semibold border ${isDark ? 'bg-red-900/50 text-red-300 border-red-500/30' : 'bg-red-100 text-red-800 border-red-200'}`}>
                     <p className="font-bold text-lg">Modo de Demonstração Ativo</p>

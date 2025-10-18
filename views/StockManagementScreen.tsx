@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useEffect } from 'react';
 import { Product, StoreName, View, Brand, CushionSize } from '../types';
 import { ThemeContext } from '../App';
@@ -267,7 +268,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
             </div>
         </div>
       
-      <main className="flex-grow overflow-y-auto px-4 space-y-3 pb-24 md:pb-6 z-10 no-scrollbar">
+      <main className="flex-grow overflow-y-auto px-4 space-y-3 pb-36 md:pb-6 z-10 no-scrollbar">
         {canManageStock && showWarning && (
             <div className={`relative border-l-4 p-4 rounded-lg shadow-md ${isDark ? 'bg-red-900/50 border-red-500 text-red-200' : 'bg-red-100 border-red-500 text-red-800'}`}>
                 <button 

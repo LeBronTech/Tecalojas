@@ -249,7 +249,6 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixCli
   );
 };
 
-
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -353,31 +352,27 @@ export default function App() {
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
   }, []);
   
-  const handleNavigate = (newView: View) => {
-    setView(newView);
-  };
-  
   const handleLogin = async (email: string, pass: string) => {
       await api.signIn(email, pass);
-      setView(View.STOCK); // Redirect to stock after login
+      setView(View.STOCK);
   };
   
   const handleSignUp = async (email: string, pass: string) => {
       await api.signUp(email, pass);
       setIsSignUpModalOpen(false);
-      setView(View.STOCK); // Redirect to stock after sign up
+      setView(View.STOCK);
   };
 
   const handleGoogleLogin = async () => {
       await api.signInWithGoogle();
-      setView(View.STOCK); // Redirect to stock after login
+      setView(View.STOCK);
   };
 
   const handleLogout = () => {
     api.signOut();
     setCurrentUser(null);
     setIsMenuOpen(false);
-    setView(View.SHOWCASE); // Go back to showcase on logout
+    setView(View.SHOWCASE);
   };
 
   const handleSaveApiKey = (key: string) => {
@@ -521,11 +516,11 @@ export default function App() {
                     onPixClick={() => setIsPixModalOpen(true)}
                     onApiKeyClick={() => setIsApiKeyModalOpen(true)}
                     activeView={view}
-                    onNavigate={handleNavigate}
+                    onNavigate={setView}
                     isLoggedIn={!!isLoggedIn}
                 />
                 <div className="md:hidden">
-                    <BottomNav activeView={view} onNavigate={handleNavigate} />
+                    <BottomNav activeView={view} onNavigate={setView} />
                 </div>
             </div>
 
