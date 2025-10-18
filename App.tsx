@@ -154,12 +154,13 @@ interface SideMenuProps {
   onClose: () => void;
   onLogout: () => void;
   onPixClick: () => void;
+  onApiKeyClick: () => void;
   activeView: View;
   onNavigate: (view: View) => void;
   isLoggedIn: boolean;
 }
 
-const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixClick, activeView, onNavigate, isLoggedIn }) => {
+const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixClick, onApiKeyClick, activeView, onNavigate, isLoggedIn }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   const menuBgColor = theme === 'dark' ? 'bg-[#1A1129]' : 'bg-white';
@@ -221,6 +222,15 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixCli
               </span>
               <span className="font-semibold">Pagamento PIX</span>
             </button>
+            <button 
+              onClick={() => { onApiKeyClick(); onClose(); }}
+              className={`w-full flex items-center p-3 rounded-lg text-left transition-colors ${itemBgHover}`}
+            >
+              <span className="mr-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7h2a2 2 0 012 2v6a2 2 0 01-2 2h-2m-6 0H7a2 2 0 01-2-2V9a2 2 0 012-2h2m4 0h-4m4 0v10m-4-10V5a2 2 0 012-2h2a2 2 0 012 2v2" /></svg>
+              </span>
+              <span className="font-semibold">Chave API (IA)</span>
+            </button>
             {isLoggedIn && (
                  <button 
                   onClick={onLogout}
@@ -255,7 +265,7 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPixModalOpen, setIsPixModalOpen] = useState(false);
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY));
+  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyAX1XcWqVjlnYVpHaaQNh91LgT2ge19Z4Q");
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   
   // Check if the Firebase config is valid. If not, the app will be blocked.
@@ -509,6 +519,7 @@ export default function App() {
                     onClose={() => setIsMenuOpen(false)}
                     onLogout={handleLogout}
                     onPixClick={() => setIsPixModalOpen(true)}
+                    onApiKeyClick={() => setIsApiKeyModalOpen(true)}
                     activeView={view}
                     onNavigate={handleNavigate}
                     isLoggedIn={!!isLoggedIn}
