@@ -11,6 +11,7 @@ import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import ApiKeyModal from './components/ApiKeyModal';
 import * as api from './firebase';
+import { firebaseConfig } from './firebaseConfig';
 
 // --- Cordova/TypeScript Declarations ---
 declare global {
@@ -40,6 +41,56 @@ export const ThemeContext = createContext<ThemeContextType>({
   theme: 'light',
   toggleTheme: () => {},
 });
+
+// --- Configuration Required Modal ---
+const ConfigurationRequiredModal = () => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+
+    const modalBg = isDark ? 'bg-[#1A1129]' : 'bg-gray-50';
+    const cardBg = isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200';
+    const textColor = isDark ? 'text-gray-300' : 'text-gray-700';
+    const titleColor = isDark ? 'text-white' : 'text-gray-900';
+    const codeBg = isDark ? 'bg-black/40' : 'bg-gray-100';
+    const codeText = isDark ? 'text-fuchsia-300' : 'text-red-600';
+
+    return (
+        <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 ${modalBg}`}>
+            <div className={`rounded-3xl shadow-2xl w-full max-w-2xl p-8 border ${cardBg}`}>
+                <div className="text-center">
+                    <svg className={`mx-auto h-12 w-12 ${isDark ? 'text-amber-400' : 'text-amber-500'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <h1 className={`text-2xl font-bold mt-4 ${titleColor}`}>Ação Necessária: Configure o Firebase</h1>
+                    <p className={`mt-2 ${textColor}`}>O aplicativo não pode se conectar ao banco de dados porque a chave de configuração (API Key) do Firebase não foi definida. Siga os passos abaixo para corrigir.</p>
+                </div>
+                
+                <div className={`mt-6 text-left space-y-3 p-4 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
+                    <p className={`font-semibold ${textColor}`}><strong>Passo 1:</strong> Abra o arquivo <code className={`text-sm font-mono p-1 rounded ${codeBg}`}>firebaseConfig.ts</code> no editor de código.</p>
+                    <p className={`font-semibold ${textColor}`}><strong>Passo 2:</strong> Acesse seu projeto no <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-fuchsia-500 underline">Firebase Console</a>.</p>
+                    <p className={`font-semibold ${textColor}`}><strong>Passo 3:</strong> Vá para "Configurações do Projeto" (⚙️) &gt; "Geral" e encontre o objeto de configuração do seu aplicativo web.</p>
+                    <p className={`font-semibold ${textColor}`}><strong>Passo 4:</strong> Copie o objeto de configuração e cole-o em <code className={`text-sm font-mono p-1 rounded ${codeBg}`}>firebaseConfig.ts</code>, substituindo o conteúdo de exemplo.</p>
+                </div>
+
+                <div className={`mt-4 p-4 rounded-lg text-sm font-mono overflow-x-auto ${codeBg} ${textColor}`}>
+                  <span className="text-gray-500">// O conteúdo do seu arquivo deve ficar assim:</span><br/>
+                  export const firebaseConfig = &#123;<br/>
+                  &nbsp;&nbsp;apiKey: <span className={codeText}>"AIzaSy...SUA_CHAVE_REAL..."</span>,<br/>
+                  &nbsp;&nbsp;authDomain: <span className={codeText}>"seu-projeto.firebaseapp.com"</span>,<br/>
+                  &nbsp;&nbsp;...<br/>
+                  &#125;;
+                </div>
+                
+                <div className="mt-8 text-center">
+                    <button onClick={() => window.location.reload()} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">
+                        Recarregar Aplicativo (Após Salvar)
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // --- PIX Payment Modal ---
 interface PixPaymentModalProps {
@@ -206,15 +257,22 @@ export default function App() {
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY));
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  
+  // Check if the Firebase config is valid. If not, the app will be blocked.
+  const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_REAL_API_KEY_HERE";
 
   // Effect for handling auth state changes
   useEffect(() => {
+    if (!isConfigValid) {
+        setAuthLoading(false);
+        return;
+    };
     const unsubscribe = api.onAuthStateChanged((user) => {
       setCurrentUser(user);
       setAuthLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [isConfigValid]);
 
   // Effect for Cordova device ready and network status
   useEffect(() => {
@@ -251,6 +309,12 @@ export default function App() {
   // Effect for listening to real-time product updates.
   // It re-runs when the user logs in or out to ensure the correct data is fetched.
   useEffect(() => {
+    if (!isConfigValid) {
+        setProducts(INITIAL_PRODUCTS);
+        setProductsLoading(false);
+        setHasFetchError(true);
+        return;
+    };
     setProductsLoading(true);
     setHasFetchError(false);
     const unsubscribe = api.onProductsUpdate(
@@ -268,7 +332,7 @@ export default function App() {
     );
     // Cleanup the listener when the component unmounts or the user changes
     return () => unsubscribe();
-  }, [currentUser]); // Dependency on currentUser ensures re-fetch on login/logout
+  }, [currentUser, isConfigValid]); // Dependency on currentUser ensures re-fetch on login/logout
 
 
   useEffect(() => {
@@ -434,49 +498,50 @@ export default function App() {
   
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      <div className={`min-h-screen ${bgClass} font-sans`}>
-        <div className={`w-full max-w-6xl mx-auto h-screen ${mainContainerBgClass} md:rounded-[40px] md:shadow-2xl flex flex-col relative md:my-4 md:h-[calc(100vh-2rem)] max-h-[1200px]`}>
-          <Header onMenuClick={() => setIsMenuOpen(true)} />
-          {renderView()}
-          
-          <SideMenu 
-            isOpen={isMenuOpen}
-            onClose={() => setIsMenuOpen(false)}
-            onLogout={handleLogout}
-            onPixClick={() => setIsPixModalOpen(true)}
-            activeView={view}
-            onNavigate={handleNavigate}
-            isLoggedIn={!!isLoggedIn}
-          />
-          <div className="md:hidden">
-            <BottomNav activeView={view} onNavigate={handleNavigate} />
-          </div>
-        </div>
+        {!isConfigValid && <ConfigurationRequiredModal />}
+        <div className={`min-h-screen ${bgClass} font-sans ${!isConfigValid ? 'blur-sm pointer-events-none' : ''}`}>
+            <div className={`w-full max-w-6xl mx-auto h-screen ${mainContainerBgClass} md:rounded-[40px] md:shadow-2xl flex flex-col relative md:my-4 md:h-[calc(100vh-2rem)] max-h-[1200px]`}>
+                <Header onMenuClick={() => setIsMenuOpen(true)} />
+                {renderView()}
 
-        {editingProduct && (
-          <AddEditProductModal
-            product={editingProduct === 'new' ? null : editingProduct}
-            onClose={() => setEditingProduct(null)}
-            onSave={handleSaveProduct}
-            categories={uniqueCategories}
-            apiKey={apiKey}
-            onRequestApiKey={() => setIsApiKeyModalOpen(true)}
-          />
-        )}
-         {isSignUpModalOpen && (
-            <SignUpModal 
-                onClose={() => setIsSignUpModalOpen(false)}
-                onSignUp={handleSignUp}
-            />
-        )}
-        {isPixModalOpen && <PixPaymentModal onClose={() => setIsPixModalOpen(false)} />}
-        {isApiKeyModalOpen && (
-            <ApiKeyModal
-                onClose={() => setIsApiKeyModalOpen(false)}
-                onSave={handleSaveApiKey}
-            />
-        )}
-      </div>
+                <SideMenu
+                    isOpen={isMenuOpen}
+                    onClose={() => setIsMenuOpen(false)}
+                    onLogout={handleLogout}
+                    onPixClick={() => setIsPixModalOpen(true)}
+                    activeView={view}
+                    onNavigate={handleNavigate}
+                    isLoggedIn={!!isLoggedIn}
+                />
+                <div className="md:hidden">
+                    <BottomNav activeView={view} onNavigate={handleNavigate} />
+                </div>
+            </div>
+
+            {editingProduct && (
+                <AddEditProductModal
+                    product={editingProduct === 'new' ? null : editingProduct}
+                    onClose={() => setEditingProduct(null)}
+                    onSave={handleSaveProduct}
+                    categories={uniqueCategories}
+                    apiKey={apiKey}
+                    onRequestApiKey={() => setIsApiKeyModalOpen(true)}
+                />
+            )}
+            {isSignUpModalOpen && (
+                <SignUpModal
+                    onClose={() => setIsSignUpModalOpen(false)}
+                    onSignUp={handleSignUp}
+                />
+            )}
+            {isPixModalOpen && <PixPaymentModal onClose={() => setIsPixModalOpen(false)} />}
+            {isApiKeyModalOpen && (
+                <ApiKeyModal
+                    onClose={() => setIsApiKeyModalOpen(false)}
+                    onSave={handleSaveApiKey}
+                />
+            )}
+        </div>
     </ThemeContext.Provider>
   );
 }

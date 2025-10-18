@@ -1,19 +1,40 @@
-// IMPORTANT: Replace this with your own Firebase project configuration.
-// 1. Go to your Firebase project console: https://console.firebase.google.com/
-// 2. Go to Project Settings (gear icon).
-// 3. In the "General" tab, scroll down to "Your apps".
-// 4. Click the web icon (</>) to add a web app or see your existing config.
-// 5. Copy the firebaseConfig object and paste it here.
+// =================================================================
+// 🔥🔥🔥 AÇÃO NECESSÁRIA: CONFIGURAÇÃO DO FIREBASE 🔥🔥🔥
+// =================================================================
+// Para que o aplicativo funcione, você PRECISA substituir o conteúdo
+// deste arquivo pela configuração do seu próprio projeto Firebase.
+//
+// 1. Acesse o Firebase Console: https://console.firebase.google.com/
+// 2. Selecione ou crie o seu projeto.
+// 3. Vá para "Configurações do Projeto" (ícone de engrenagem ⚙️).
+// 4. Na aba "Geral", role para baixo até "Seus apps".
+// 5. Se não tiver um app da web, crie um.
+// 6. Encontre o objeto de configuração do Firebase SDK e copie-o.
+//    Ele será parecido com o exemplo abaixo.
+// 7. COLE o objeto que você copiou, substituindo TODO o conteúdo
+//    da constante `firebaseConfig` abaixo.
+// ================================================================= 
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyBL59Kd-HjgGZv89QAYZ9am934wBCtFy2Y",
-  authDomain: "meu-estoque-b1fbe.firebaseapp.com",
-  projectId: "meu-estoque-b1fbe",
-  storageBucket: "meu-estoque-b1fbe.appspot.com",
-  messagingSenderId: "590424780483",
-  appId: "1:590424780483:web:3f746f5a885381a8d27c76"
+apiKey: "AIzaSyAvP0EoCS5ePCQIb2qNxD2Ek-UOTGcXaO0",
+  authDomain: "teca-54f58.firebaseapp.com",
+  projectId: "teca-54f58",
+  storageBucket: "teca-54f58.firebasestorage.app",
+  messagingSenderId: "463169842239",
+  appId: "1:463169842239:web:87ed9019f9758502635c8a",
+  measurementId: "G-JRDNC9K02"
 };
 
-// IMPORTANT: Replace this with the "Web application" client ID from your Google Cloud project credentials.
-// This is required for the Cordova Google Sign-In plugin.
-export const googleCordovaWebClientId = "590424780483-0dgu3vj9bldb68l2g9m9erhq96ds7aac.apps.googleusercontent.com";
+// =================================================================
+// 🔥 AÇÃO NECESSÁRIA: LOGIN COM GOOGLE NO ANDROID (CORDOVA) 🔥
+// =================================================================
+// Se você for compilar para Android e usar o Login com Google,
+// você precisa fornecer o "Web client ID" aqui.
+//
+// 1. Acesse o Google Cloud Console: https://console.cloud.google.com/
+// 2. Vá para APIs e Serviços > Credenciais.
+// 3. Encontre a credencial "Web client (auto created by Google Service)".
+// 4. Copie o "Client ID" e cole na string abaixo.
+// =================================================================
+
+export const googleCordovaWebClientId = 'PASTE_YOUR_GOOGLE_WEB_CLIENT_ID_HERE';
