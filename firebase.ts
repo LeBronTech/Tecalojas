@@ -7,8 +7,7 @@ import {
   GoogleAuthProvider, 
   signOut as firebaseSignOut,
   onAuthStateChanged as firebaseOnAuthStateChanged,
-  User as FirebaseUser,
-  signInAnonymously
+  User as FirebaseUser
 } from "firebase/auth";
 import { 
   getFirestore, 
@@ -69,12 +68,6 @@ export const signInWithGoogle = async (): Promise<User> => {
   return { uid: user.uid, email: user.email!, role: profile.role };
 };
 
-export const signInAsVisitor = async (): Promise<User> => {
-  const userCredential = await signInAnonymously(auth);
-  const { uid, email } = userCredential.user;
-  return { uid, email }; // Visitors don't have roles
-};
-
 export const signOut = (): Promise<void> => {
   return firebaseSignOut(auth);
 };
@@ -82,12 +75,9 @@ export const signOut = (): Promise<void> => {
 export const onAuthStateChanged = (callback: (user: User | null) => void) => {
   return firebaseOnAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
     if (firebaseUser) {
-      if (firebaseUser.isAnonymous) {
-         callback({ uid: firebaseUser.uid, email: null });
-      } else {
-        const profile = await getUserProfile(firebaseUser.uid);
-        callback({ uid: firebaseUser.uid, email: firebaseUser.email, role: profile.role });
-      }
+      // Since anonymous sign-in is removed, we assume any user is a real user.
+      const profile = await getUserProfile(firebaseUser.uid);
+      callback({ uid: firebaseUser.uid, email: firebaseUser.email, role: profile.role });
     } else {
       callback(null);
     }

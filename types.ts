@@ -1,8 +1,6 @@
-// import { StoreName } from './constants';
-
-// FIX: Moved StoreName enum here to break a circular dependency.
+// FIX: Moved StoreName enum here from constants.ts to break a circular dependency.
 export enum StoreName {
-  TECA = 'Teca',
+  TECA = 'Têca',
   IONE = 'Ione',
 }
 

@@ -1,5 +1,5 @@
-import React, { useContext } from 'react';
-import { Product, StoreName, View, Brand } from '../types';
+import React, { useContext, useState, useEffect } from 'react';
+import { Product, StoreName, View, Brand, CushionSize } from '../types';
 import { ThemeContext } from '../App';
 import { BRAND_LOGOS } from '../constants';
 
@@ -22,16 +22,16 @@ const StockControl: React.FC<{
             <button
                 onClick={() => onUpdate(-1)}
                 disabled={disabled || stock <= 0}
-                className={`w-6 h-6 rounded-md font-bold text-lg flex items-center justify-center transition-colors ${disabled || stock <= 0 ? disabledButtonClasses : buttonClasses}`}
+                className={`w-8 h-8 rounded-lg font-bold text-2xl flex items-center justify-center transition-colors ${disabled || stock <= 0 ? disabledButtonClasses : buttonClasses}`}
                 aria-label={`Diminuir estoque de ${store}`}
             >
                 -
             </button>
-            <span className={`font-bold w-6 text-center ${stockTextClasses}`}>{stock}</span>
+            <span className={`font-bold w-8 text-center text-lg ${stockTextClasses}`}>{stock}</span>
             <button
                 onClick={() => onUpdate(1)}
                 disabled={disabled}
-                className={`w-6 h-6 rounded-md font-bold text-lg flex items-center justify-center transition-colors ${disabled ? disabledButtonClasses : buttonClasses}`}
+                className={`w-8 h-8 rounded-lg font-bold text-2xl flex items-center justify-center transition-colors ${disabled ? disabledButtonClasses : buttonClasses}`}
                 aria-label={`Aumentar estoque de ${store}`}
             >
                 +
@@ -46,16 +46,20 @@ interface StockItemProps {
     index: number;
     onEdit: (product: Product) => void;
     onDelete: (productId: string) => void;
-    onUpdateStock: (productId: string, store: StoreName, change: number) => void;
+    onUpdateStock: (productId: string, variationSize: CushionSize, store: StoreName, change: number) => void;
     canManageStock: boolean;
+    selectedVariation: CushionSize;
+    onSelectVariation: (productId: string, size: CushionSize) => void;
 }
 
-const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete, onUpdateStock, canManageStock }) => {
+const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete, onUpdateStock, canManageStock, selectedVariation, onSelectVariation }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
-    const tecaStock = product.variations.reduce((acc, v) => acc + v.stock[StoreName.TECA], 0);
-    const ioneStock = product.variations.reduce((acc, v) => acc + v.stock[StoreName.IONE], 0);
+    const currentVariation = product.variations.find(v => v.size === selectedVariation);
+
+    const tecaStock = currentVariation?.stock[StoreName.TECA] ?? 0;
+    const ioneStock = currentVariation?.stock[StoreName.IONE] ?? 0;
     const totalStock = tecaStock + ioneStock;
 
     const cardClasses = isDark
@@ -71,6 +75,8 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
         ? "text-gray-300 hover:text-red-500 hover:bg-red-500/10"
         : "text-gray-500 hover:text-red-600 hover:bg-red-500/10";
     const disabledBtnClasses = isDark ? "text-gray-500 opacity-50 cursor-not-allowed" : "text-gray-400 opacity-50 cursor-not-allowed";
+    const selectClasses = isDark ? "bg-gray-700/50 text-gray-200 border-white/10" : "bg-gray-100 text-gray-700 border-gray-200";
+
 
     return (
         <div 
@@ -91,19 +97,37 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
                         <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px" />
                         <span className={`text-xs font-semibold ${textMetaClasses}`}>{product.brand}</span>
                     </div>
-                     <div className={`flex flex-col sm:flex-row sm:items-center sm:space-x-4 mt-1.5 ${textMetaClasses}`}>
+
+                    {product.variations && product.variations.length > 1 && (
+                        <div className="mt-2">
+                             <select
+                                value={selectedVariation}
+                                onChange={(e) => onSelectVariation(product.id, e.target.value as CushionSize)}
+                                className={`text-xs p-1.5 rounded-md border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${selectClasses}`}
+                                disabled={!canManageStock}
+                            >
+                                {product.variations.map(v => (
+                                    <option key={v.size} value={v.size}>
+                                        Ver estoque: {v.size}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                     <div className={`flex flex-col sm:flex-row sm:items-center sm:space-x-4 mt-2 ${textMetaClasses}`}>
                         <StockControl 
                             store={StoreName.TECA} 
                             stock={tecaStock} 
-                            onUpdate={(change) => onUpdateStock(product.id, StoreName.TECA, change)} 
-                            disabled={!canManageStock}
+                            onUpdate={(change) => onUpdateStock(product.id, selectedVariation, StoreName.TECA, change)} 
+                            disabled={!canManageStock || !currentVariation}
                         />
                          <div className="mt-1 sm:mt-0">
                             <StockControl 
                                 store={StoreName.IONE} 
                                 stock={ioneStock} 
-                                onUpdate={(change) => onUpdateStock(product.id, StoreName.IONE, change)} 
-                                disabled={!canManageStock}
+                                onUpdate={(change) => onUpdateStock(product.id, selectedVariation, StoreName.IONE, change)} 
+                                disabled={!canManageStock || !currentVariation}
                             />
                         </div>
                     </div>
@@ -148,14 +172,40 @@ interface StockManagementScreenProps {
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
   onAddProduct: () => void;
-  onUpdateStock: (productId: string, store: StoreName, change: number) => void;
+  onUpdateStock: (productId: string, variationSize: CushionSize, store: StoreName, change: number) => void;
   onMenuClick: () => void;
   canManageStock: boolean;
+  hasFetchError: boolean;
 }
 
-const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products, onEditProduct, onDeleteProduct, onAddProduct, onUpdateStock, canManageStock }) => {
+const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products, onEditProduct, onDeleteProduct, onAddProduct, onUpdateStock, canManageStock, hasFetchError }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
+  const [selectedVariations, setSelectedVariations] = useState<Record<string, CushionSize>>({});
+  const [showWarning, setShowWarning] = useState(false);
+  
+  useEffect(() => {
+    if (hasFetchError) {
+      setShowWarning(true);
+    }
+  }, [hasFetchError]);
+
+
+    useEffect(() => {
+        const initialSelections: Record<string, CushionSize> = {};
+        products.forEach(p => {
+            if (p.variations && p.variations.length > 0) {
+                // Default to 40x40 if available, otherwise the first one
+                const defaultVar = p.variations.find(v => v.size === CushionSize.SQUARE_40) || p.variations[0];
+                initialSelections[p.id] = defaultVar.size;
+            }
+        });
+        setSelectedVariations(initialSelections);
+    }, [products]);
+
+    const handleSelectVariation = (productId: string, size: CushionSize) => {
+        setSelectedVariations(prev => ({ ...prev, [productId]: size }));
+    };
 
   return (
     <div className="h-full w-full flex flex-col relative overflow-hidden">
@@ -182,6 +232,30 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
       </div>
       
       <main className="flex-grow overflow-y-auto px-4 space-y-3 pb-24 md:pb-6 z-10 no-scrollbar">
+        {canManageStock && showWarning && (
+            <div className={`relative border-l-4 p-4 rounded-lg shadow-md ${isDark ? 'bg-red-900/50 border-red-500 text-red-200' : 'bg-red-100 border-red-500 text-red-800'}`}>
+                <button 
+                    onClick={() => setShowWarning(false)}
+                    className={`absolute top-2 right-2 p-1 rounded-full ${isDark ? 'text-red-300 hover:bg-red-800/60' : 'text-red-800 hover:bg-red-200'}`}
+                    aria-label="Fechar aviso"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+                <p className="font-bold">Ação Necessária: Configuração de Permissões</p>
+                <p className="text-sm mt-1">
+                    A vitrine para visitantes está mostrando dados de demonstração porque as regras de segurança do seu banco de dados estão bloqueando o acesso público.
+                </p>
+                <a 
+                    href="https://console.firebase.google.com/project/meu-estoque-b1fbe/firestore/rules" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className={`inline-block mt-2 text-sm font-bold underline ${isDark ? 'text-red-100 hover:text-red-300' : 'text-red-900 hover:text-red-700'}`}
+                >
+                    Clique aqui para corrigir as regras do Firebase e exibir a vitrine real.
+                </a>
+            </div>
+        )}
+
         {products.map((product, index) => (
           <StockItem 
             key={product.id} 
@@ -190,7 +264,9 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
             onEdit={onEditProduct} 
             onDelete={onDeleteProduct} 
             onUpdateStock={onUpdateStock}
-            canManageStock={canManageStock} 
+            canManageStock={canManageStock}
+            selectedVariation={selectedVariations[product.id]}
+            onSelectVariation={handleSelectVariation}
           />
         ))}
       </main>

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, createContext, useContext, useEffect } from 'react';
-import { Product, View, Theme, User, StoreName } from './types';
+import { Product, View, Theme, User, StoreName, Variation, CushionSize } from './types';
 import { INITIAL_PRODUCTS, PIX_QR_CODE_URLS } from './constants';
 import LoginScreen from './views/LoginScreen';
 import ShowcaseScreen from './views/ShowcaseScreen';
@@ -91,9 +91,10 @@ interface SideMenuProps {
   onPixClick: () => void;
   activeView: View;
   onNavigate: (view: View) => void;
+  isLoggedIn: boolean;
 }
 
-const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixClick, activeView, onNavigate }) => {
+const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixClick, activeView, onNavigate, isLoggedIn }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   const menuBgColor = theme === 'dark' ? 'bg-[#1A1129]' : 'bg-white';
@@ -155,15 +156,17 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixCli
               </span>
               <span className="font-semibold">Pagamento PIX</span>
             </button>
-            <button 
-              onClick={onLogout}
-              className={`w-full flex items-center p-3 rounded-lg text-left transition-colors ${itemBgHover}`}
-            >
-              <span className="mr-3">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-              </span>
-              <span className="font-semibold">Sair</span>
-            </button>
+            {isLoggedIn && (
+                 <button 
+                  onClick={onLogout}
+                  className={`w-full flex items-center p-3 rounded-lg text-left transition-colors ${itemBgHover}`}
+                >
+                  <span className="mr-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                  </span>
+                  <span className="font-semibold">Sair</span>
+                </button>
+            )}
           </nav>
         </div>
       </div>
@@ -178,6 +181,7 @@ export default function App() {
   const [view, setView] = useState<View>(View.SHOWCASE);
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [hasFetchError, setHasFetchError] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | 'new' | null>(null);
   const [theme, setTheme] = useState<Theme>(() => {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY) as Theme;
@@ -196,39 +200,27 @@ export default function App() {
     return () => unsubscribe();
   }, []);
   
-  // Effect for listening to real-time product updates
+  // Effect for listening to real-time product updates.
+  // It re-runs when the user logs in or out to ensure the correct data is fetched.
   useEffect(() => {
-    // If there is no user, we show local data.
-    if (!currentUser) {
-      setProducts(INITIAL_PRODUCTS);
-      setProductsLoading(false);
-      return;
-    }
-
-    // If the user is a visitor (anonymous), also show local data.
-    const isVisitor = currentUser.email === null;
-    if (isVisitor) {
-      setProducts(INITIAL_PRODUCTS);
-      setProductsLoading(false);
-      return;
-    }
-
-    // For registered users, try to fetch from Firestore.
     setProductsLoading(true);
+    setHasFetchError(false);
     const unsubscribe = api.onProductsUpdate(
       (updatedProducts) => {
         setProducts(updatedProducts);
         setProductsLoading(false);
+        setHasFetchError(false);
       },
       (error) => {
-        // If there's a permission error, fall back to local data.
-        console.warn("Firestore permission error. Falling back to local data.", error);
-        setProducts(INITIAL_PRODUCTS);
+        console.error("Firestore error. Could not fetch live product data. If you are a visitor, this may be due to database permissions.", error);
+        setProducts(INITIAL_PRODUCTS); // Fallback to demo data for visitors
+        setHasFetchError(true); // Flag that we are showing fallback data
         setProductsLoading(false);
       }
     );
+    // Cleanup the listener when the component unmounts or the user changes
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser]); // Dependency on currentUser ensures re-fetch on login/logout
 
 
   useEffect(() => {
@@ -245,29 +237,25 @@ export default function App() {
   
   const handleLogin = async (email: string, pass: string) => {
       await api.signIn(email, pass);
-      setView(View.SHOWCASE);
+      setView(View.STOCK); // Redirect to stock after login
   };
   
   const handleSignUp = async (email: string, pass: string) => {
       await api.signUp(email, pass);
       setIsSignUpModalOpen(false);
-      setView(View.SHOWCASE);
+      setView(View.STOCK); // Redirect to stock after sign up
   };
 
   const handleGoogleLogin = async () => {
       await api.signInWithGoogle();
-      setView(View.SHOWCASE);
-  };
-  
-  const handleVisitorLogin = async () => {
-      await api.signInAsVisitor();
-      setView(View.SHOWCASE);
+      setView(View.STOCK); // Redirect to stock after login
   };
 
   const handleLogout = () => {
     api.signOut();
     setCurrentUser(null);
     setIsMenuOpen(false);
+    setView(View.SHOWCASE); // Go back to showcase on logout
   };
 
   const handleSaveProduct = useCallback(async (productToSave: Product) => {
@@ -287,24 +275,29 @@ export default function App() {
     }
   }, []);
   
-  const handleUpdateStock = useCallback(async (productId: string, store: StoreName, change: number) => {
+  const handleUpdateStock = useCallback(async (productId: string, variationSize: CushionSize, store: StoreName, change: number) => {
     const productToUpdate = products.find(p => p.id === productId);
-    if (!productToUpdate || productToUpdate.variations.length === 0) {
-        console.error("Product not found or has no variations to update.");
+    if (!productToUpdate) {
+        console.error("Product not found to update stock.");
         return;
     }
 
     // Create a deep copy to avoid direct state mutation before API call
     const updatedProduct = JSON.parse(JSON.stringify(productToUpdate));
     
-    // Modify the stock of the first variation, as the quick-add UI doesn't specify which one
-    const firstVariation = updatedProduct.variations[0];
-    const currentStock = firstVariation.stock[store];
+    const variationToUpdate = updatedProduct.variations.find((v: Variation) => v.size === variationSize);
+
+    if (!variationToUpdate) {
+        console.error(`Variation size ${variationSize} not found for product ${productId}.`);
+        return;
+    }
+
+    const currentStock = variationToUpdate.stock[store];
     const newStock = Math.max(0, currentStock + change); // Ensure stock doesn't go below 0
 
     if (newStock === currentStock) return; // No change needed
 
-    firstVariation.stock[store] = newStock;
+    variationToUpdate.stock[store] = newStock;
     
     const { id, ...productData } = updatedProduct;
     try {
@@ -335,70 +328,56 @@ export default function App() {
   
   // Determine if the user has management permissions based on their role.
   const canManageStock = currentUser?.role === 'admin';
+  const isLoggedIn = !!currentUser;
 
   const renderView = () => {
     const mainScreenProps = {
       onMenuClick: () => setIsMenuOpen(true),
     };
     
-    if (productsLoading) {
-      return <div className="flex-grow flex items-center justify-center"><p className={theme === 'dark' ? 'text-white' : 'text-gray-800'}>Carregando estoque...</p></div>
+    if (productsLoading || authLoading) {
+      return <div className="flex-grow flex items-center justify-center"><p className={theme === 'dark' ? 'text-white' : 'text-gray-800'}>Carregando...</p></div>
+    }
+
+    const isStockViewAttempt = view === View.STOCK;
+    const needsLogin = isStockViewAttempt && !currentUser;
+
+    if (needsLogin) {
+      return (
+        <div className="flex-grow flex flex-col overflow-hidden">
+          <LoginScreen 
+            onLogin={handleLogin}
+            onGoogleLogin={handleGoogleLogin}
+            onOpenSignUp={() => setIsSignUpModalOpen(true)}
+          />
+        </div>
+      );
     }
 
     switch (view) {
       case View.SHOWCASE:
-        return <ShowcaseScreen products={products} onSaveProduct={handleSaveProduct} {...mainScreenProps} />;
+        return <ShowcaseScreen products={products} onSaveProduct={handleSaveProduct} hasFetchError={hasFetchError} {...mainScreenProps} />;
       case View.STOCK:
         return (
           <StockManagementScreen
             products={products}
             onEditProduct={setEditingProduct}
-            onDeleteProduct={handleDeleteProduct}
             onAddProduct={() => setEditingProduct('new')}
+            onDeleteProduct={handleDeleteProduct}
             onUpdateStock={handleUpdateStock}
-            canManageStock={canManageStock}
+            canManageStock={!!canManageStock}
+            hasFetchError={hasFetchError}
             {...mainScreenProps}
           />
         );
       default:
-        return <ShowcaseScreen products={products} onSaveProduct={handleSaveProduct} {...mainScreenProps} />;
+        return <ShowcaseScreen products={products} onSaveProduct={handleSaveProduct} hasFetchError={hasFetchError} {...mainScreenProps} />;
     }
   };
 
   const bgClass = theme === 'dark' ? 'bg-[#1A1129]' : 'bg-gray-50';
   const mainContainerBgClass = theme === 'dark' ? 'bg-gradient-to-br from-[#2D1F49] to-[#1A1129]' : 'bg-white';
   
-  if (authLoading) {
-    return (
-       <div className={`min-h-screen ${bgClass} flex items-center justify-center p-4 font-sans`}>
-          <p className={theme === 'dark' ? 'text-white' : 'text-gray-800'}>Carregando sessão...</p>
-       </div>
-    );
-  }
-  
-  if (!currentUser) {
-      return (
-          <ThemeContext.Provider value={{ theme, toggleTheme }}>
-               <div className={`min-h-screen ${bgClass} flex items-center justify-center p-4 font-sans`}>
-                  <div className={`w-full max-w-sm h-[95vh] max-h-[844px] ${mainContainerBgClass} rounded-[40px] shadow-2xl overflow-hidden flex flex-col relative`}>
-                    <LoginScreen 
-                        onLogin={handleLogin}
-                        onGoogleLogin={handleGoogleLogin}
-                        onVisitorLogin={handleVisitorLogin}
-                        onOpenSignUp={() => setIsSignUpModalOpen(true)}
-                    />
-                  </div>
-                  {isSignUpModalOpen && (
-                      <SignUpModal 
-                          onClose={() => setIsSignUpModalOpen(false)}
-                          onSignUp={handleSignUp}
-                      />
-                  )}
-              </div>
-          </ThemeContext.Provider>
-      );
-  }
-
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
       <div className={`min-h-screen ${bgClass} font-sans`}>
@@ -413,6 +392,7 @@ export default function App() {
             onPixClick={() => setIsPixModalOpen(true)}
             activeView={view}
             onNavigate={handleNavigate}
+            isLoggedIn={!!isLoggedIn}
           />
           <div className="md:hidden">
             <BottomNav activeView={view} onNavigate={handleNavigate} />
@@ -427,10 +407,14 @@ export default function App() {
             categories={uniqueCategories}
           />
         )}
-
+         {isSignUpModalOpen && (
+            <SignUpModal 
+                onClose={() => setIsSignUpModalOpen(false)}
+                onSignUp={handleSignUp}
+            />
+        )}
         {isPixModalOpen && <PixPaymentModal onClose={() => setIsPixModalOpen(false)} />}
       </div>
-    {/* FIX: Corrected typo in closing tag for ThemeContext.Provider */}
     </ThemeContext.Provider>
   );
 }

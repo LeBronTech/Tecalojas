@@ -17,17 +17,27 @@ const SignUpModal: React.FC<SignUpModalProps> = ({ onClose, onSignUp }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            setError('Por favor, insira um e-mail válido.');
+            return;
+        }
+        
         if (password !== confirmPassword) {
             setError('As senhas não coincidem.');
             return;
         }
+        
         setError(null);
         setIsLoading(true);
         try {
             await onSignUp(email, password);
             // O fechamento do modal e o redirecionamento são feitos no App.tsx
         } catch (err: any) {
-            if (err.code === 'auth/email-already-in-use') {
+            if (err.code === 'auth/invalid-email') {
+                setError('O formato do e-mail é inválido.');
+            } else if (err.code === 'auth/email-already-in-use') {
                 setError('Este e-mail já está em uso.');
             } else if (err.code === 'auth/operation-not-allowed' || err.code === 'auth/admin-restricted-operation') {
                 setError('Cadastro por e-mail desativado. Habilite-o no Console do Firebase.');

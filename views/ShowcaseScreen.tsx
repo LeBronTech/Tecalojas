@@ -2,12 +2,12 @@ import React, { useState, useContext } from 'react';
 import { Product, View } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { ThemeContext } from '../App';
-import { WATER_RESISTANCE_INFO } from '../constants';
+import { BRAND_LOGOS, WATER_RESISTANCE_INFO } from '../constants';
 
 const FireIcon = ({ className }: { className: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
         <path fillRule="evenodd" d="M11.828 6.065c.348-.348.348-.913 0-1.261a.89.89 0 0 0-1.261 0c-1.121 1.121-1.859 2.62-1.859 4.289 0 .548.152 1.07.42 1.536l-.805 1.209a.89.89 0 0 0 1.503 1.002l.805-1.209c.466.268.988.42 1.536.42 1.668 0 3.167-.738 4.288-1.86a.89.89 0 0 0 0-1.26c-.347-.348-.912-.348-1.26 0l-1.06 1.06c-.495-.713-.88-1.52-1.077-2.389.336-.264.63-.578.875-.923l1.06 1.061Z" clipRule="evenodd" />
-        <path d="M4.172 13.935c-.348.348-.348.913 0 1.261a.89.89 0 0 0 1.261 0c1.121-1.121 1.859-2.62 1.859-4.289 0-.548-.152-1.07-.42-1.536l.805-1.209a.89.89 0 0 0-1.503-1.002l-.805 1.209c-.466-.268-.988-.42-1.536-.42-1.668 0-3.167.738-4.288 1.86a.89.89 0 0 0 0 1.26c.347.348.912.348 1.26 0l1.06-1.06c.495.713.88 1.52 1.077 2.389-.336-.264-.63.578-.875-.923l-1.06 1.061Z" />
+        <path d="M4.172 13.935c-.348.348-.348.913 0 1.261a.89.89 0 0 0 1.261 0c1.121-1.121 1.859-2.62-1.859-4.289 0-.548-.152-1.07-.42-1.536l.805-1.209a.89.89 0 0 0-1.503-1.002l-.805 1.209c-.466-.268-.988-.42-1.536-.42-1.668 0-3.167.738-4.288 1.86a.89.89 0 0 0 0 1.26c.347.348.912.348 1.26 0l1.06-1.06c.495.713.88 1.52 1.077 2.389-.336-.264-.63.578-.875-.923l-1.06 1.061Z" />
     </svg>
 );
 
@@ -58,9 +58,15 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
              )}
         </div>
         <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{product.name}</h3>
-        <div className={`flex items-center space-x-1 text-xs mt-1 ${textMetaClasses}`}>
-            <FireIcon className="w-4 h-4 text-orange-400" />
-            <span>{product.unitsSold} vendidos</span>
+        <div className={`flex items-center justify-center flex-wrap gap-x-2 gap-y-1 text-xs mt-1 ${textMetaClasses}`}>
+            <div className="flex items-center space-x-1">
+                <FireIcon className="w-4 h-4 text-orange-400" />
+                <span>{product.unitsSold} vendidos</span>
+            </div>
+            <div className="flex items-center gap-1">
+                <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
+                <span className="font-semibold">{product.brand}</span>
+            </div>
         </div>
         <span className="text-md font-bold text-fuchsia-500 mt-2">{getPriceRange()}</span>
     </button>
@@ -72,9 +78,10 @@ interface ShowcaseScreenProps {
   products: Product[];
   onMenuClick: () => void;
   onSaveProduct: (product: Product) => void;
+  hasFetchError: boolean;
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onSaveProduct }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onSaveProduct, hasFetchError }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const { theme } = useContext(ThemeContext);
@@ -112,6 +119,12 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onSaveProduct
         </div>
 
           <main className="flex-grow overflow-y-auto px-6 pt-20 pb-24 md:pb-6 flex flex-col no-scrollbar z-10">
+              {hasFetchError && (
+                <div className={`p-4 mb-4 rounded-xl text-center font-semibold border ${isDark ? 'bg-red-900/50 text-red-300 border-red-500/30' : 'bg-red-100 text-red-800 border-red-200'}`}>
+                    <p className="font-bold text-lg">Modo de Demonstração Ativo</p>
+                    <p className="text-sm">Você está vendo uma vitrine de exemplo. O conteúdo real não pôde ser carregado.</p>
+                </div>
+              )}
               <div className="relative mb-6">
                   <input type="text" placeholder="Buscar por almofadas..." className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${searchInputClasses}`}/>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

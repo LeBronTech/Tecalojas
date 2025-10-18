@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { Product, StoreName, Variation, CushionSize, Brand, WaterResistanceLevel } from '../types';
-import { IMAGE_BANK_URLS, VARIATION_DEFAULTS, FABRIC_TYPES, FABRIC_DESCRIPTIONS, STORE_NAMES, BRANDS, WATER_RESISTANCE_INFO } from '../constants';
+import { IMAGE_BANK_URLS, VARIATION_DEFAULTS, BRAND_FABRIC_MAP, STORE_NAMES, BRANDS, WATER_RESISTANCE_INFO } from '../constants';
 import { ThemeContext } from '../App';
 import { GoogleGenAI, Modality } from '@google/genai';
 
@@ -206,14 +206,16 @@ interface AddEditProductModalProps {
   categories: string[];
 }
 
+const defaultFabricInfo = BRAND_FABRIC_MAP[Brand.MARCA_PROPRIA];
+const defaultFabricType = Object.keys(defaultFabricInfo)[0];
 const initialFormState: Product = {
   id: '',
   name: '',
   baseImageUrl: '',
   unitsSold: 0,
   category: '',
-  fabricType: FABRIC_TYPES[0],
-  description: FABRIC_DESCRIPTIONS[FABRIC_TYPES[0]],
+  fabricType: defaultFabricType,
+  description: defaultFabricInfo[defaultFabricType],
   brand: Brand.MARCA_PROPRIA,
   waterResistance: WaterResistanceLevel.NONE,
   variations: [],
@@ -308,19 +310,52 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    
-    if (type === 'checkbox' && e.target instanceof HTMLInputElement) {
-        setFormData(prev => ({ ...prev, [name]: e.target.checked }));
-        return;
-    }
-
     const parsedValue = type === 'number' ? parseInt(value, 10) || 0 : value;
 
     setFormData(prev => {
-        const newState = { ...prev, [name]: parsedValue };
-        if (name === 'fabricType') {
-            newState.description = FABRIC_DESCRIPTIONS[value] || '';
+        // Start with the basic state update
+        let newState = { ...prev, [name]: parsedValue };
+
+        // --- Handle dependent fields ---
+
+        let finalBrand = newState.brand;
+        let finalFabricType = newState.fabricType;
+
+        // 1. If BRAND changed, update fabric type and description
+        if (name === 'brand') {
+            const newBrand = parsedValue as Brand;
+            finalBrand = newBrand; // update for water resistance check
+            const fabricInfo = BRAND_FABRIC_MAP[newBrand];
+            const availableTypes = Object.keys(fabricInfo);
+            
+            // Reset fabric to the first of the new brand
+            const newFabricType = availableTypes[0];
+            finalFabricType = newFabricType; // update for water resistance check
+
+            newState.fabricType = newFabricType;
+            newState.description = fabricInfo[newFabricType] || '';
         }
+        
+        // 2. If FABRIC TYPE changed, just update description
+        else if (name === 'fabricType') {
+            const newFabricType = parsedValue as string;
+            finalFabricType = newFabricType; // update for water resistance check
+            const fabricInfo = BRAND_FABRIC_MAP[newState.brand];
+            newState.description = fabricInfo[newFabricType] || '';
+        }
+
+        // 3. If BRAND or FABRIC TYPE changed, update water resistance
+        if (name === 'brand' || name === 'fabricType') {
+            if (finalBrand === Brand.KARSTEN) {
+                newState.waterResistance = WaterResistanceLevel.FULL;
+            } else if (finalBrand === Brand.DOLHER && finalFabricType === 'Waterhavana') {
+                newState.waterResistance = WaterResistanceLevel.FULL;
+            } else {
+                // For any other combination, reset to None.
+                newState.waterResistance = WaterResistanceLevel.NONE;
+            }
+        }
+
         return newState;
     });
   };
@@ -507,6 +542,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
   const cardClasses = isDark ? "bg-black/20 border-white/10" : "bg-gray-50 border-gray-200";
   const cancelBtnClasses = isDark ? "text-gray-300 hover:bg-black/20" : "text-gray-600 hover:bg-gray-100";
   
+  const availableFabricTypes = Object.keys(BRAND_FABRIC_MAP[formData.brand] || {});
+
   return (
       <>
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-40 p-4 transition-opacity duration-300" onClick={onClose}>
@@ -579,7 +616,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
                         <div>
                             <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
                             <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>
-                                {FABRIC_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+                                {availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}
                             </select>
                         </div>
                     </div>

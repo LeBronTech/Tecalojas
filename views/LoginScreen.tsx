@@ -4,7 +4,6 @@ import { STORE_IMAGE_URLS } from '../constants';
 interface LoginScreenProps {
   onLogin: (email: string, pass: string) => Promise<void>;
   onGoogleLogin: () => void;
-  onVisitorLogin: () => void;
   onOpenSignUp: () => void;
 }
 
@@ -17,7 +16,7 @@ const GoogleIcon = () => (
     </svg>
 );
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onVisitorLogin, onOpenSignUp }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onOpenSignUp }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +28,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onVis
     try {
       await authFunction();
     } catch (err: any) {
-      if (err.code === 'auth/unauthorized-domain') {
+      if (err.code === 'auth/invalid-email') {
+        setError('O formato do e-mail é inválido.');
+      } else if (err.code === 'auth/unauthorized-domain') {
         setError('Domínio não autorizado. Adicione este domínio ao seu console do Firebase.');
       } else if (err.code === 'auth/operation-not-allowed' || err.code === 'auth/admin-restricted-operation') {
         setError('Método de login desativado. Habilite-o no Console do Firebase.');
@@ -50,12 +51,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onVis
       setError("Por favor, preencha e-mail e senha.");
       return;
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        setError('Por favor, insira um e-mail válido.');
+        return;
+    }
     handleAuth(() => onLogin(email, password));
   };
 
 
   return (
-    <div className="h-full w-full relative overflow-hidden flex flex-col items-center p-6 bg-[#E0D6F5] font-sans">
+    <div className="h-full w-full relative overflow-hidden flex flex-col items-center justify-center p-6 bg-[#E0D6F5] font-sans">
       <div className="absolute inset-0 bg-gradient-to-br from-[#E0D6F5] to-[#D8C6F8] opacity-80"></div>
       <div className="absolute top-0 left-0 w-full h-full opacity-30" style={{
           backgroundImage: 'radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.3) 0%, transparent 30%), radial-gradient(circle at 80% 90%, rgba(175, 225, 255, 0.3) 0%, transparent 30%), radial-gradient(circle at 50% 50%, rgba(255, 197, 222, 0.2) 0%, transparent 25%)'
@@ -76,6 +82,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onVis
       </div>
 
       <div className="w-full max-w-xs bg-white/30 backdrop-blur-lg rounded-2xl p-6 border-2 border-white/80 shadow-xl z-10">
+        <h3 className="text-center font-bold text-lg text-[#2D1F49] mb-4">Acesse para gerenciar</h3>
         <form onSubmit={handleEmailSubmit}>
           <div className="relative mb-4">
             <input
@@ -115,9 +122,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onVis
         <button onClick={() => handleAuth(onGoogleLogin)} disabled={isLoading} className="w-full flex items-center justify-center bg-white text-gray-700 font-semibold py-2.5 px-4 rounded-lg border border-gray-300 shadow-sm hover:bg-gray-50 transition disabled:opacity-50">
             <GoogleIcon />
             Entrar com Google
-        </button>
-         <button onClick={() => handleAuth(onVisitorLogin)} disabled={isLoading} className="w-full text-center text-sm text-gray-600 hover:text-[#8e44ad] font-semibold mt-3 transition disabled:opacity-50">
-            Entrar como visitante
         </button>
       </div>
     </div>

@@ -142,14 +142,12 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
                                     <Spinner />
                                 </div>
                             )}
-                             <button 
+                            <button
                                 onClick={handleRotate}
-                                className={`absolute bottom-3 right-3 p-2 rounded-full z-10 ${carouselBtnClasses}`}
+                                className="absolute bottom-3 right-3 w-10 h-10 rounded-full z-10 bg-transparent hover:bg-black/10 flex items-center justify-center transition-colors"
                                 aria-label="Girar imagem"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6v6M9 21H3v-6M20.948 14.996A9 9 0 1114.991 3.052" />
-                                </svg>
+                                <img src="https://i.postimg.cc/QMgBhNLq/Gemini-Generated-Image-2csq4y2csq4y2csq.png" alt="Girar Imagem" className="w-8 h-8" />
                             </button>
                         </div>
                         <div className="grid grid-cols-3 gap-2">

@@ -4,11 +4,44 @@ import { Product, CushionSize, Variation, StoreName, Brand, WaterResistanceLevel
 
 export const STORE_NAMES = [StoreName.TECA, StoreName.IONE];
 
-export const FABRIC_TYPES = ['Belize', 'Suede'];
-export const FABRIC_DESCRIPTIONS: Record<string, string> = {
-    'Belize': 'Tecido com proteção que facilita a higienização. 70% algodão e 30% Poliéster.',
-    'Suede': 'Tecido da linha profissional, resistente e lavável. Possui toque aveludado. Composição 100% Poliéster.',
+// Fabric information is now structured by brand
+const MARCA_PROPRIA_FABRIC_INFO: Record<string, string> = {
+    'Jacquard': 'Tecido cuja trama cria padrões complexos, resultando em um visual sofisticado e texturizado. Ideal para peças de destaque na decoração.',
+    '100% Algodão': 'Tecido de fibra natural, clássico e versátil. Conhecido por ser leve, respirável e ter um toque suave. Ideal para almofadas de uso diário e decoração casual.',
+    'Suede Animal': 'É o mesmo tecido do Suede Liso, mas com estampas, como "animal print". Usado para adicionar personalidade e um toque ousado ao ambiente.',
+    'Suede Pena': 'Uma variação do Suede com um acabamento que o torna ainda mais macio e sedoso. Ideal para almofadas onde o conforto ao toque é a prioridade máxima.',
+    'Suede Liso': 'Tecido sintético que imita a camurça, com toque aveludado. Muito durável, resistente a manchas e com excelente custo-benefício. Perfeito para estofados e almofadas de uso intenso.',
+    'Veludo': 'Tecido clássico e luxuoso com brilho característico. Tem um toque denso, macio e sofisticado. Ideal para decorações clássicas ou glamourosas.',
+    'Sarja': 'Tecido de algodão com trama diagonal, o que o torna mais encorpado e resistente. Possui um visual moderno e despojado, ideal para capas que precisam ser lavadas com frequência.',
+    'Camurça': 'Produto de origem natural com toque aveludado rústico. É nobre, mas mancha com facilidade, sendo raro em almofadas de uso diário.',
+    'Linho': 'Tecido de fibra natural com elegância rústica. É texturizado, fresco e resistente. Seu amassado é considerado parte do charme. Ideal para decoração chique ou minimalista.',
+    'Tricô': 'Refere-se à técnica de trama tricotada, que pode ser feita de algodão, lã ou fio acrílico. Seu toque é texturizado e aconchegante, com um visual clássico de "feito à mão", ideal para mantas e almofadas em decorações comfy ou escandinavas.',
+    'Macramê': 'Técnica de tecelagem manual com nós, geralmente em barbante de algodão. Caracteriza-se pela textura 3D, relevo único e franjas, trazendo um toque artesanal, natural e orgânico ao ambiente.',
+    'Oxford': 'Tecido 100% Poliéster com uma trama característica em "cesta" (basketweave), conferindo um visual robusto e levemente texturizado. Seu toque é firme, seco e resistente, sendo uma opção funcional para almofadas, toalhas de mesa e cortinas.',
 };
+
+const DOHLER_FABRIC_INFO: Record<string, string> = {
+  'Jacquard': 'É um tipo de trama que cria padrões e desenhos complexos diretamente no tecido. Na Döhler, é frequentemente associado a toalhas (de banho, rosto e piso) de alta qualidade, 100% algodão e com gramatura elevada. O resultado é um tecido mais felpudo, com excelente absorção, toque macio e um visual sofisticado e texturizado.',
+  'Waterhavana': 'Trata-se de uma linha dentro da coleção Havana. É um tecido 100% algodão com estampas digitais e um acabamento impermeabilizante (ou semi-impermeável, com película protetora). É indicado para revestimento de estofados, cadeiras e almofadas, podendo ser usado em áreas internas e externas (desde que protegido do sol e chuva diretos).',
+  'Tricoline': 'Um tecido clássico e muito versátil, 100% algodão, conhecido por sua textura fina, leveza e resistência. É macio ao toque e fácil de manusear, sendo amplamente utilizado em artesanato, patchwork, confecção de roupas (como camisas e vestidos) e decoração.',
+  'Belize': 'Esta é uma linha de tecidos para decoração, geralmente com composição mista (ex: 67% algodão e 33% poliéster). É conhecido por seu tratamento impermeabilizante (frequentemente sob a chancela Waterblock) e anti-manchas, o que o torna ideal para estofados, cadeiras, almofadas e revestimento de paredes em áreas internas.',
+  'Atoalhados': 'Refere-se aos tecidos felpudos, 100% algodão, usados principalmente para a confecção de toalhas de banho, roupões e artigos similares. Caracteriza-se pela sua alta capacidade de absorção e toque macio.',
+  'Havana': 'Uma linha de tecidos decorativos, 100% algodão, que se destaca pelas estampas digitais de alta definição. Possui uma película protetora que repele líquidos, facilitando a limpeza (semi-impermeável). É muito usado para toalhas de mesa, jogos americanos, almofadas e revestimento de móveis em áreas internas.',
+  'Decokasa': 'Linha de tecidos para decoração, descrita como leve e durável. Possui estampas em alta definição e um acabamento protetor (em alguns casos, impermeável) que facilita a manutenção diária. É indicado para estofados, almofadas e também para aplicação em paredes.'
+};
+
+const KARSTEN_FABRIC_INFO: Record<string, string> = {
+  'Acquablock® Externo': 'É o tecido definitivo para áreas externas, projetado para ter máxima resistência ao tempo. Totalmente impermeável, possui proteção UV, é anti-mofo e resistente a manchas. Ideal para almofadas e estofados para jardins, áreas de piscina, varandas descobertas e móveis que ficam diretamente expostos ao sol e à chuva.',
+  'Acquablock® Interno': 'Versão adaptada para áreas internas ou externas cobertas, com foco em proteção e toque macio. É impermeável (repele líquidos) e anti-mancha. Não possui a mesma proteção UV que a linha externa. Ideal para sofás, cadeiras de jantar, poltronas, especialmente em casas com crianças ou animais de estimação.',
+  'Karsten Marble': 'Coleção focada na decoração de interiores com design sofisticado e proteção anti-mancha. Utiliza tecelagem Jacquard e estampas digitais de alta definição. Repele líquidos (não é totalmente impermeável), priorizando a estética e o toque agradável. Composição geralmente mista (ex: 70% algodão, 30% poliéster).',
+};
+
+export const BRAND_FABRIC_MAP: Record<Brand, Record<string, string>> = {
+    [Brand.MARCA_PROPRIA]: MARCA_PROPRIA_FABRIC_INFO,
+    [Brand.KARSTEN]: KARSTEN_FABRIC_INFO,
+    [Brand.DOLHER]: DOHLER_FABRIC_INFO,
+};
+
 
 export const BRANDS = [Brand.MARCA_PROPRIA, Brand.DOLHER, Brand.KARSTEN];
 
@@ -261,9 +294,9 @@ export const INITIAL_PRODUCTS: Product[] = rawProductsData.map((p, index) => {
     const nameLower = p.name.toLowerCase();
     const isSuede = nameLower.includes('suede');
     const isBelize = nameLower.includes('belize');
-    let fabricType = 'Belize'; // Default
-    if (isSuede) fabricType = 'Suede';
-    if (isBelize) fabricType = 'Belize';
+    let fabricType = 'Suede Liso'; // Default
+    if (isSuede) fabricType = 'Suede Liso'; // Simple mapping for legacy data
+    if (isBelize) fabricType = 'Linho'; // Heuristic mapping
 
     const isLombar = nameLower.includes('lombar');
     const defaultVariationSize = isLombar ? CushionSize.LUMBAR : CushionSize.SQUARE_45;
@@ -285,6 +318,9 @@ export const INITIAL_PRODUCTS: Product[] = rawProductsData.map((p, index) => {
     } else {
         brand = Brand.MARCA_PROPRIA;
     }
+    
+    const fabricInfo = BRAND_FABRIC_MAP[brand];
+    const defaultFabricType = Object.keys(fabricInfo).includes(fabricType) ? fabricType : Object.keys(fabricInfo)[0];
 
     return {
         id: p.id,
@@ -292,8 +328,8 @@ export const INITIAL_PRODUCTS: Product[] = rawProductsData.map((p, index) => {
         baseImageUrl: IMAGE_BANK_URLS[index % IMAGE_BANK_URLS.length],
         unitsSold: Math.floor(Math.random() * 75) + 5, // Random units sold: 5-79
         category: p.category,
-        fabricType: fabricType,
-        description: FABRIC_DESCRIPTIONS[fabricType] || '',
+        fabricType: defaultFabricType,
+        description: fabricInfo[defaultFabricType] || '',
         waterResistance: WaterResistanceLevel.NONE, // Default value
         brand: brand,
         variations: [
