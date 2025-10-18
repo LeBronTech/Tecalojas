@@ -14,6 +14,18 @@ export enum CushionSize {
   LUMBAR = 'Lombar (25x45)',
 }
 
+export enum Brand {
+  DOLHER = 'Dohler',
+  KARSTEN = 'Karsten',
+  MARCA_PROPRIA = 'Marca Própia',
+}
+
+export enum WaterResistanceLevel {
+  NONE = 'none',
+  SEMI = 'semi-impermeavel',
+  FULL = 'waterblock',
+}
+
 export interface Variation {
   size: CushionSize;
   imageUrl: string;
@@ -33,7 +45,8 @@ export interface Product {
   category: string;
   fabricType: string;
   description: string;
-  isWaterproof: boolean;
+  waterResistance: WaterResistanceLevel;
+  brand: Brand;
   variations: Variation[];
 }
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
-import { Product, StoreName, Variation, CushionSize } from '../types';
-import { IMAGE_BANK_URLS, VARIATION_DEFAULTS, FABRIC_TYPES, FABRIC_DESCRIPTIONS } from '../constants';
+import { Product, StoreName, Variation, CushionSize, Brand, WaterResistanceLevel } from '../types';
+import { IMAGE_BANK_URLS, VARIATION_DEFAULTS, FABRIC_TYPES, FABRIC_DESCRIPTIONS, STORE_NAMES, BRANDS, WATER_RESISTANCE_INFO } from '../constants';
 import { ThemeContext } from '../App';
 import { GoogleGenAI, Modality } from '@google/genai';
 
@@ -212,9 +212,10 @@ const initialFormState: Product = {
   baseImageUrl: '',
   unitsSold: 0,
   category: '',
-  fabricType: '',
-  description: '',
-  isWaterproof: false,
+  fabricType: FABRIC_TYPES[0],
+  description: FABRIC_DESCRIPTIONS[FABRIC_TYPES[0]],
+  brand: Brand.MARCA_PROPRIA,
+  waterResistance: WaterResistanceLevel.NONE,
   variations: [],
 };
 
@@ -245,6 +246,42 @@ const FormInput = ({ label, ...props }: { label: string } & React.InputHTMLAttri
     );
 };
 
+const resizeImage = (base64Str: string, maxWidth = 800, maxHeight = 800): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.src = base64Str;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let { width, height } = img;
+
+            if (width > height) {
+                if (width > maxWidth) {
+                    height = Math.round((height * maxWidth) / width);
+                    width = maxWidth;
+                }
+            } else {
+                if (height > maxHeight) {
+                    width = Math.round((width * maxHeight) / height);
+                    height = maxHeight;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                return reject(new Error('Could not get canvas context'));
+            }
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            resolve(canvas.toDataURL('image/jpeg', 0.9));
+        };
+        img.onerror = (error) => {
+            reject(error);
+        };
+    });
+};
+
 
 const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onClose, onSave, categories }) => {
   const [formData, setFormData] = useState<Product>(initialFormState);
@@ -269,10 +306,15 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
     }
   }, [product]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    const isNumeric = type === 'number';
-    const parsedValue = isNumeric ? parseInt(value, 10) || 0 : value;
+    
+    if (type === 'checkbox' && e.target instanceof HTMLInputElement) {
+        setFormData(prev => ({ ...prev, [name]: e.target.checked }));
+        return;
+    }
+
+    const parsedValue = type === 'number' ? parseInt(value, 10) || 0 : value;
 
     setFormData(prev => {
         const newState = { ...prev, [name]: parsedValue };
@@ -291,8 +333,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
       (variation as any)[field] = parseFloat(value) || 0;
     } else if (field.startsWith('stock-')) {
       const store = field.split('-')[1] as StoreName;
-      // FIX: State was being mutated directly. This creates a new stock object
-      // to ensure immutability and correct type inference.
       variation.stock = {
         ...variation.stock,
         [store]: parseInt(value) || 0,
@@ -303,8 +343,16 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
     setFormData(prev => ({ ...prev, variations: updatedVariations }));
   };
 
-  const handleImageSelect = (imageUrl: string) => {
-    setFormData(prev => ({ ...prev, baseImageUrl: imageUrl }));
+  const handleImageSelect = async (imageUrl: string) => {
+    let finalImageUrl = imageUrl;
+    if (imageUrl.startsWith('data:image')) {
+        try {
+            finalImageUrl = await resizeImage(imageUrl);
+        } catch (error) {
+            console.error("Failed to resize image:", error);
+        }
+    }
+    setFormData(prev => ({ ...prev, baseImageUrl: finalImageUrl }));
     setIsImagePickerOpen(false);
     setIsCameraOpen(false);
   };
@@ -334,365 +382,298 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
   const getAiPromptForSize = (size: CushionSize): string => {
     switch (size) {
         case CushionSize.SQUARE_60:
-            return 'Coloque esta almofada grande e bem cheia de 60x60 no chão, encostada elegantemente no pé de uma poltrona, em uma sala de estar moderna e bem iluminada. A imagem deve ter qualidade de foto de catálogo, com foco na textura da almofada e respeitando a escala real da almofada em relação à poltrona.';
+            return 'Gere uma imagem fotorrealista de uma sala de estar moderna e bem iluminada. Coloque esta almofada, que é um modelo grande e cheio de 60x60, no chão, encostada elegantemente no pé de uma poltrona. A imagem deve parecer uma foto de catálogo, enfatizando a textura da almofada e, mais importante, mantendo uma perspectiva e escala realistas para que o tamanho grande da almofada seja claramente visível em relação à poltrona.';
         case CushionSize.LUMBAR:
-            return 'Coloque esta almofada lombar, que é um travesseiro pequeno em formato retangular, sobre uma poltrona aconchegante. O ambiente deve ser uma sala de estar bem iluminada. A imagem deve parecer uma foto de catálogo de produtos, com um close-up que destaque a almofada e sua textura, respeitando sua escala real.';
+            return 'Gere uma imagem fotorrealista de uma poltrona aconchegante em uma sala de estar bem iluminada. Coloque esta almofada lombar, que é um travesseiro pequeno e retangular, sobre a poltrona. A imagem deve ser como uma foto de catálogo de produtos, destacando a textura da almofada e mantendo uma perspectiva e escala realistas para mostrar seu tamanho pequeno e formato retangular em relação à poltrona.';
         default: // SQUARE_40, SQUARE_45, SQUARE_50
-            return `Coloque esta almofada de tamanho ${size} em uma poltrona aconchegante, em um close-up que destaque a almofada. O ambiente deve ser uma sala de estar bem iluminada. A imagem deve parecer uma foto de catálogo de produtos, respeitando a escala real da almofada em relação à poltrona.`;
+            return `Gere uma imagem fotorrealista de uma poltrona moderna em uma sala de estar bem iluminada. Coloque esta almofada sobre a poltrona. A imagem deve ter a qualidade de uma foto de catálogo, com foco na textura do tecido e mantendo uma perspectiva e escala realistas da almofada em relação à poltrona.`;
     }
   };
 
-  const generateSingleAiImage = async (base64Data: string, mimeType: string, variation: Variation, index: number) => {
-      setAiGenerating(prev => ({ ...prev, [variation.size]: true }));
-      try {
+  const handleGenerateVariationImage = async (index: number) => {
+    const variation = formData.variations[index];
+    if (!formData.baseImageUrl) {
+        setVariationsAiError("Primeiro, adicione uma imagem base para o produto.");
+        return;
+    }
+
+    setAiGenerating(prev => ({ ...prev, [variation.size]: true }));
+    setVariationsAiError(null);
+
+    try {
+        const response = await fetch(formData.baseImageUrl);
+        if (!response.ok) throw new Error('Falha ao buscar a imagem base.');
+        const blob = await response.blob();
+        const base64Data = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const imagePart = { inlineData: { data: base64Data, mimeType } };
+        const imagePart = { inlineData: { data: base64Data, mimeType: blob.type } };
         const textPart = { text: getAiPromptForSize(variation.size) };
 
-        const response = await ai.models.generateContent({
+        const aiResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: { parts: [imagePart, textPart] },
+            config: { responseModalities: [Modality.IMAGE] },
+        });
+        
+        const firstPart = aiResponse.candidates?.[0]?.content?.parts?.[0];
+        if (firstPart?.inlineData) {
+            const newImageUrl = `data:${firstPart.inlineData.mimeType};base64,${firstPart.inlineData.data}`;
+            const resizedImageUrl = await resizeImage(newImageUrl);
+            const updatedVariations = [...formData.variations];
+            updatedVariations[index].imageUrl = resizedImageUrl;
+            setFormData(prev => ({ ...prev, variations: updatedVariations }));
+        } else {
+            throw new Error(`A IA não retornou uma imagem válida para o tamanho ${variation.size}.`);
+        }
+    } catch (error: any) {
+        console.error("AI image generation failed:", error);
+        setVariationsAiError(error.message || "Falha ao gerar imagem com IA.");
+    } finally {
+        setAiGenerating(prev => ({ ...prev, [variation.size]: false }));
+    }
+  };
+
+  const generateShowcaseImage = async () => {
+    if (!formData.baseImageUrl) {
+        setShowcaseAiError("Adicione uma imagem base antes de gerar uma vitrine.");
+        return;
+    }
+    setIsGeneratingShowcase(true);
+    setShowcaseAiError(null);
+
+    try {
+        const response = await fetch(formData.baseImageUrl);
+        if (!response.ok) throw new Error('Falha ao buscar a imagem base.');
+        const blob = await response.blob();
+        const base64Data = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const imagePart = { inlineData: { data: base64Data, mimeType: blob.type } };
+        const textPart = { text: 'Crie uma imagem de vitrine de alta qualidade para esta almofada, colocando-a sobre um fundo branco liso. A imagem deve ter qualidade de estúdio, com foco total na textura e design do produto, sem distrações.' };
+
+        const aiResponse = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: { parts: [imagePart, textPart] },
             config: { responseModalities: [Modality.IMAGE] },
         });
 
-        const firstPart = response.candidates?.[0]?.content?.parts?.[0];
+        const firstPart = aiResponse.candidates?.[0]?.content?.parts?.[0];
         if (firstPart?.inlineData) {
-            const newBase64Data = firstPart.inlineData.data;
-            const newMimeType = firstPart.inlineData.mimeType;
-            const newImageUrl = `data:${newMimeType};base64,${newBase64Data}`;
-
-            setFormData(prev => {
-                const newVariations = [...prev.variations];
-                newVariations[index].imageUrl = newImageUrl;
-                return { ...prev, variations: newVariations };
-            });
+            const newImageUrl = `data:${firstPart.inlineData.mimeType};base64,${firstPart.inlineData.data}`;
+            const resizedImageUrl = await resizeImage(newImageUrl);
+            setFormData(prev => ({ ...prev, baseImageUrl: resizedImageUrl }));
         } else {
-            throw new Error(`A IA não retornou uma imagem válida para o tamanho ${variation.size}.`);
+            throw new Error("A IA não retornou uma imagem válida.");
         }
-    } finally {
-        setAiGenerating(prev => ({ ...prev, [variation.size]: false }));
-    }
-  };
-  
-  const handleGenerateAllAiImages = async () => {
-    if (!formData.baseImageUrl) {
-        setVariationsAiError('Por favor, escolha uma imagem principal primeiro.');
-        return;
-    }
-    setVariationsAiError(null);
-
-    try {
-        let base64Data: string;
-        let mimeType = 'image/jpeg';
-
-        if (formData.baseImageUrl.startsWith('data:')) {
-            const parts = formData.baseImageUrl.split(',');
-            mimeType = parts[0].split(':')[1].split(';')[0];
-            base64Data = parts[1];
-        } else {
-            const response = await fetch(formData.baseImageUrl);
-            if (!response.ok) throw new Error('Falha ao buscar a imagem da URL.');
-            const blob = await response.blob();
-            mimeType = blob.type;
-            const dataUrl = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
-            base64Data = dataUrl.split(',')[1];
-        }
-
-        const generationPromises = formData.variations.map((variation, index) => 
-            generateSingleAiImage(base64Data, mimeType, variation, index)
-        );
-
-        await Promise.all(generationPromises);
-
     } catch (error: any) {
-        console.error("AI image generation failed:", error);
-        setVariationsAiError(`Falha ao gerar imagens: ${error.message}`);
+        console.error("AI showcase image generation failed:", error);
+        setShowcaseAiError(error.message || "Falha ao gerar imagem de vitrine com IA.");
+    } finally {
+        setIsGeneratingShowcase(false);
     }
   };
   
-  const handleGenerateShowcaseImage = async () => {
-        if (!formData.baseImageUrl) {
-            setShowcaseAiError("O produto não tem uma imagem principal para usar como base.");
-            return;
-        }
-        setIsGeneratingShowcase(true);
-        setShowcaseAiError(null);
-
-        try {
-            let base64Data: string;
-            let mimeType = 'image/jpeg';
-
-            if (formData.baseImageUrl.startsWith('data:')) {
-                const parts = formData.baseImageUrl.split(',');
-                mimeType = parts[0].split(':')[1].split(';')[0];
-                base64Data = parts[1];
-            } else {
-                const response = await fetch(formData.baseImageUrl);
-                if (!response.ok) throw new Error('Falha ao buscar a imagem da URL.');
-                const blob = await response.blob();
-                mimeType = blob.type;
-                const dataUrl = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-                base64Data = dataUrl.split(',')[1];
-            }
-
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const imagePart = { inlineData: { data: base64Data, mimeType } };
-            const textPart = { text: "um close-up desta almofada, em uma foto de alta qualidade sobre um fundo branco puro e limpo, estilo foto de produto, destacando a textura." };
-
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-image',
-                contents: { parts: [imagePart, textPart] },
-                config: { responseModalities: [Modality.IMAGE] },
-            });
-
-            const firstPart = response.candidates?.[0]?.content?.parts?.[0];
-            if (firstPart?.inlineData) {
-                const newBase64Data = firstPart.inlineData.data;
-                const newMimeType = firstPart.inlineData.mimeType;
-                const newImageUrl = `data:${newMimeType};base64,${newBase64Data}`;
-                
-                setFormData(prev => ({ ...prev, baseImageUrl: newImageUrl }));
-            } else {
-                throw new Error("A IA não retornou uma imagem válida.");
-            }
-
-        } catch (error: any) {
-            console.error("AI showcase image generation failed:", error);
-            setShowcaseAiError(`Falha na geração de imagem: ${error.message}`);
-        } finally {
-            setIsGeneratingShowcase(false);
-        }
-    };
-
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     setSaveError(null);
     try {
-      await onSave(formData);
-      // onSave will close the modal if successful
+        await onSave(formData);
     } catch (error: any) {
-      if (error.code === 'permission-denied') {
-        setSaveError('Permissão negada. Você não tem autorização para salvar produtos.');
-      } else {
-        setSaveError('Falha ao salvar o produto. Tente novamente.');
-      }
-      console.error(error);
+        console.error("Failed to save product:", error);
+        setSaveError(error.message || "Ocorreu um erro desconhecido ao salvar.");
     } finally {
-      setIsSaving(false);
+        setIsSaving(false);
     }
   };
-  
+
   const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
   const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
   const subtitleClasses = isDark ? "text-gray-400" : "text-gray-500";
   const closeBtnClasses = isDark ? "text-gray-400 hover:text-white bg-black/20" : "text-gray-500 hover:text-gray-800 bg-gray-100";
+  const labelClasses = isDark ? "text-gray-400" : "text-gray-600";
+  const inputClasses = isDark ? "bg-black/20 text-white border-white/10" : "bg-gray-100 text-gray-900 border-gray-300";
+  const cardClasses = isDark ? "bg-black/20 border-white/10" : "bg-gray-50 border-gray-200";
   const cancelBtnClasses = isDark ? "text-gray-300 hover:bg-black/20" : "text-gray-600 hover:bg-gray-100";
-  const sectionBgClasses = isDark ? "bg-black/20 border-white/10" : "bg-gray-50 border-gray-200";
-
-  const availableSizes = Object.values(CushionSize).filter(
-      size => !formData.variations.some(v => v.size === size)
-  );
-
+  
   return (
-    <>
-      <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-40 p-4 transition-opacity duration-300">
-        <div className={`border rounded-3xl shadow-2xl w-full max-w-md p-8 relative transform transition-all duration-300 scale-95 opacity-0 animate-fade-in-scale max-h-[90vh] overflow-y-auto no-scrollbar ${modalBgClasses}`}>
-          <style>{`
-            @keyframes fade-in-scale { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-            .animate-fade-in-scale { animation: fade-in-scale 0.3s forwards; }
-          `}</style>
-          
-          <button onClick={onClose} className={`absolute top-4 right-4 rounded-full p-2 transition-colors z-10 ${closeBtnClasses}`}>
-             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-          
-          <h2 className={`text-2xl font-bold mb-2 text-center ${titleClasses}`}>{product ? 'Editar Produto' : 'Adicionar Novo Produto'}</h2>
-          <p className={`text-center mb-6 ${subtitleClasses}`}>Atualize os detalhes do item do seu inventário.</p>
+      <>
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-40 p-4 transition-opacity duration-300" onClick={onClose}>
+            <form 
+                onSubmit={handleSubmit}
+                className={`border rounded-3xl shadow-2xl w-full max-w-lg p-6 relative transform transition-all duration-300 scale-95 opacity-0 animate-fade-in-scale flex flex-col ${modalBgClasses}`} 
+                onClick={e => e.stopPropagation()}
+                style={{ maxHeight: '90vh' }}
+            >
+                <style>{`
+                    @keyframes fade-in-scale { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+                    .animate-fade-in-scale { animation: fade-in-scale 0.3s forwards; }
+                `}</style>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <FormInput label="Nome do Produto" type="text" name="name" value={formData.name} onChange={handleChange} required />
-            
-            <div>
-              <label className={`text-sm font-semibold mb-2 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Imagem Principal</label>
-              <div className="flex items-center gap-4 mb-3">
-                  <div className="relative w-20 h-20 flex-shrink-0">
-                    <img 
-                        src={formData.baseImageUrl || 'https://i.imgur.com/gA0Wxkm.png'} 
-                        alt="Pré-visualização" 
-                        className={`w-full h-full rounded-lg object-cover border ${isDark ? 'bg-black/20 border-white/10' : 'bg-gray-100 border-gray-200'}`}
-                    />
-                    {isGeneratingShowcase && <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center rounded-lg"><Spinner /></div>}
-                  </div>
-                  <button type="button" onClick={() => setIsImagePickerOpen(true)} className={`flex-1 font-bold py-3 px-4 rounded-lg transition text-sm ${isDark ? 'bg-black/20 border border-white/10 text-gray-200 hover:bg-black/40' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm'}`}>
-                    Alterar Imagem Principal
-                  </button>
-              </div>
-               <button onClick={handleGenerateShowcaseImage} disabled={isGeneratingShowcase || !formData.baseImageUrl} type="button" className={`w-full font-bold py-3 px-4 rounded-lg transition text-sm flex items-center justify-center gap-2 disabled:opacity-50 ${isDark ? 'bg-fuchsia-600/20 border border-fuchsia-500/30 text-fuchsia-300 hover:bg-fuchsia-600/40' : 'bg-purple-100 border border-purple-200 text-purple-700 hover:bg-purple-200'}`}>
-                    {isGeneratingShowcase ? <Spinner/> : '✨ Gerar Imagem de Vitrine (fundo branco)'}
-                </button>
-                {showcaseAiError && <p className="text-red-500 text-xs mt-2 text-center">{showcaseAiError}</p>}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={`text-sm font-semibold mb-1 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Categoria</label>
-                <input
-                    list="categories-datalist"
-                    type="text"
-                    name="category"
-                    value={formData.category}
-                    onChange={handleChange}
-                    required
-                    className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-100 text-gray-900 border-gray-300'}`}
-                />
-                <datalist id="categories-datalist">
-                    {categories.sort().map(category => <option key={category} value={category} />)}
-                </datalist>
-              </div>
-               <div>
-                <label className={`text-sm font-semibold mb-1 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Tipo de Tecido</label>
-                <input
-                    list="fabric-types-datalist"
-                    type="text"
-                    name="fabricType"
-                    value={formData.fabricType}
-                    onChange={handleChange}
-                    required
-                    className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-100 text-gray-900 border-gray-300'}`}
-                />
-                <datalist id="fabric-types-datalist">
-                    {FABRIC_TYPES.map(fabric => <option key={fabric} value={fabric} />)}
-                </datalist>
-              </div>
-            </div>
-
-            <div>
-                <label className={`text-sm font-semibold mb-1 block ${isDark ? "text-gray-400" : "text-gray-600"}`}>Descrição</label>
-                <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData(p => ({...p, description: e.target.value}))}
-                    rows={3}
-                    className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-100 text-gray-900 border-gray-300'}`}
-                />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4 items-center">
-                <FormInput label="Almofadas Vendidas" type="number" name="unitsSold" value={formData.unitsSold} onChange={handleChange} required />
-                
-                <div className="flex items-center justify-center pt-6">
-                    <input
-                        type="checkbox"
-                        id="isWaterproof"
-                        name="isWaterproof"
-                        checked={formData.isWaterproof}
-                        onChange={(e) => setFormData(p => ({ ...p, isWaterproof: e.target.checked }))}
-                        className="h-5 w-5 rounded border-gray-300 text-fuchsia-600 focus:ring-fuchsia-500"
-                    />
-                    <label htmlFor="isWaterproof" className={`ml-3 text-sm font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-                        Impermeável
-                    </label>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className={`text-2xl font-bold ${titleClasses}`}>{product ? 'Editar Produto' : 'Adicionar Produto'}</h2>
+                    <button type="button" onClick={onClose} className={`rounded-full p-2 transition-colors z-10 ${closeBtnClasses}`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
                 </div>
-            </div>
 
-
-            {/* Variations Section */}
-            <div className={`p-4 rounded-lg border space-y-4 ${sectionBgClasses}`}>
-              <h3 className={`font-bold ${titleClasses}`}>Variações</h3>
-              
-              {formData.variations.map((variation, index) => (
-                <div key={variation.size} className={`p-3 rounded-md border ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200/80 shadow-sm'}`}>
-                  <div className="flex justify-between items-center mb-3">
-                    <p className={`font-bold ${isDark ? 'text-cyan-300' : 'text-blue-600'}`}>{variation.size}</p>
-                    <button type="button" onClick={() => handleRemoveVariation(index)} className={`text-xs font-semibold ${isDark ? 'text-red-400 hover:text-red-300' : 'text-red-600 hover:text-red-800'}`}>Remover</button>
-                  </div>
-                  
-                  <div className="flex gap-3 mb-3">
-                    <div className="relative w-16 h-16 flex-shrink-0">
-                      <img src={variation.imageUrl || 'https://i.imgur.com/gA0Wxkm.png'} alt={`${variation.size} preview`} className={`w-full h-full rounded-lg object-cover border ${isDark ? 'bg-black/20 border-white/10' : 'bg-gray-100 border-gray-200'}`} />
-                      {aiGenerating[variation.size] && <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center rounded-lg"><Spinner /></div>}
+                <div className="flex-grow overflow-y-auto no-scrollbar pr-2 -mr-2 space-y-6">
+                    {/* Basic Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormInput label="Nome do Produto" name="name" value={formData.name} onChange={handleChange} required />
+                        <div>
+                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Categoria</label>
+                            <input
+                                list="categories-list"
+                                name="category"
+                                value={formData.category}
+                                onChange={handleChange}
+                                required
+                                className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}
+                            />
+                            <datalist id="categories-list">
+                                {categories.map(cat => <option key={cat} value={cat} />)}
+                            </datalist>
+                        </div>
                     </div>
-                    <div className="text-xs text-gray-400 flex-1">Imagem gerada por IA para esta variação. Use o botão abaixo para gerar imagens para todas as variações de uma vez.</div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-2 mb-2">
-                      <div>
-                        <label className="text-xs font-semibold text-gray-400">Preço Capa (R$)</label>
-                        <input type="number" value={variation.priceCover} onChange={e => handleVariationChange(index, 'priceCover', e.target.value)} className={`w-full mt-1 border-2 rounded-lg px-2 py-1.5 text-sm ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-300'}`} />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-400">Preço Cheia (R$)</label>
-                        <input type="number" value={variation.priceFull} onChange={e => handleVariationChange(index, 'priceFull', e.target.value)} className={`w-full mt-1 border-2 rounded-lg px-2 py-1.5 text-sm ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-300'}`} />
-                      </div>
-                  </div>
-                   <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs font-semibold text-gray-400">Estoque {StoreName.TECA}</label>
-                        <input type="number" value={variation.stock[StoreName.TECA]} onChange={e => handleVariationChange(index, `stock-${StoreName.TECA}`, e.target.value)} className={`w-full mt-1 border-2 rounded-lg px-2 py-1.5 text-sm ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-300'}`} />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-400">Estoque {StoreName.IONE}</label>
-                        <input type="number" value={variation.stock[StoreName.IONE]} onChange={e => handleVariationChange(index, `stock-${StoreName.IONE}`, e.target.value)} className={`w-full mt-1 border-2 rounded-lg px-2 py-1.5 text-sm ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-300'}`} />
-                      </div>
-                  </div>
+                    {/* Image */}
+                    <div className="flex items-start gap-4">
+                        <div className={`w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
+                            {formData.baseImageUrl ? 
+                                <img src={formData.baseImageUrl} alt="Preview" className="w-full h-full object-cover" /> :
+                                <span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>
+                            }
+                        </div>
+                        <div className="flex-grow">
+                             <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Imagem Principal</label>
+                            <button type="button" onClick={() => setIsImagePickerOpen(true)} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
+                                Alterar Imagem
+                            </button>
+                            <button type="button" onClick={generateShowcaseImage} disabled={isGeneratingShowcase || !formData.baseImageUrl} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
+                                {isGeneratingShowcase ? <Spinner /> : 'Gerar Vitrine com IA'}
+                            </button>
+                            {showcaseAiError && <p className="text-xs text-red-500 mt-1">{showcaseAiError}</p>}
+                        </div>
+                    </div>
+                    
+                    {/* Product Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div>
+                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
+                            <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>
+                                {BRANDS.map(brand => <option key={brand} value={brand}>{brand}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
+                            <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>
+                                {FABRIC_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                     <div>
+                        <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Proteção contra líquidos</label>
+                        <div className="space-y-2">
+                             <label className="flex items-center cursor-pointer">
+                                <input type="radio" name="waterResistance" value={WaterResistanceLevel.NONE} checked={formData.waterResistance === WaterResistanceLevel.NONE} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" />
+                                <span className={`ml-3 text-sm font-medium ${labelClasses}`}>Nenhum</span>
+                            </label>
+                            <label className="flex items-center cursor-pointer">
+                                <input type="radio" name="waterResistance" value={WaterResistanceLevel.SEMI} checked={formData.waterResistance === WaterResistanceLevel.SEMI} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" />
+                                <span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.SEMI]?.label}</span>
+                            </label>
+                            <label className="flex items-center cursor-pointer">
+                                <input type="radio" name="waterResistance" value={WaterResistanceLevel.FULL} checked={formData.waterResistance === WaterResistanceLevel.FULL} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" />
+                                <span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.FULL]?.label}</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label>
+                        <textarea name="description" value={formData.description} onChange={handleChange} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}></textarea>
+                    </div>
+
+                    {/* Variations */}
+                    <div>
+                        <h3 className={`text-lg font-bold mb-3 ${titleClasses}`}>Variações de Tamanho e Estoque</h3>
+                        <div className="space-y-3">
+                            {formData.variations.map((v, i) => (
+                                <div key={i} className={`p-4 rounded-xl border ${cardClasses}`}>
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h4 className="font-bold text-fuchsia-400">{v.size}</h4>
+                                        <button type="button" onClick={() => handleRemoveVariation(i)} className="text-red-500 hover:text-red-700">
+                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                         {/* Price */}
+                                        <div>
+                                            <label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label>
+                                            <input type="number" value={v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/>
+                                        </div>
+                                        <div>
+                                            <label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label>
+                                            <input type="number" value={v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/>
+                                        </div>
+                                         {/* Stock */}
+                                         {STORE_NAMES.map(storeName => (
+                                            <div key={storeName}>
+                                                <label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Estoque ({storeName})</label>
+                                                <input type="number" value={v.stock[storeName]} onChange={e => handleVariationChange(i, `stock-${storeName}`, e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`} />
+                                            </div>
+                                         ))}
+                                    </div>
+                                    <div className="mt-3 flex items-center gap-4">
+                                        <div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>
+                                            {v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}
+                                        </div>
+                                        <button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>
+                                            {aiGenerating[v.size] ? <Spinner /> : 'Gerar Imagem IA'}
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {variationsAiError && <p className="text-xs text-red-500 mt-2">{variationsAiError}</p>}
+                        <div className={`flex gap-2 mt-4 p-2 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+                             <select value={addVariationSize} onChange={e => setAddVariationSize(e.target.value as CushionSize)} className={`flex-grow border-2 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>
+                                <option value="" disabled>Selecione um tamanho</option>
+                                {Object.values(CushionSize).map(size => (
+                                    <option key={size} value={size} disabled={formData.variations.some(v => v.size === size)}>{size}</option>
+                                ))}
+                            </select>
+                            <button type="button" onClick={handleAddVariation} className="bg-fuchsia-600 text-white font-bold p-3 rounded-lg hover:bg-fuchsia-700 transition-transform transform hover:scale-105">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-              ))}
 
-              <div className="flex gap-2">
-                  <select value={addVariationSize} onChange={e => setAddVariationSize(e.target.value as CushionSize)} className={`flex-1 border-2 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${isDark ? 'bg-black/30 border-white/10 text-white' : 'bg-gray-100 border-gray-300 text-gray-900'}`} disabled={availableSizes.length === 0}>
-                      <option value="" disabled>{availableSizes.length > 0 ? 'Selecione um tamanho' : 'Todos os tamanhos adicionados'}</option>
-                      {availableSizes.map(size => <option key={size} value={size}>{size}</option>)}
-                  </select>
-                  <button type="button" onClick={handleAddVariation} disabled={!addVariationSize} className="font-bold py-2 px-4 rounded-lg bg-cyan-600 text-white disabled:bg-gray-500 transition">Adicionar</button>
-              </div>
-              <button type="button" onClick={handleGenerateAllAiImages} disabled={!formData.baseImageUrl || formData.variations.length === 0 || Object.values(aiGenerating).some(v => v)} className={`w-full font-bold py-3 px-4 rounded-lg transition text-sm flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-600/20 border border-fuchsia-500/30 text-fuchsia-300 hover:bg-fuchsia-600/40 disabled:bg-gray-600/50 disabled:text-gray-400' : 'bg-purple-100 border border-purple-200 text-purple-700 hover:bg-purple-200 disabled:bg-gray-200 disabled:text-gray-400'}`}>
-                ✨ Gerar Todas as Imagens com IA
-              </button>
-              {variationsAiError && <p className="text-red-500 text-xs mt-2 text-center">{variationsAiError}</p>}
-            </div>
-
-            {saveError && <p className="text-red-500 text-sm text-center -mt-2 mb-4 font-semibold">{saveError}</p>}
-            <div className="flex justify-end items-center pt-4 gap-4">
-              <button type="button" onClick={onClose} className={`font-bold py-3 px-6 rounded-lg transition ${cancelBtnClasses}`}>
-                Cancelar
-              </button>
-              <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100 min-w-[180px]">
-                {isSaving ? 'Salvando...' : (product ? 'Salvar Alterações' : 'Adicionar Produto')}
-              </button>
-            </div>
-          </form>
+                <div className="flex justify-end items-center pt-6 gap-4 border-t border-gray-200 dark:border-white/10 mt-6">
+                    {saveError && <p className="text-sm text-red-500 font-semibold flex-grow">{saveError}</p>}
+                    <button type="button" onClick={onClose} className={`font-bold py-3 px-6 rounded-lg transition ${cancelBtnClasses}`}>
+                        Cancelar
+                    </button>
+                    <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100">
+                        {isSaving ? 'Salvando...' : 'Salvar'}
+                    </button>
+                </div>
+            </form>
         </div>
-      </div>
-
-      {isImagePickerOpen && (
-        <ImagePickerModal 
-          onClose={() => setIsImagePickerOpen(false)}
-          onSelect={handleImageSelect}
-          onTakePhoto={() => {
-            setIsImagePickerOpen(false);
-            setIsCameraOpen(true);
-          }}
-        />
-      )}
-
-      {isCameraOpen && (
-        <CameraView
-          onCapture={handleImageSelect}
-          onClose={() => setIsCameraOpen(false)}
-        />
-      )}
+        {isImagePickerOpen && <ImagePickerModal onSelect={handleImageSelect} onClose={() => setIsImagePickerOpen(false)} onTakePhoto={() => { setIsImagePickerOpen(false); setIsCameraOpen(true); }} />}
+        {isCameraOpen && <CameraView onCapture={handleImageSelect} onClose={() => setIsCameraOpen(false)} />}
     </>
   );
 };

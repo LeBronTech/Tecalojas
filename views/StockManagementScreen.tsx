@@ -1,16 +1,56 @@
 import React, { useContext } from 'react';
-import { Product, StoreName, View } from '../types';
+import { Product, StoreName, View, Brand } from '../types';
 import { ThemeContext } from '../App';
+import { BRAND_LOGOS } from '../constants';
 
+// --- StockControl Sub-component ---
+const StockControl: React.FC<{
+    store: StoreName;
+    stock: number;
+    onUpdate: (change: number) => void;
+    disabled: boolean;
+}> = ({ store, stock, onUpdate, disabled }) => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+    const buttonClasses = isDark ? "bg-gray-700/50 text-gray-200 hover:bg-purple-900/50" : "bg-gray-200 text-gray-700 hover:bg-gray-300";
+    const disabledButtonClasses = isDark ? "bg-gray-800/50 text-gray-500 cursor-not-allowed" : "bg-gray-200/50 text-gray-400 cursor-not-allowed";
+    const stockTextClasses = isDark ? "text-cyan-300" : "text-blue-600";
+    
+    return (
+         <div className="flex items-center space-x-1.5">
+            <span className={`font-semibold text-xs w-10 text-right ${isDark ? 'text-purple-300/80' : 'text-gray-500'}`}>{store}:</span>
+            <button
+                onClick={() => onUpdate(-1)}
+                disabled={disabled || stock <= 0}
+                className={`w-6 h-6 rounded-md font-bold text-lg flex items-center justify-center transition-colors ${disabled || stock <= 0 ? disabledButtonClasses : buttonClasses}`}
+                aria-label={`Diminuir estoque de ${store}`}
+            >
+                -
+            </button>
+            <span className={`font-bold w-6 text-center ${stockTextClasses}`}>{stock}</span>
+            <button
+                onClick={() => onUpdate(1)}
+                disabled={disabled}
+                className={`w-6 h-6 rounded-md font-bold text-lg flex items-center justify-center transition-colors ${disabled ? disabledButtonClasses : buttonClasses}`}
+                aria-label={`Aumentar estoque de ${store}`}
+            >
+                +
+            </button>
+        </div>
+    );
+}
+
+// --- StockItem Component ---
 interface StockItemProps {
     product: Product;
     index: number;
     onEdit: (product: Product) => void;
     onDelete: (productId: string) => void;
+    onUpdateStock: (productId: string, store: StoreName, change: number) => void;
     canManageStock: boolean;
 }
 
-const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete, canManageStock }) => {
+const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete, onUpdateStock, canManageStock }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
@@ -23,7 +63,6 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
         : "bg-white border-gray-200/80 hover:bg-gray-50/80 shadow-md";
     const textNameClasses = isDark ? "text-purple-200" : "text-gray-800";
     const textMetaClasses = isDark ? "text-purple-300/80" : "text-gray-500";
-    const stockTextClasses = isDark ? "text-cyan-300" : "text-blue-600";
     const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
     const actionBtnClasses = isDark
         ? "text-gray-300 hover:text-cyan-400 hover:bg-cyan-500/10"
@@ -48,9 +87,25 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
                 </div>
                 <div className="flex-grow min-w-0">
                     <h4 className={`font-bold text-base leading-tight truncate ${textNameClasses}`} title={product.name}>{product.name}</h4>
-                    <div className={`flex flex-col sm:flex-row sm:items-center text-xs sm:space-x-4 mt-2 font-medium ${textMetaClasses}`}>
-                        <span><strong className={stockTextClasses}>{tecaStock}</strong> em {StoreName.TECA}</span>
-                        <span className="mt-1 sm:mt-0"><strong className={stockTextClasses}>{ioneStock}</strong> em {StoreName.IONE}</span>
+                    <div className="flex items-center gap-1.5 mt-1">
+                        <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px" />
+                        <span className={`text-xs font-semibold ${textMetaClasses}`}>{product.brand}</span>
+                    </div>
+                     <div className={`flex flex-col sm:flex-row sm:items-center sm:space-x-4 mt-1.5 ${textMetaClasses}`}>
+                        <StockControl 
+                            store={StoreName.TECA} 
+                            stock={tecaStock} 
+                            onUpdate={(change) => onUpdateStock(product.id, StoreName.TECA, change)} 
+                            disabled={!canManageStock}
+                        />
+                         <div className="mt-1 sm:mt-0">
+                            <StockControl 
+                                store={StoreName.IONE} 
+                                stock={ioneStock} 
+                                onUpdate={(change) => onUpdateStock(product.id, StoreName.IONE, change)} 
+                                disabled={!canManageStock}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -93,11 +148,12 @@ interface StockManagementScreenProps {
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
   onAddProduct: () => void;
+  onUpdateStock: (productId: string, store: StoreName, change: number) => void;
   onMenuClick: () => void;
   canManageStock: boolean;
 }
 
-const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products, onEditProduct, onDeleteProduct, onAddProduct, canManageStock }) => {
+const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products, onEditProduct, onDeleteProduct, onAddProduct, onUpdateStock, canManageStock }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
 
@@ -127,7 +183,15 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
       
       <main className="flex-grow overflow-y-auto px-4 space-y-3 pb-24 md:pb-6 z-10 no-scrollbar">
         {products.map((product, index) => (
-          <StockItem key={product.id} product={product} index={index} onEdit={onEditProduct} onDelete={onDeleteProduct} canManageStock={canManageStock} />
+          <StockItem 
+            key={product.id} 
+            product={product} 
+            index={index} 
+            onEdit={onEditProduct} 
+            onDelete={onDeleteProduct} 
+            onUpdateStock={onUpdateStock}
+            canManageStock={canManageStock} 
+          />
         ))}
       </main>
 

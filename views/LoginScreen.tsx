@@ -68,10 +68,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onVis
 
       <div className="flex space-x-6 mb-8 z-10">
         <div className="w-28 h-28 rounded-full border-4 border-white shadow-lg overflow-hidden transform hover:scale-105 transition-transform">
-          <img src={STORE_IMAGE_URLS.teca} alt="QR Code da Loja Têca" className="w-full h-full object-cover" />
+          <img src={STORE_IMAGE_URLS.teca} alt="Logo da Loja Têca" className="w-full h-full object-cover" />
         </div>
         <div className="w-28 h-28 rounded-full border-4 border-white shadow-lg overflow-hidden transform hover:scale-105 transition-transform">
-          <img src={STORE_IMAGE_URLS.ione} alt="QR Code da Loja Ione Decor" className="w-full h-full object-cover" />
+          <img src={STORE_IMAGE_URLS.ione} alt="Logo da Loja Ione Decor" className="w-full h-full object-cover" />
         </div>
       </div>
 

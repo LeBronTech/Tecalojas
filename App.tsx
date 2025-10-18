@@ -1,5 +1,5 @@
 import React, { useState, useCallback, createContext, useContext, useEffect } from 'react';
-import { Product, View, Theme, User } from './types';
+import { Product, View, Theme, User, StoreName } from './types';
 import { INITIAL_PRODUCTS, PIX_QR_CODE_URLS } from './constants';
 import LoginScreen from './views/LoginScreen';
 import ShowcaseScreen from './views/ShowcaseScreen';
@@ -286,6 +286,35 @@ export default function App() {
       throw error;
     }
   }, []);
+  
+  const handleUpdateStock = useCallback(async (productId: string, store: StoreName, change: number) => {
+    const productToUpdate = products.find(p => p.id === productId);
+    if (!productToUpdate || productToUpdate.variations.length === 0) {
+        console.error("Product not found or has no variations to update.");
+        return;
+    }
+
+    // Create a deep copy to avoid direct state mutation before API call
+    const updatedProduct = JSON.parse(JSON.stringify(productToUpdate));
+    
+    // Modify the stock of the first variation, as the quick-add UI doesn't specify which one
+    const firstVariation = updatedProduct.variations[0];
+    const currentStock = firstVariation.stock[store];
+    const newStock = Math.max(0, currentStock + change); // Ensure stock doesn't go below 0
+
+    if (newStock === currentStock) return; // No change needed
+
+    firstVariation.stock[store] = newStock;
+    
+    const { id, ...productData } = updatedProduct;
+    try {
+        await api.updateProduct(id, productData);
+    } catch (error) {
+        console.error("Failed to update stock:", error);
+        window.alert('Falha ao atualizar o estoque.');
+    }
+  }, [products]);
+
 
   const handleDeleteProduct = useCallback(async (productId: string) => {
     if (window.confirm("Tem certeza que deseja excluir este produto? A ação não pode ser desfeita.")) {
@@ -326,6 +355,7 @@ export default function App() {
             onEditProduct={setEditingProduct}
             onDeleteProduct={handleDeleteProduct}
             onAddProduct={() => setEditingProduct('new')}
+            onUpdateStock={handleUpdateStock}
             canManageStock={canManageStock}
             {...mainScreenProps}
           />
@@ -400,6 +430,7 @@ export default function App() {
 
         {isPixModalOpen && <PixPaymentModal onClose={() => setIsPixModalOpen(false)} />}
       </div>
+    {/* FIX: Corrected typo in closing tag for ThemeContext.Provider */}
     </ThemeContext.Provider>
   );
 }

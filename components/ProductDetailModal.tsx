@@ -1,8 +1,8 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { Product, Variation } from '../types';
+import { Product, Variation, WaterResistanceLevel } from '../types';
 import { ThemeContext } from '../App';
 import { GoogleGenAI, Modality } from '@google/genai';
-import { WATERPROOF_ICON_URL } from '../constants';
+import { WATER_RESISTANCE_INFO, BRAND_LOGOS } from '../constants';
 
 interface ProductDetailModalProps {
     product: Product;
@@ -29,10 +29,13 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
         // Reset main image and rotation when product changes
         setDisplayImageUrl(product.baseImageUrl);
         setRotation(0);
+        setVariationIndex(0);
     }, [product]);
 
     const isDark = theme === 'dark';
     const currentVariation: Variation | undefined = product.variations[variationIndex];
+    const waterResistanceDetails = WATER_RESISTANCE_INFO[product.waterResistance];
+
 
     const handlePrevVariation = () => {
         setVariationIndex(prev => (prev === 0 ? product.variations.length - 1 : prev - 1));
@@ -141,7 +144,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
                             )}
                              <button 
                                 onClick={handleRotate}
-                                className={`absolute top-3 right-3 p-2 rounded-full z-10 ${carouselBtnClasses}`}
+                                className={`absolute bottom-3 right-3 p-2 rounded-full z-10 ${carouselBtnClasses}`}
                                 aria-label="Girar imagem"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -162,20 +165,26 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
                     <span className={`text-sm font-bold uppercase tracking-wider ${isDark ? 'text-fuchsia-400' : 'text-purple-600'}`}>{product.category}</span>
                     <h2 className={`text-2xl font-bold mt-1 mb-2 ${titleClasses}`}>{product.name}</h2>
                     
-                    <div className="my-4 space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`text-sm font-semibold ${subtitleClasses}`}>Tecido:</span>
-                            <span className={`px-2 py-1 text-xs font-bold rounded ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-800'}`}>{product.fabricType}</span>
-                             {product.isWaterproof && (
-                                <span className={`px-2 py-1 text-xs font-bold rounded flex items-center gap-1.5 ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
-                                    Impermeável 💧
+                    <div className="my-4 space-y-3">
+                        <div className="flex items-center justify-between flex-wrap gap-y-3">
+                            <div className="flex items-center gap-2">
+                                <span className={`text-sm font-semibold ${subtitleClasses}`}>Tecido:</span>
+                                <span className={`px-2 py-1 text-xs font-bold rounded ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-800'}`}>
+                                    {product.fabricType} {waterResistanceDetails && waterResistanceDetails.shortLabel}
                                 </span>
-                            )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className={`text-sm font-semibold ${subtitleClasses}`}>Marca:</span>
+                                <div className="flex items-center gap-1.5">
+                                    <img src={BRAND_LOGOS[product.brand]} alt={`Logo ${product.brand}`} className="w-5 h-5 rounded-full object-contain bg-white p-0.5" />
+                                    <span className={`text-sm font-semibold ${titleClasses}`}>{product.brand}</span>
+                                </div>
+                            </div>
                         </div>
-                         {product.isWaterproof && (
+                         {waterResistanceDetails && (
                             <div className={`flex items-center gap-3 p-2 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
-                                <img src={WATERPROOF_ICON_URL} alt="Ícone Impermeável" className="w-10 h-10 rounded-md object-cover"/>
-                                <p className={`text-xs ${subtitleClasses}`}>Este tecido possui tratamento especial que repele líquidos, facilitando a limpeza.</p>
+                                <img src={waterResistanceDetails.icon} alt={`Ícone ${waterResistanceDetails.label}`} className="w-10 h-10 rounded-md object-cover"/>
+                                <p className={`text-xs ${subtitleClasses}`}>{waterResistanceDetails.description}</p>
                             </div>
                         )}
                         <p className={`text-sm ${subtitleClasses}`}>{product.description}</p>

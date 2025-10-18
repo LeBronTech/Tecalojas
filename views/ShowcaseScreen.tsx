@@ -2,6 +2,7 @@ import React, { useState, useContext } from 'react';
 import { Product, View } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { ThemeContext } from '../App';
+import { WATER_RESISTANCE_INFO } from '../constants';
 
 const FireIcon = ({ className }: { className: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
@@ -22,6 +23,8 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
   const textNameClasses = isDark ? "text-purple-200" : "text-gray-800";
   const textMetaClasses = isDark ? "text-purple-300" : "text-gray-500";
   const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
+  
+  const waterResistanceDetails = WATER_RESISTANCE_INFO[product.waterResistance];
   
   const getPriceRange = () => {
     if (!product.variations || product.variations.length === 0) {
@@ -46,8 +49,13 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
              animationDelay: `${index * 50}ms`,
              opacity: 0 
          }}>
-        <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden`}>
+        <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
              <img src={product.baseImageUrl || 'https://i.imgur.com/gA0Wxkm.png'} alt={product.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
+             {waterResistanceDetails?.showcaseIndicator && (
+                <div className="absolute top-2 right-2 bg-black/50 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-full z-10">
+                    {waterResistanceDetails.showcaseIndicator}
+                </div>
+             )}
         </div>
         <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{product.name}</h3>
         <div className={`flex items-center space-x-1 text-xs mt-1 ${textMetaClasses}`}>

@@ -1,4 +1,4 @@
-import { Product, CushionSize, Variation, StoreName } from './types';
+import { Product, CushionSize, Variation, StoreName, Brand, WaterResistanceLevel } from './types';
 
 // StoreName is now defined in types.ts to break a circular dependency.
 
@@ -8,6 +8,14 @@ export const FABRIC_TYPES = ['Belize', 'Suede'];
 export const FABRIC_DESCRIPTIONS: Record<string, string> = {
     'Belize': 'Tecido com proteção que facilita a higienização. 70% algodão e 30% Poliéster.',
     'Suede': 'Tecido da linha profissional, resistente e lavável. Possui toque aveludado. Composição 100% Poliéster.',
+};
+
+export const BRANDS = [Brand.MARCA_PROPRIA, Brand.DOLHER, Brand.KARSTEN];
+
+export const BRAND_LOGOS: Record<Brand, string> = {
+    [Brand.DOLHER]: 'https://i.postimg.cc/G3k2G58y/image.png',
+    [Brand.KARSTEN]: 'https://i.postimg.cc/DzBQvzFf/image.png',
+    [Brand.MARCA_PROPRIA]: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png', // Using Teca logo as placeholder
 };
 
 
@@ -21,11 +29,31 @@ export const IMAGE_BANK_URLS = [
 ];
 
 export const STORE_IMAGE_URLS = {
-  teca: 'https://i.postimg.cc/VLnbtz0s/Pague-com-Pix-QR-Code-Elegante-Feminino-Preto-e-Dourado-Plaquinha-2.png',
-  ione: 'https://i.postimg.cc/52mYPpm3/Pague-com-Pix-QR-Code-Elegante-Feminino-Preto-e-Dourado-Plaquinha.png',
+  teca: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png',
+  ione: 'https://i.postimg.cc/R0Sn8Tw2/Logo-lojas-teca-20251017-210317-0001.png',
 };
 
-export const WATERPROOF_ICON_URL = 'https://i.imgur.com/tL4g41v.png'; // High-quality image of water on cushion
+export const SEMI_WATERPROOF_ICON_URL = 'https://i.postimg.cc/LsMLB14R/Gemini-Generated-Image-fxdnhcfxdnhcfxdn.png';
+export const WATERBLOCK_ICON_URL = 'https://i.postimg.cc/qRr75sWg/Gemini-Generated-Image-sl2hr5sl2hr5sl2h.png';
+
+export const WATER_RESISTANCE_INFO: Record<WaterResistanceLevel, { label: string; icon: string; description: string; shortLabel: string; showcaseIndicator?: string; } | null> = {
+  [WaterResistanceLevel.NONE]: null,
+  [WaterResistanceLevel.SEMI]: {
+    label: '50% Impermeável',
+    icon: SEMI_WATERPROOF_ICON_URL,
+    description: 'Este tecido possui tratamento que repele líquidos, facilitando a limpeza.',
+    shortLabel: '50% Impermeável 💧',
+    showcaseIndicator: '50% 💧'
+  },
+  [WaterResistanceLevel.FULL]: {
+    label: 'Waterblock (100% Impermeável)',
+    icon: WATERBLOCK_ICON_URL,
+    description: 'Proteção máxima contra líquidos. 100% impermeável.',
+    shortLabel: 'Waterblock 💧',
+    showcaseIndicator: '100%💧💧'
+  },
+};
+
 
 export const PIX_QR_CODE_URLS = {
   teca: 'https://i.postimg.cc/VLnbtz0s/Pague-com-Pix-QR-Code-Elegante-Feminino-Preto-e-Dourado-Plaquinha-2.png',
@@ -223,192 +251,62 @@ const rawProductsData = [
   { id: '1635608937912-AcuoQ', name: 'Mesclado Bege Belize', price: 29, inventory: 3, category: 'Capas Cores lisas' },
   { id: '1658693849039-AcuoQ', name: 'Palha Suede Amassado (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
   { id: '1639238737672-AcuoQ', name: 'Caramelo suede amassado', price: 29, inventory: 2, category: 'Capas Cores lisas' },
-  { id: '1605478383239-AcuoQ', name: 'Arabesco Bege claro borda', price: 50, inventory: 3, category: 'Capas Jacquard 43x43' },
-  { id: '1659819699591-AcuoQ', name: 'Capa ondas geométricas laranja', price: 29, inventory: 0, category: 'Marca Própria' },
-  { id: '1658695164566-AcuoQ', name: 'Verde Bandeira Gorgurinho (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1639243342415-AcuoQ', name: 'Preto fosco suede amassado', price: 29, inventory: 0, category: 'Capas Cores lisas' },
-  { id: '1658596153372-AcuoQ', name: 'Costela de Adão terra', price: 29, inventory: 2, category: 'Capas Florais' },
-  { id: '1658690094830-AcuoQ', name: 'Cinza cimento suede amassado (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1605128954531-AcuoQ', name: 'Neon belga Marrom borda clara', price: 50, inventory: 0, category: 'Capas Jacquard 43x43' },
-  { id: '1595028113789-AcuoQ', name: 'X Azul capa', price: 29, inventory: 6, category: 'Capas Geométricas' },
-  { id: '1658690040624-AcuoQ', name: 'Azul Tiffany Belize (Lombar)', price: 25, inventory: 6, category: 'Marca Própria' },
-  { id: '1593908097117-AcuoQ', name: 'Mesclado Caqui Belize', price: 29, inventory: 8, category: 'Capas Cores lisas' },
-  { id: '1595028231666-AcuoQ', name: 'Bandeira Azul com Laranja capa', price: 29, inventory: 2, category: 'Capas Geométricas' },
-  { id: '1594684915371-AcuoQ', name: 'Costela de Adão Capa', price: 29, inventory: 2, category: 'Capas Florais' },
-  { id: '1593390173204-AcuoQ', name: 'Marrom Gorgurinho com proteção', price: 29, inventory: 3, category: 'Capas Cores lisas' },
-  { id: '1658690194992-AcuoQ', name: 'Cinza linho (Lombar)', price: 25, inventory: 1, category: 'Marca Própria' },
-  { id: '1635702138288-AcuoQ', name: 'Tulipa caqui', price: 29, inventory: 1, category: 'Capas Florais' },
-  { id: '1594685278629-AcuoQ', name: 'Pedrita Amarelo e Laranja Capa', price: 29, inventory: 3, category: 'Capas Grafismos' },
-  { id: '1658690187433-AcuoQ', name: 'Cinza grafite nobuck (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1658695219877-AcuoQ', name: 'Verde Exército capa (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1658690234086-AcuoQ', name: 'Mesclado dourado Nobuck (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1623518506598-AcuoQ', name: 'Folhas amarelas', price: 29, inventory: 4, category: 'Capas Florais' },
-  { id: '1658689285262-AcuoQ', name: 'Azulejo Português Belize Lombar', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1658690262172-AcuoQ', name: 'Rosa bebê veludo (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1666532413369-AcuoQ', name: 'Jacquard grafismo inca bege claro', price: 69, inventory: 0, category: 'Marca Própria' },
-  { id: '1658690339841-AcuoQ', name: 'Cinza grafite suede animale (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1659886949964-AcuoQ', name: 'Assento geométrico rosa bebê', price: 49.9, inventory: 0, category: 'Marca Própria' },
-  { id: '1659902669660-AcuoQ', name: 'Mandala azul marinho c/laranja lombar', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1596236882514-AcuoQ', name: 'Mãos de Fátima vermelho capa', price: 29, inventory: 2, category: 'Capas Mandalas' },
-  { id: '1595697383967-AcuoQ', name: 'Listrado Multi Verde', price: 29, inventory: 5, category: 'Capas Listradas' },
-  { id: '1595874878824-AcuoQ', name: 'Flores Fundo Azul capa', price: 29, inventory: 2, category: 'Capas Florais' },
-  { id: '1608677642002-AcuoQ', name: 'Capuccino Suede Amassado', price: 29, inventory: 3, category: 'Capas Cores lisas' },
-  { id: '1596159163214-AcuoQ', name: 'Kayanne fundo Rosa capa', price: 29, inventory: 3, category: 'Capas Florais' },
-  { id: '1630261985450-AcuoQ', name: 'Cinza grafite Belize', price: 29, inventory: 4, category: 'Capas Cores lisas' },
-  { id: '1640649022026-AcuoQ', name: 'Chevron Verde fundo escuro', price: 50, inventory: 6, category: 'Capas Jacquard 43x43' },
-  { id: '1595023445673-AcuoQ', name: 'Colmeia Laranja com azul capa', price: 29, inventory: 0, category: 'Capas Geométricas' },
-  { id: '1595871321263-AcuoQ', name: 'Chevron Vermelho Capa', price: 29, inventory: 7, category: 'Capas Chevron' },
-  { id: '1595793298535-AcuoQ', name: 'Listrado Laranja capa', price: 29, inventory: 2, category: 'Capas Listradas' },
-  { id: '1652038162492-AcuoQ', name: 'Mesclado Vermelho Belize LOMBAR', price: 25, inventory: 4, category: 'Marca Própria' },
-  { id: '1639238363422-AcuoQ', name: 'Marrom acinzentado suede amassado', price: 29, inventory: 0, category: 'Capas Cores lisas' },
-  { id: '1639232673858-AcuoQ', name: 'Rosa pink suede animale', price: 29, inventory: 1, category: 'Capas Cores lisas' },
-  { id: '1658690226796-AcuoQ', name: 'Mesclado Cinza Nobuck (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1595721448360-AcuoQ', name: 'Listrado Grosso Rosa bebê capa', price: 29, inventory: 3, category: 'Capas Listradas' },
-  { id: '1638448084059-AcuoQ', name: 'Vinho Astúrias cor 106', price: 29, inventory: 0, category: 'Capas Cores lisas' },
-  { id: '1655063007080-AcuoQ', name: 'Capa papagaio Pão de Açúcar', price: 29, inventory: 2, category: 'Marca Própria' },
-  { id: '1664897842905-AcuoQ', name: 'Flores diversas amarelo marrom', price: 29, inventory: 0, category: 'Capas Florais' },
-  { id: '1595873067526-AcuoQ', name: 'Flores Fundo preto capa', price: 29, inventory: 1, category: 'Capas Geométricas' },
-  { id: '1595022193735-AcuoQ', name: 'Triângulos amarelo capa', price: 29, inventory: 1, category: 'Capas Geométricas' },
-  { id: '1640649548516-AcuoQ', name: 'Grafismo inca preto', price: 50, inventory: 13, category: 'Capas Jacquard 43x43' },
-  { id: '1635701668043-AcuoQ', name: 'Margarida azul marinho', price: 29, inventory: 0, category: 'Capas Florais' },
-  { id: '1661716516914-AcuoQ', name: 'Assento Pedrita amarela 39x39', price: 49.9, inventory: 0, category: 'Marca Própria' },
-  { id: '1658690219090-AcuoQ', name: 'Marrom linho (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1658690280441-AcuoQ', name: 'Rosa queimado gorgurinho com proteção (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1658690063986-AcuoQ', name: 'Bege suede Pena (Lombar)', price: 25, inventory: 1, category: 'Marca Própria' },
-  { id: '1658690174368-AcuoQ', name: 'Bege suede pavia (Lombar)', price: 25, inventory: 0, category: 'Dolher' },
-  { id: '1603492849962-AcuoQ', name: 'Azulejo Português P capa', price: 29, inventory: 1, category: 'Capas Florais' },
-  { id: '1596160289554-AcuoQ', name: 'Hibiscos vermelho capa', price: 29, inventory: 2, category: 'Capas Florais' },
-  { id: '1658694540787-AcuoQ', name: 'Vinho Gorgurinho (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1594683967048-AcuoQ', name: 'Mesclado Ouro Belize', price: 29, inventory: 4, category: 'Capas Cores lisas' },
-  { id: '1595030520634-AcuoQ', name: 'Traços Vermelho com Marrom capa', price: 29, inventory: 1, category: 'Capas Geométricas' },
-  { id: '1612565822236-AcuoQ', name: 'Rosa chiclete veludo', price: 29, inventory: 2, category: 'Capas Cores lisas' },
-  { id: '1658690181091-AcuoQ', name: 'Caqui Belize (Lombar)', price: 25, inventory: 9, category: 'Marca Própria' },
-  { id: '1595873653989-AcuoQ', name: 'Flor Vermelha capa', price: 29, inventory: 6, category: 'Capas Florais' },
-  { id: '1593991979360-AcuoQ', name: 'Arabesquinho azul capa', price: 29, inventory: 2, category: 'Capas Mandalas' },
-  { id: '1593390237747-AcuoQ', name: 'Caqui Belize', price: 29, inventory: 1, category: 'Capas Cores lisas' },
-  { id: '1661716698260-AcuoQ', name: 'Manta preta floral', price: 130, inventory: 0, category: 'Marca Própria' },
-  { id: '1639230388362-AcuoQ', name: 'Marrom Belize', price: 29, inventory: 2, category: 'Capas Cores lisas' },
-  { id: '1658695270913-AcuoQ', name: 'Verde oliva gorgurinho (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1595714417339-AcuoQ', name: 'Geométrico Rosa bebê capa', price: 29, inventory: 1, category: 'Capas Geométricas' },
-  { id: '1658690142525-AcuoQ', name: 'Rosa pink suede animale (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1595714105280-AcuoQ', name: 'Losangolo Tyffany capa', price: 29, inventory: 1, category: 'Capas Geométricas' },
-  { id: '1658693997308-AcuoQ', name: 'Azul Marinho Belize (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1595697815296-AcuoQ', name: 'Flores Marrocos Amarela capa', price: 29, inventory: 4, category: 'Capas Florais' },
-  { id: '1639232515550-AcuoQ', name: 'Caqui veludo', price: 29, inventory: 1, category: 'Capas Cores lisas' },
-  { id: '1658694188857-AcuoQ', name: 'Azul bebê (Lombar)', price: 25, inventory: 1, category: 'Marca Própria' },
-  { id: '1658689977101-AcuoQ', name: 'Mesclado Vermelho Belize (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1593386374723-AcuoQ', name: 'Vermelho Belize', price: 29, inventory: 2, category: 'Capas Cores lisas' },
-  { id: '1639233014788-AcuoQ', name: 'Vinho Nobuck veludo', price: 29, inventory: 1, category: 'Capas Cores lisas' },
-  { id: '1595028550792-AcuoQ', name: 'Bandeira Vermelha capa', price: 29, inventory: 2, category: 'Capas Geométricas' },
-  { id: '1595697739223-AcuoQ', name: 'Flores Marrocos Vermelha capa', price: 29, inventory: 2, category: 'Capas Florais' },
-  { id: '1658690234086-AcuoQ', name: 'Mesclado dourado Nobuck (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1594685403555-AcuoQ', name: 'Listrado Laranja e Amarelo', price: 29, inventory: 3, category: 'Capas Listradas' },
-  { id: '1658689987832-AcuoQ', name: 'Azul Royal Belize (Lombar)', price: 25, inventory: 5, category: 'Marca Própria' },
-  { id: '1658690324660-AcuoQ', name: 'Caqui veludo (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1595870950923-AcuoQ', name: 'Poá preto, branco e cinza capa', price: 29, inventory: 1, category: 'Capas Geométricas' },
-  { id: '1658690372172-AcuoQ', name: 'Mesclado Bege Belize (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1595793412335-AcuoQ', name: 'Flor Laranja capa', price: 29, inventory: 1, category: 'Capas Florais' },
-  { id: '1658689153642-AcuoQ', name: 'Arabesquinho azul capa Lombar', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1635631900799-AcuoQ', name: 'Caramelo nobuck', price: 29, inventory: 1, category: 'Capas Cores lisas' },
-  { id: '1595876117401-AcuoQ', name: 'Folhas Bege capa', price: 29, inventory: 3, category: 'Capas Florais' },
-  { id: '1600026478964-AcuoQ', name: 'Listrado marrom capa', price: 29, inventory: 2, category: 'Capas Listradas' },
-  { id: '1606509670519-AcuoQ', name: 'Chevron Marrom fundo claro capa', price: 50, inventory: 0, category: 'Capas Jacquard 43x43' },
-  { id: '1658690288492-AcuoQ', name: 'Verde maçã capa (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1595697964231-AcuoQ', name: 'Listrado Multi Amarelo capa', price: 29, inventory: 1, category: 'Capas Listradas' },
-  { id: '1651494147036-AcuoQ', name: 'Grafismo inca caqui', price: 50, inventory: 5, category: 'Capas Jacquard 43x43' },
-  { id: '1623518281113-AcuoQ', name: 'Flor hibisco vermelho', price: 29, inventory: 4, category: 'Capas Florais' },
-  { id: '1640649623026-AcuoQ', name: 'Grafismo inca cinza', price: 50, inventory: 10, category: 'Capas Jacquard 43x43' },
-  { id: '1612565777913-AcuoQ', name: 'Rosa bebê suede pena', price: 29, inventory: 0, category: 'Capas Cores lisas' },
-  { id: '1664899664879-AcuoQ', name: 'Amarelo suede pávia', price: 29, inventory: 0, category: 'Capas Cores lisas' },
-  { id: '1595873149232-AcuoQ', name: 'Flores Fundo Vermelho capa', price: 29, inventory: 2, category: 'Capas Florais' },
-  { id: '1595030344931-AcuoQ', name: 'Traços Azul com Laranja capa', price: 29, inventory: 1, category: 'Capas Geométricas' },
-  { id: '1664656909640-AcuoQ', name: 'Suede azul Tiffany', price: 45, inventory: 0, category: 'Marca Própria' },
-  { id: '1639231569774-AcuoQ', name: 'Rosa bebê veludo', price: 29, inventory: 0, category: 'Capas Cores lisas' },
-  { id: '1658694774820-AcuoQ', name: 'Marrom Gorgurinho com proteção (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1593992296302-AcuoQ', name: 'Arabesco Amarelo capa', price: 29, inventory: 4, category: 'Capas Mandalas' },
-  { id: '1606933486595-AcuoQ', name: 'Chevron Preto fundo escuro', price: 50, inventory: 14, category: 'Capas Jacquard 43x43' },
-  { id: '1659301098524-AcuoQ', name: 'Azul escuro mesclado', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1659902651926-AcuoQ', name: 'Capa árabesquinho azul marinho lombar', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1595682916584-AcuoQ', name: 'Listrado Multi Vermelho Capa', price: 29, inventory: 1, category: 'Capas Listradas' },
-  { id: '1595875642574-AcuoQ', name: 'Folhas Verde capa', price: 29, inventory: 3, category: 'Capas Florais' },
-  { id: '1596159294859-AcuoQ', name: 'Flores Fundo Rosa capa', price: 29, inventory: 3, category: 'Capas Florais' },
-  { id: '1593389779337-AcuoQ', name: 'Cinza Rosado Belize', price: 29, inventory: 3, category: 'Capas Cores lisas' },
-  { id: '1593991004873-AcuoQ', name: 'Tulipa Amarela capa', price: 29, inventory: 2, category: 'Capas Florais' },
-  { id: '1658690149621-AcuoQ', name: 'Verde oliva Sarja (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1658690242054-AcuoQ', name: 'Off white Suede amassado (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1596235999545-AcuoQ', name: 'Mariposa Vermelha capa', price: 29, inventory: 2, category: 'Marca Própria' },
-  { id: '1595874568951-AcuoQ', name: 'Florais Azul claro capa', price: 29, inventory: 3, category: 'Capas Florais' },
-  { id: '1606933418643-AcuoQ', name: 'Chevron Preto fundo cinza', price: 50, inventory: 10, category: 'Capas Jacquard 43x43' },
-  { id: '1596158034209-AcuoQ', name: 'Lilás Belize', price: 29, inventory: 0, category: 'Capas Cores lisas' },
-  { id: '1612565609372-AcuoQ', name: 'Costela de onça', price: 29, inventory: 0, category: 'Capas Florais' },
-  { id: '1608677598515-AcuoQ', name: 'Cinza Suede Amassado', price: 29, inventory: 1, category: 'Capas Cores lisas' },
-  { id: '1595722611841-AcuoQ', name: 'Listrado Fino Bege capa', price: 29, inventory: 2, category: 'Capas Listradas' },
-  { id: '1595870638078-AcuoQ', name: 'Kayanne fundo caqui capa', price: 29, inventory: 2, category: 'Capas Florais' },
-  { id: '1658694680721-AcuoQ', name: 'Mostarda Gorgurinho (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1605478319334-AcuoQ', name: 'Arabesco Marrom claro borda', price: 50, inventory: 0, category: 'Capas Jacquard 43x43' },
-  { id: '1658690202492-AcuoQ', name: 'Cinza mesclado nobuck (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1661117488514-AcuoQ', name: 'Lombar linho creme', price: 35, inventory: 0, category: 'Marca Própria' },
-  { id: '1639238521551-AcuoQ', name: 'Bege suede amassado', price: 29, inventory: 3, category: 'Capas Cores lisas' },
-  { id: '1612650545583-AcuoQ', name: 'Bege gorgurinho com proteção cap', price: 29, inventory: 2, category: 'Capas Cores lisas' },
-  { id: '1595722148843-AcuoQ', name: 'Listrado Grosso Azul Royal capa', price: 29, inventory: 2, category: 'Capas Listradas' },
-  { id: '1595698359634-AcuoQ', name: 'Listrado Multi Preto capa', price: 29, inventory: 4, category: 'Capas Listradas' },
-  { id: '1658694259622-AcuoQ', name: 'Bege gorgurinho com proteção cap (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1606509083344-AcuoQ', name: 'Ondas Marrom capa', price: 50, inventory: 0, category: 'Capas Jacquard 43x43' },
-  { id: '1658690070966-AcuoQ', name: 'Caqui Gorgurinho (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1650733063529-AcuoQ', name: 'Bandeira Vermelha LOMBAR', price: 25, inventory: 5, category: 'Marca Própria' },
-  { id: '1658695111434-AcuoQ', name: 'Roxo Gorgurinho (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1594684709876-AcuoQ', name: 'Raminhos Roxo Capa', price: 29, inventory: 2, category: 'Capas Florais' },
-  { id: '1658690311800-AcuoQ', name: 'Bege suede amassado (Lombar)', price: 25, inventory: 1, category: 'Marca Própria' },
-  { id: '1658696298042-AcuoQ', name: 'Enchimento 60x60', price: 40, inventory: 0, category: 'Marca Própria' },
-  { id: '1596233153350-AcuoQ', name: 'Azulejo Português Belize', price: 29, inventory: 0, category: 'Capas Florais' },
-  { id: '1664047584294-AcuoQ', name: 'Costela de Adão Bege', price: 29, inventory: 0, category: 'Capas Florais' },
-  { id: '1639241676039-AcuoQ', name: 'Marrom linho', price: 29.09, inventory: 0, category: 'Capas Cores lisas' },
-  { id: '1606509780310-AcuoQ', name: 'Chevron Marrom fundo escuro capa', price: 50, inventory: 0, category: 'Capas Jacquard 43x43' },
-  { id: '1594685047382-AcuoQ', name: 'Pedrita Azul e Laranja Capa', price: 29, inventory: 0, category: 'Capas Grafismos' },
-  { id: '1593991116428-AcuoQ', name: 'Tulipa Vermelha capa', price: 29, inventory: 2, category: 'Capas Florais' },
-  { id: '1595722421604-AcuoQ', name: 'Listrado Fino Azul Marinho capa', price: 29, inventory: 3, category: 'Capas Listradas' },
-  { id: '1595027964887-AcuoQ', name: 'X Verde capa', price: 29, inventory: 2, category: 'Capas Geométricas' },
-  { id: '1659819453677-AcuoQ', name: 'Capa musgo liso suede', price: 29, inventory: 0, category: 'Marca Própria' },
-  { id: '1658690389370-AcuoQ', name: 'Mesclado Vermelho V Belize (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1594685701163-AcuoQ', name: 'Pontilhados Preto e Cinza Capa', price: 29, inventory: 2, category: 'Capas Grafismos' },
-  { id: '1594684777798-AcuoQ', name: 'Raminhos Verde Capa', price: 29, inventory: 4, category: 'Capas Florais' },
-  { id: '1593992457001-AcuoQ', name: 'Arabesco Tiffany capa', price: 29, inventory: 4, category: 'Capas Mandalas' },
-  { id: '1658690127049-AcuoQ', name: 'Marsala Nobuck (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
-  { id: '1652037867575-AcuoQ', name: 'Triângulo Vermelho LOMBAR', price: 25, inventory: 1, category: 'Marca Própria' },
-  { id: '1659820057666-AcuoQ', name: 'Capa marsala gorgorinho', price: 29, inventory: 0, category: 'Marca Própria' },
-  { id: '1595023445673-AcuoQ', name: 'Colmeia Laranja com azul capa', price: 29, inventory: 0, category: 'Capas Geométricas' },
 ];
 
+/**
+ * Transforms the legacy `rawProductsData` into the new `Product` structure.
+ * This is used for the initial state when a user is not logged in or has no cloud data.
+ */
 export const INITIAL_PRODUCTS: Product[] = rawProductsData.map((p, index) => {
-    const tecaStock = Math.floor(p.inventory / 2);
-    const ioneStock = p.inventory - tecaStock;
-    
-    // Create a default 40x40 variation for each old product
-    const defaultVariation: Variation = {
-        size: CushionSize.SQUARE_40,
-        imageUrl: '', // Will be generated by AI later
-        priceCover: VARIATION_DEFAULTS[CushionSize.SQUARE_40].priceCover,
-        priceFull: p.price, // Use old price as the "full" price
-        stock: {
-            [StoreName.TECA]: tecaStock,
-            [StoreName.IONE]: ioneStock,
-        },
-    };
+    const nameLower = p.name.toLowerCase();
+    const isSuede = nameLower.includes('suede');
+    const isBelize = nameLower.includes('belize');
+    let fabricType = 'Belize'; // Default
+    if (isSuede) fabricType = 'Suede';
+    if (isBelize) fabricType = 'Belize';
 
-    const fabricType = FABRIC_TYPES[index % FABRIC_TYPES.length];
-    const description = FABRIC_DESCRIPTIONS[fabricType] || '';
-    const unitsSold = p.inventory > 0 ? Math.floor(Math.random() * p.inventory * 5) + p.inventory : Math.floor(Math.random() * 10);
-    const isWaterproof = fabricType === 'Belize'; // Belize fabrics are waterproof
+    const isLombar = nameLower.includes('lombar');
+    const defaultVariationSize = isLombar ? CushionSize.LUMBAR : CushionSize.SQUARE_45;
+
+    // A simple heuristic to guess the price of the cover vs the full cushion
+    let priceCover: number;
+    if (p.price <= 25) {
+        priceCover = p.price - 5;
+    } else if (p.price <= 50) {
+        priceCover = p.price - 10;
+    } else {
+        priceCover = p.price - 20;
+    }
+    priceCover = Math.max(10, priceCover); // Ensure price is not too low
+
+    let brand: Brand;
+    if (p.category.toLowerCase() === 'dolher') {
+        brand = Brand.DOLHER;
+    } else {
+        brand = Brand.MARCA_PROPRIA;
+    }
 
     return {
         id: p.id,
         name: p.name,
-        category: p.category,
         baseImageUrl: IMAGE_BANK_URLS[index % IMAGE_BANK_URLS.length],
-        unitsSold: unitsSold,
+        unitsSold: Math.floor(Math.random() * 75) + 5, // Random units sold: 5-79
+        category: p.category,
         fabricType: fabricType,
-        description: description,
-        isWaterproof: isWaterproof,
-        variations: [defaultVariation],
-    }
+        description: FABRIC_DESCRIPTIONS[fabricType] || '',
+        waterResistance: WaterResistanceLevel.NONE, // Default value
+        brand: brand,
+        variations: [
+            {
+                size: defaultVariationSize,
+                imageUrl: '', // To be generated by AI if needed
+                priceCover: priceCover,
+                priceFull: p.price,
+                stock: {
+                    [StoreName.TECA]: Math.floor(p.inventory / 2),
+                    [StoreName.IONE]: Math.ceil(p.inventory / 2),
+                },
+            },
+        ],
+    };
 });
