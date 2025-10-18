@@ -1,4 +1,3 @@
-
 import React, { useContext, useState, useEffect } from 'react';
 import { Product, StoreName, View, Brand, CushionSize } from '../types';
 import { ThemeContext } from '../App';

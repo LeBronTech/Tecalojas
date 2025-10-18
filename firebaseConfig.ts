@@ -16,14 +16,13 @@
 // ================================================================= 
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyAX1XcWqVjlnYVpHaaQNh91LgT2ge19Z4Q", // Chave pré-definida conforme solicitado.
+apiKey: "AIzaSyAvP0EoCS5ePCQIb2qNxD2Ek-UOTGcXaO0",
   authDomain: "teca-54f58.firebaseapp.com",
   projectId: "teca-54f58",
   storageBucket: "teca-54f58.firebasestorage.app",
   messagingSenderId: "463169842239",
   appId: "1:463169842239:web:87ed9019f9758502635c8a",
-  // Restaurado para corrigir um erro de inicialização. Embora opcional, sua ausência pode causar falhas.
-  measurementId: "G-JRDNC9K020"
+  measurementId: "G-JRDNC9K02"
 };
 
 // =================================================================

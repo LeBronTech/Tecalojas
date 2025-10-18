@@ -1,4 +1,3 @@
-
 import React, { useState, useContext } from 'react';
 import { Product, View } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
