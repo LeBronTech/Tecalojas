@@ -93,9 +93,14 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
                 </div>
                 <div className="flex-grow min-w-0">
                     <h4 className={`font-bold text-base leading-tight truncate ${textNameClasses}`} title={product.name}>{product.name}</h4>
-                    <div className="flex items-center gap-1.5 mt-1">
-                        <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px" />
-                        <span className={`text-xs font-semibold ${textMetaClasses}`}>{product.brand}</span>
+                     <div className="flex items-center gap-x-3 gap-y-1 mt-1 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                            <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px" />
+                            <span className={`text-xs font-semibold ${textMetaClasses}`}>{product.brand}</span>
+                        </div>
+                        <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
+                            {product.fabricType}
+                        </span>
                     </div>
 
                     {product.variations && product.variations.length > 1 && (
@@ -183,6 +188,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
   const isDark = theme === 'dark';
   const [selectedVariations, setSelectedVariations] = useState<Record<string, CushionSize>>({});
   const [showWarning, setShowWarning] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   useEffect(() => {
     if (hasFetchError) {
@@ -192,20 +198,33 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
 
 
     useEffect(() => {
-        const initialSelections: Record<string, CushionSize> = {};
-        products.forEach(p => {
-            if (p.variations && p.variations.length > 0) {
-                // Default to 40x40 if available, otherwise the first one
-                const defaultVar = p.variations.find(v => v.size === CushionSize.SQUARE_40) || p.variations[0];
-                initialSelections[p.id] = defaultVar.size;
-            }
+        // This effect now preserves existing selections and only sets defaults for new products.
+        // This prevents the user's selection from being reset on every data refresh.
+        setSelectedVariations(prevSelections => {
+            const newSelections = { ...prevSelections };
+            let hasChanged = false;
+    
+            products.forEach(p => {
+                // If a product doesn't have a selected variation yet, set a default one.
+                if (!newSelections[p.id] && p.variations && p.variations.length > 0) {
+                    const defaultVar = p.variations.find(v => v.size === CushionSize.SQUARE_40) || p.variations[0];
+                    newSelections[p.id] = defaultVar.size;
+                    hasChanged = true;
+                }
+            });
+            
+            // Only update state if there are new products to add, to avoid unnecessary re-renders.
+            return hasChanged ? newSelections : prevSelections;
         });
-        setSelectedVariations(initialSelections);
     }, [products]);
 
     const handleSelectVariation = (productId: string, size: CushionSize) => {
         setSelectedVariations(prev => ({ ...prev, [productId]: size }));
     };
+    
+    const filteredProducts = products.filter(product =>
+        product.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
   return (
     <div className="h-full w-full flex flex-col relative overflow-hidden">
@@ -227,9 +246,26 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
       <div className="relative z-10">
         <div className="px-6 pt-20 pb-4 text-center">
             <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gerenciamento de Estoque</h1>
-            <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>{products.length} produtos cadastrados</p>
+            <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
+                {searchQuery ? `Mostrando ${filteredProducts.length} de ${products.length} produtos` : `${products.length} produtos cadastrados`}
+            </p>
         </div>
       </div>
+      
+       <div className="px-4 mb-4 z-10">
+            <div className="relative">
+                <input
+                    type="text"
+                    placeholder="Buscar por nome..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400' : 'bg-white border-gray-300/80 text-gray-900 placeholder:text-gray-500 shadow-sm'}`}
+                />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </div>
+        </div>
       
       <main className="flex-grow overflow-y-auto px-4 space-y-3 pb-24 md:pb-6 z-10 no-scrollbar">
         {canManageStock && showWarning && (
@@ -256,7 +292,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
             </div>
         )}
 
-        {products.map((product, index) => (
+        {filteredProducts.map((product, index) => (
           <StockItem 
             key={product.id} 
             product={product} 

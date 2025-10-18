@@ -58,15 +58,18 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
              )}
         </div>
         <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{product.name}</h3>
-        <div className={`flex items-center justify-center flex-wrap gap-x-2 gap-y-1 text-xs mt-1 ${textMetaClasses}`}>
-            <div className="flex items-center space-x-1">
+        <div className={`flex items-center justify-center flex-wrap gap-x-3 gap-y-2 text-xs mt-2`}>
+            <div className={`flex items-center space-x-1 ${textMetaClasses}`}>
                 <FireIcon className="w-4 h-4 text-orange-400" />
                 <span>{product.unitsSold} vendidos</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className={`flex items-center gap-1 ${textMetaClasses}`}>
                 <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
                 <span className="font-semibold">{product.brand}</span>
             </div>
+            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
+                {product.fabricType}
+            </span>
         </div>
         <span className="text-md font-bold text-fuchsia-500 mt-2">{getPriceRange()}</span>
     </button>
