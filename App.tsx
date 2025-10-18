@@ -1,6 +1,6 @@
 import React, { useState, useCallback, createContext, useContext, useEffect } from 'react';
 import { Product, View, Theme, User, StoreName, Variation, CushionSize } from './types';
-import { INITIAL_PRODUCTS, PIX_QR_CODE_URLS } from './constants';
+import { INITIAL_PRODUCTS } from './constants';
 import LoginScreen from './views/LoginScreen';
 import ShowcaseScreen from './views/ShowcaseScreen';
 import StockManagementScreen from './views/StockManagementScreen';
@@ -36,6 +36,7 @@ const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ onClose }) => {
     const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
     const subtitleClasses = isDark ? "text-gray-400" : "text-gray-500";
     const closeBtnClasses = isDark ? "text-gray-400 hover:text-white bg-black/20" : "text-gray-500 hover:text-gray-800 bg-gray-100";
+    const newPixUrl = "https://i.postimg.cc/3R3f8ZRn/photo-2025-10-18-03-13-40.jpg";
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300" onClick={onClose}>
@@ -53,16 +54,11 @@ const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ onClose }) => {
                 </button>
                 <div className="text-center mb-4">
                      <h2 className={`text-2xl font-bold ${titleClasses}`}>Pagamento via PIX</h2>
-                     <p className={`mt-1 ${subtitleClasses}`}>Aponte a câmera para o QR Code da loja.</p>
+                     <p className={`mt-1 ${subtitleClasses}`}>Use o QR Code unificado para ambas as lojas.</p>
                 </div>
-                <div className="flex-grow overflow-y-auto no-scrollbar space-y-4">
+                <div className="flex-grow overflow-y-auto no-scrollbar flex items-center justify-center">
                      <div className="w-full">
-                        <h3 className={`text-lg font-bold text-center mb-2 ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>Têca Decorações</h3>
-                        <img src={PIX_QR_CODE_URLS.teca} alt="QR Code PIX para Têca Decorações" className="rounded-lg shadow-lg w-full" />
-                    </div>
-                    <div className="w-full">
-                        <h3 className={`text-lg font-bold text-center mb-2 ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>Ione Lourenço</h3>
-                        <img src={PIX_QR_CODE_URLS.ione} alt="QR Code PIX para Ione Lourenço" className="rounded-lg shadow-lg w-full" />
+                        <img src={newPixUrl} alt="QR Code PIX Unificado" className="rounded-lg shadow-lg w-full" />
                     </div>
                 </div>
             </div>

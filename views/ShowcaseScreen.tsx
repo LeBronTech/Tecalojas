@@ -133,7 +133,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onSaveProduct
               </div>
               
               <div className="mb-4">
-                  <h2 className={`text-sm font-bold tracking-widest ${headerTextClasses}`}>COLEÇÕES EXCLUSIVAS</h2>
+                  <h2 className={`text-sm font-bold tracking-widest ${headerTextClasses}`}>CATÁLOGO</h2>
                   <h3 className={`text-3xl font-bold ${titleTextClasses}`}>Almofadas</h3>
               </div>
 

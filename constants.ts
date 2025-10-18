@@ -18,6 +18,7 @@ const MARCA_PROPRIA_FABRIC_INFO: Record<string, string> = {
     'Tricô': 'Refere-se à técnica de trama tricotada, que pode ser feita de algodão, lã ou fio acrílico. Seu toque é texturizado e aconchegante, com um visual clássico de "feito à mão", ideal para mantas e almofadas em decorações comfy ou escandinavas.',
     'Macramê': 'Técnica de tecelagem manual com nós, geralmente em barbante de algodão. Caracteriza-se pela textura 3D, relevo único e franjas, trazendo um toque artesanal, natural e orgânico ao ambiente.',
     'Oxford': 'Tecido 100% Poliéster com uma trama característica em "cesta" (basketweave), conferindo um visual robusto e levemente texturizado. Seu toque é firme, seco e resistente, sendo uma opção funcional para almofadas, toalhas de mesa e cortinas.',
+    'Gorgorinho (Gorgurão)': 'É um tecido canelado com nervuras marcadas, geralmente na horizontal, resultando em uma textura firme e característica. Composto tradicionalmente por 60% algodão e 40% poliéster, é firme, seco, encorpado e estruturado. O poliéster confere durabilidade e resistência a amassados, enquanto o algodão adiciona robustez. Seu toque é levemente áspero, denotando alta resistência.',
 };
 
 const DOHLER_FABRIC_INFO: Record<string, string> = {
@@ -85,12 +86,6 @@ export const WATER_RESISTANCE_INFO: Record<WaterResistanceLevel, { label: string
     shortLabel: 'Waterblock 💧',
     showcaseIndicator: '100%💧💧'
   },
-};
-
-
-export const PIX_QR_CODE_URLS = {
-  teca: 'https://i.postimg.cc/VLnbtz0s/Pague-com-Pix-QR-Code-Elegante-Feminino-Preto-e-Dourado-Plaquinha-2.png',
-  ione: 'https://i.postimg.cc/52mYPpm3/Pague-com-Pix-QR-Code-Elegante-Feminino-Preto-e-Dourado-Plaquinha.png',
 };
 
 export const VARIATION_DEFAULTS: Record<CushionSize, { priceCover: number; priceFull: number }> = {

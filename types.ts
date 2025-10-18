@@ -13,8 +13,8 @@ export enum CushionSize {
 }
 
 export enum Brand {
-  DOLHER = 'Dohler',
-  KARSTEN = 'Karsten',
+  DOLHER = 'Döhler®',
+  KARSTEN = 'Karsten®',
   MARCA_PROPRIA = 'Marca Própia',
 }
 
