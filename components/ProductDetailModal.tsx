@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { Product, Variation, WaterResistanceLevel } from '../types';
+import { Product, Variation, WaterResistanceLevel, ColorVariation } from '../types';
 import { ThemeContext } from '../App';
 import { WATER_RESISTANCE_INFO, BRAND_LOGOS } from '../constants';
 
@@ -11,14 +11,16 @@ interface ProductDetailModalProps {
 const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClose }) => {
     const { theme } = useContext(ThemeContext);
     const [variationIndex, setVariationIndex] = useState(0);
+    const [selectedColor, setSelectedColor] = useState<ColorVariation | null>(null);
     const [displayImageUrl, setDisplayImageUrl] = useState(product.baseImageUrl);
     const [rotation, setRotation] = useState(0);
 
     useEffect(() => {
-        // Reset main image and rotation when product changes
+        // Reset main image, rotation, and selections when product changes
         setDisplayImageUrl(product.baseImageUrl);
         setRotation(0);
         setVariationIndex(0);
+        setSelectedColor(null);
     }, [product]);
 
     const isDark = theme === 'dark';
@@ -32,6 +34,11 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
         ...(product.backgroundImages?.varanda ? [{ url: product.backgroundImages.varanda, label: 'Varanda' }] : []),
     ].filter(image => image.url); // Ensure no empty URLs
 
+    const handleColorSelect = (colorVar: ColorVariation | null) => {
+        setSelectedColor(colorVar);
+        setDisplayImageUrl(colorVar ? colorVar.imageUrl : product.baseImageUrl);
+        setRotation(0);
+    };
 
     const handlePrevVariation = () => {
         setVariationIndex(prev => (prev === 0 ? product.variations.length - 1 : prev - 1));
@@ -94,8 +101,9 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
                                     onClick={() => {
                                         setDisplayImageUrl(image.url);
                                         setRotation(0);
+                                        setSelectedColor(null);
                                     }}
-                                    className={`relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${displayImageUrl === image.url ? 'border-fuchsia-500' : (isDark ? 'border-white/10' : 'border-gray-200')}`}
+                                    className={`relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${displayImageUrl === image.url && !selectedColor ? 'border-fuchsia-500' : (isDark ? 'border-white/10' : 'border-gray-200')}`}
                                 >
                                     <img src={image.url} alt={image.label} className="w-full h-full object-cover" />
                                     <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] text-center py-0.5">
@@ -107,8 +115,28 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
                     </div>
                 
                     <span className={`text-sm font-bold uppercase tracking-wider ${isDark ? 'text-fuchsia-400' : 'text-purple-600'}`}>{product.category}</span>
-                    <h2 className={`text-2xl font-bold mt-1 mb-2 ${titleClasses}`}>{product.name}</h2>
+                    <h2 className={`text-2xl font-bold mt-1 mb-2 ${titleClasses}`}>{product.name} {selectedColor ? `(${selectedColor.name})` : ''}</h2>
                     
+                    {product.hasColorVariations && product.colorVariations && product.colorVariations.length > 0 && (
+                        <div className="mb-4">
+                            <h3 className={`text-sm font-semibold mb-2 ${subtitleClasses}`}>Cores Disponíveis:</h3>
+                            <div className="flex flex-wrap gap-2">
+                                <button onClick={() => handleColorSelect(null)} className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${!selectedColor ? 'ring-2 ring-fuchsia-500 ring-offset-2' : ''} ${isDark ? 'bg-gray-700 border-gray-500' : 'bg-gray-200 border-gray-400'}`} title="Padrão">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4-4m0 0l4 4m-4-4v12" /></svg>
+                                </button>
+                                {product.colorVariations.map(colorVar => (
+                                    <button
+                                        key={colorVar.name}
+                                        onClick={() => handleColorSelect(colorVar)}
+                                        style={{ backgroundColor: colorVar.hex }}
+                                        className={`w-8 h-8 rounded-full border-2 ${isDark ? 'border-gray-400' : 'border-gray-500'} ${selectedColor?.name === colorVar.name ? 'ring-2 ring-fuchsia-500 ring-offset-2' : ''}`}
+                                        title={colorVar.name}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="my-4 space-y-3">
                         <div className="flex items-center justify-between flex-wrap gap-y-3">
                             <div className="flex items-center gap-2">

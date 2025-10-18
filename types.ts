@@ -1,7 +1,7 @@
-// FIX: Moved StoreName enum here from constants.ts to break a circular dependency.
+// FIX: Defined and exported the StoreName enum here to resolve a circular dependency.
 export enum StoreName {
   TECA = 'Têca',
-  IONE = 'Ione',
+  IONE = 'Ione Decor',
 }
 
 export enum CushionSize {
@@ -35,8 +35,15 @@ export interface Variation {
   };
 }
 
+export interface ColorVariation {
+  name: string;
+  hex: string;
+  imageUrl: string;
+}
+
 export interface Product {
   id: string;
+  originalId?: string;
   name: string;
   baseImageUrl: string;
   unitsSold: number;
@@ -51,6 +58,9 @@ export interface Product {
     sala?: string;
     varanda?: string;
   };
+  mainColor?: { name: string; hex: string };
+  hasColorVariations?: boolean;
+  colorVariations?: ColorVariation[];
 }
 
 export enum View {

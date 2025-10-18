@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, createContext, useContext, useEffect } from 'react';
 import { Product, View, Theme, User, StoreName, Variation, CushionSize } from './types';
 import { INITIAL_PRODUCTS } from './constants';
@@ -31,6 +30,7 @@ declare global {
 // --- Constants for localStorage keys ---
 const THEME_STORAGE_KEY = 'pillow-oasis-theme';
 const API_KEY_STORAGE_KEY = 'pillow-oasis-api-key';
+const CUSTOM_COLORS_STORAGE_KEY = 'pillow-oasis-custom-colors';
 
 // --- Theme Context ---
 interface ThemeContextType {
@@ -267,6 +267,31 @@ export default function App() {
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyAX1XcWqVjlnYVpHaaQNh91LgT2ge19Z4Q");
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [customColors, setCustomColors] = useState<{ name: string; hex: string }[]>([]);
+
+  // Effect for loading custom colors from localStorage on initial load
+  useEffect(() => {
+    try {
+      const storedColors = localStorage.getItem(CUSTOM_COLORS_STORAGE_KEY);
+      if (storedColors) {
+        setCustomColors(JSON.parse(storedColors));
+      }
+    } catch (error) {
+      console.error("Failed to load custom colors from localStorage:", error);
+    }
+  }, []);
+
+  const addCustomColor = useCallback((color: { name: string; hex: string }) => {
+    setCustomColors(prev => {
+      const newColors = [...prev, color];
+      try {
+        localStorage.setItem(CUSTOM_COLORS_STORAGE_KEY, JSON.stringify(newColors));
+      } catch (error) {
+        console.error("Failed to save custom colors to localStorage:", error);
+      }
+      return newColors;
+    });
+  }, []);
   
   // Check if the Firebase config is valid. If not, the app will be blocked.
   const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_REAL_API_KEY_HERE";
@@ -537,6 +562,8 @@ export default function App() {
                     categories={uniqueCategories}
                     apiKey={apiKey}
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
+                    customColors={customColors}
+                    onAddCustomColor={addCustomColor}
                 />
             )}
             {isSignUpModalOpen && (

@@ -96,6 +96,21 @@ export const VARIATION_DEFAULTS: Record<CushionSize, { priceCover: number; price
     [CushionSize.LUMBAR]: { priceCover: 20, priceFull: 25 },
 };
 
+export const PREDEFINED_COLORS: { name: string; hex: string }[] = [
+    { name: 'Branco', hex: '#FFFFFF' },
+    { name: 'Preto', hex: '#000000' },
+    { name: 'Cinza', hex: '#808080' },
+    { name: 'Vermelho', hex: '#FF0000' },
+    { name: 'Azul', hex: '#0000FF' },
+    { name: 'Verde', hex: '#008000' },
+    { name: 'Amarelo', hex: '#FFFF00' },
+    { name: 'Laranja', hex: '#FFA500' },
+    { name: 'Roxo', hex: '#800080' },
+    { name: 'Rosa', hex: '#FFC0CB' },
+    { name: 'Marrom', hex: '#A52A2A' },
+    { name: 'Bege', hex: '#F5F5DC' },
+];
+
 const rawProductsData = [
   { id: '1658690251010-AcuoQ', name: 'Rosa bebê suede pena (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
   { id: '1655401251353-AcuoQ', name: 'Capa livros vermelhos', price: 29, inventory: 2, category: 'Marca Própria' },
@@ -328,6 +343,8 @@ export const INITIAL_PRODUCTS: Product[] = rawProductsData.map((p, index) => {
         waterResistance: WaterResistanceLevel.NONE, // Default value
         brand: brand,
         backgroundImages: {},
+        hasColorVariations: false,
+        colorVariations: [],
         variations: [
             {
                 size: defaultVariationSize,
