@@ -327,6 +327,7 @@ export const INITIAL_PRODUCTS: Product[] = rawProductsData.map((p, index) => {
         description: fabricInfo[defaultFabricType] || '',
         waterResistance: WaterResistanceLevel.NONE, // Default value
         brand: brand,
+        backgroundImages: {},
         variations: [
             {
                 size: defaultVariationSize,

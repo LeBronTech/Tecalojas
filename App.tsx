@@ -362,7 +362,7 @@ export default function App() {
 
     switch (view) {
       case View.SHOWCASE:
-        return <ShowcaseScreen products={products} onSaveProduct={handleSaveProduct} hasFetchError={hasFetchError} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} {...mainScreenProps} />;
+        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} {...mainScreenProps} />;
       case View.STOCK:
         return (
           <StockManagementScreen
@@ -377,7 +377,7 @@ export default function App() {
           />
         );
       default:
-        return <ShowcaseScreen products={products} onSaveProduct={handleSaveProduct} hasFetchError={hasFetchError} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} {...mainScreenProps} />;
+        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} {...mainScreenProps} />;
     }
   };
 

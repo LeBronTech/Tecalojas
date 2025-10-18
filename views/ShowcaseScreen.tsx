@@ -59,10 +59,12 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
         </div>
         <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{product.name}</h3>
         <div className={`flex items-center justify-center flex-wrap gap-x-3 gap-y-2 text-xs mt-2`}>
-            <div className={`flex items-center space-x-1 ${textMetaClasses}`}>
-                <FireIcon className="w-4 h-4 text-orange-400" />
-                <span>{product.unitsSold} vendidos</span>
-            </div>
+            {product.unitsSold >= 5 && (
+                <div className={`flex items-center space-x-1 ${textMetaClasses}`}>
+                    <FireIcon className="w-4 h-4 text-orange-400" />
+                    <span>{product.unitsSold} vendidos</span>
+                </div>
+            )}
             <div className={`flex items-center gap-1 ${textMetaClasses}`}>
                 <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
                 <span className="font-semibold">{product.brand}</span>
@@ -80,13 +82,10 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
 interface ShowcaseScreenProps {
   products: Product[];
   onMenuClick: () => void;
-  onSaveProduct: (product: Product) => void;
   hasFetchError: boolean;
-  apiKey: string | null;
-  onRequestApiKey: () => void;
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onSaveProduct, hasFetchError, apiKey, onRequestApiKey }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, hasFetchError }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const { theme } = useContext(ThemeContext);
@@ -177,8 +176,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onSaveProduct
           <ProductDetailModal
               product={selectedProduct}
               onClose={() => setSelectedProduct(null)}
-              apiKey={apiKey}
-              onRequestApiKey={onRequestApiKey}
           />
       )}
     </>

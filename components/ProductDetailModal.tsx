@@ -1,32 +1,18 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { Product, Variation, WaterResistanceLevel } from '../types';
 import { ThemeContext } from '../App';
-import { GoogleGenAI, Modality } from '@google/genai';
 import { WATER_RESISTANCE_INFO, BRAND_LOGOS } from '../constants';
 
 interface ProductDetailModalProps {
     product: Product;
     onClose: () => void;
-    apiKey: string | null;
-    onRequestApiKey: () => void;
 }
 
-const Spinner = () => (
-    <svg className="animate-spin h-10 w-10 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-);
-
-
-const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClose, apiKey, onRequestApiKey }) => {
+const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClose }) => {
     const { theme } = useContext(ThemeContext);
     const [variationIndex, setVariationIndex] = useState(0);
     const [displayImageUrl, setDisplayImageUrl] = useState(product.baseImageUrl);
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [generationError, setGenerationError] = useState<string | null>(null);
     const [rotation, setRotation] = useState(0);
-    const noApiKeyTitle = "Adicionar chave de API da Gemini para usar IA";
 
     useEffect(() => {
         // Reset main image and rotation when product changes
@@ -38,6 +24,13 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
     const isDark = theme === 'dark';
     const currentVariation: Variation | undefined = product.variations[variationIndex];
     const waterResistanceDetails = WATER_RESISTANCE_INFO[product.waterResistance];
+    
+    const galleryImages = [
+        { url: product.baseImageUrl, label: 'Principal' },
+        ...(product.backgroundImages?.sala ? [{ url: product.backgroundImages.sala, label: 'Sala' }] : []),
+        ...(product.backgroundImages?.quarto ? [{ url: product.backgroundImages.quarto, label: 'Quarto' }] : []),
+        ...(product.backgroundImages?.varanda ? [{ url: product.backgroundImages.varanda, label: 'Varanda' }] : []),
+    ].filter(image => image.url); // Ensure no empty URLs
 
 
     const handlePrevVariation = () => {
@@ -51,64 +44,6 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
     const handleRotate = () => {
         setRotation(prev => (prev + 90) % 360);
     };
-
-    const getPromptForBackground = (background: 'Quarto' | 'Sala' | 'Varanda') => {
-        const prompts = {
-            'Quarto': 'Coloque esta almofada sobre uma cama bem arrumada em um quarto aconchegante e bem iluminado. O estilo deve ser moderno e convidativo. Qualidade de foto profissional.',
-            'Sala': 'Coloque esta almofada em um sofá moderno em uma sala de estar elegante com luz natural. O estilo deve ser clean e sofisticado. Qualidade de foto profissional.',
-            'Varanda': 'Coloque esta almofada em uma confortável cadeira de exterior em uma varanda bonita com algumas plantas verdes ao fundo. A cena deve ser clara e relaxante. Qualidade de foto profissional.'
-        };
-        return prompts[background];
-    };
-
-    const handleGenerateBackground = async (background: 'Quarto' | 'Sala' | 'Varanda') => {
-        if (!apiKey) {
-            onRequestApiKey();
-            return;
-        }
-        if (!product.baseImageUrl) {
-            setGenerationError("Produto sem imagem base para gerar ambiente.");
-            return;
-        }
-        setIsGenerating(true);
-        setGenerationError(null);
-
-        try {
-            const response = await fetch(product.baseImageUrl);
-            if (!response.ok) throw new Error('Falha ao buscar a imagem base.');
-            const blob = await response.blob();
-            const base64Data = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
-
-            const ai = new GoogleGenAI({ apiKey });
-            const imagePart = { inlineData: { data: base64Data, mimeType: blob.type } };
-            const textPart = { text: getPromptForBackground(background) };
-
-            const aiResponse = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-image',
-                contents: { parts: [imagePart, textPart] },
-                config: { responseModalities: [Modality.IMAGE] },
-            });
-
-            const firstPart = aiResponse.candidates?.[0]?.content?.parts?.[0];
-            if (firstPart?.inlineData) {
-                const newImageUrl = `data:${firstPart.inlineData.mimeType};base64,${firstPart.inlineData.data}`;
-                setDisplayImageUrl(newImageUrl);
-                setRotation(0); // Reset rotation on new image
-            } else {
-                throw new Error("A IA não retornou uma imagem válida.");
-            }
-        } catch (error: any) {
-            console.error("AI background generation failed:", error);
-            setGenerationError(error.message);
-        } finally {
-            setIsGenerating(false);
-        }
-    };
     
     const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
     const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
@@ -116,7 +51,6 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
     const closeBtnClasses = isDark ? "text-gray-400 hover:text-white bg-black/20" : "text-gray-500 hover:text-gray-800 bg-gray-100";
     const carouselBtnClasses = isDark ? "bg-black/30 hover:bg-black/60 text-white" : "bg-white/50 hover:bg-white/90 text-gray-800";
     const priceBoxClasses = isDark ? "bg-black/20 border-white/10" : "bg-gray-100 border-gray-200";
-    const bgGenBtnClasses = isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200';
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300" onClick={onClose}>
@@ -135,7 +69,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
                 </button>
 
                 <div className="flex-grow overflow-y-auto no-scrollbar">
-                    {/* Main Image and AI Background Generator */}
+                    {/* Main Image and Gallery */}
                     <div className="mb-4">
                         <div className="relative w-full aspect-square rounded-2xl overflow-hidden mb-3">
                             <img 
@@ -144,11 +78,6 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
                                 className="w-full h-full object-cover transition-transform duration-300"
                                 style={{ transform: `rotate(${rotation}deg)` }}
                             />
-                            {isGenerating && (
-                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                    <Spinner />
-                                </div>
-                            )}
                             <button
                                 onClick={handleRotate}
                                 className="absolute bottom-3 right-3 w-10 h-10 rounded-full z-10 bg-transparent hover:bg-black/10 flex items-center justify-center transition-colors"
@@ -157,19 +86,24 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
                                 <img src="https://i.postimg.cc/QMgBhNLq/Gemini-Generated-Image-2csq4y2csq4y2csq.png" alt="Girar Imagem" className="w-8 h-8" />
                             </button>
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
-                            {(['Quarto', 'Sala', 'Varanda'] as const).map(bg => (
-                                <button 
-                                    key={bg} 
-                                    onClick={apiKey ? () => handleGenerateBackground(bg) : onRequestApiKey}
-                                    disabled={isGenerating}
-                                    title={!apiKey ? noApiKeyTitle : `Gerar fundo de ${bg}`}
-                                    className={`text-xs font-semibold py-2 rounded-lg transition ${bgGenBtnClasses} disabled:opacity-50`}>
-                                    {bg}
+                        
+                        <div className="flex items-center space-x-2 overflow-x-auto pb-2 -ml-2 pl-2">
+                           {galleryImages.map((image, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => {
+                                        setDisplayImageUrl(image.url);
+                                        setRotation(0);
+                                    }}
+                                    className={`relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${displayImageUrl === image.url ? 'border-fuchsia-500' : (isDark ? 'border-white/10' : 'border-gray-200')}`}
+                                >
+                                    <img src={image.url} alt={image.label} className="w-full h-full object-cover" />
+                                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] text-center py-0.5">
+                                        {image.label}
+                                    </div>
                                 </button>
                             ))}
                         </div>
-                        {generationError && <p className="text-red-500 text-xs text-center mt-2">{generationError}</p>}
                     </div>
                 
                     <span className={`text-sm font-bold uppercase tracking-wider ${isDark ? 'text-fuchsia-400' : 'text-purple-600'}`}>{product.category}</span>

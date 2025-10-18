@@ -46,6 +46,11 @@ export interface Product {
   waterResistance: WaterResistanceLevel;
   brand: Brand;
   variations: Variation[];
+  backgroundImages?: {
+    quarto?: string;
+    sala?: string;
+    varanda?: string;
+  };
 }
 
 export enum View {

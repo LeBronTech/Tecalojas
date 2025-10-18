@@ -221,15 +221,15 @@ const initialFormState: Product = {
   brand: Brand.MARCA_PROPRIA,
   waterResistance: WaterResistanceLevel.NONE,
   variations: [],
+  backgroundImages: {},
 };
 
-const Spinner = () => (
-    <svg className="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+const ButtonSpinner = () => (
+    <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
-
 
 const FormInput = ({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) => {
     const { theme } = useContext(ThemeContext);
@@ -298,14 +298,17 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
   const [addVariationSize, setAddVariationSize] = useState<CushionSize | ''>('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  
+  const [bgGenerating, setBgGenerating] = useState<Record<string, boolean>>({});
+  const [bgGenError, setBgGenError] = useState<string | null>(null);
+
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const noApiKeyTitle = "Adicionar chave de API da Gemini para usar IA";
 
   useEffect(() => {
     if (product) {
-      setFormData(product);
+      // Ensure backgroundImages is at least an empty object
+      setFormData({ ...initialFormState, ...product, backgroundImages: product.backgroundImages || {} });
     } else {
       setFormData(initialFormState);
     }
@@ -530,6 +533,72 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
     }
   };
   
+    const getPromptForBackground = (background: 'Quarto' | 'Sala' | 'Varanda'): string => {
+        const prompts = {
+            'Quarto': 'Coloque esta almofada sobre uma cama bem arrumada em um quarto aconchegante e bem iluminado. O estilo deve ser moderno e convidativo. Qualidade de foto profissional.',
+            'Sala': 'Coloque esta almofada em um sofá moderno em uma sala de estar elegante com luz natural. O estilo deve ser clean e sofisticado. Qualidade de foto profissional.',
+            'Varanda': 'Coloque esta almofada em uma confortável cadeira de exterior em uma varanda bonita com algumas plantas verdes ao fundo. A cena deve ser clara e relaxante. Qualidade de foto profissional.'
+        };
+        return prompts[background];
+    };
+  
+    const handleGenerateBackgroundImage = async (background: 'Quarto' | 'Sala' | 'Varanda') => {
+    if (!apiKey) {
+        onRequestApiKey();
+        return;
+    }
+    if (!formData.baseImageUrl) {
+        setBgGenError("Primeiro, adicione uma imagem base para o produto.");
+        return;
+    }
+
+    const contextKey = background.toLowerCase() as 'quarto' | 'sala' | 'varanda';
+    setBgGenerating(prev => ({ ...prev, [contextKey]: true }));
+    setBgGenError(null);
+
+    try {
+        const response = await fetch(formData.baseImageUrl);
+        if (!response.ok) throw new Error('Falha ao buscar a imagem base.');
+        const blob = await response.blob();
+        const base64Data = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+
+        const ai = new GoogleGenAI({ apiKey });
+        const imagePart = { inlineData: { data: base64Data, mimeType: blob.type } };
+        const textPart = { text: getPromptForBackground(background) };
+
+        const aiResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: { parts: [imagePart, textPart] },
+            config: { responseModalities: [Modality.IMAGE] },
+        });
+
+        const firstPart = aiResponse.candidates?.[0]?.content?.parts?.[0];
+        if (firstPart?.inlineData) {
+            const newImageUrl = `data:${firstPart.inlineData.mimeType};base64,${firstPart.inlineData.data}`;
+            const resizedImageUrl = await resizeImage(newImageUrl);
+            setFormData(prev => ({
+                ...prev,
+                backgroundImages: {
+                    ...prev.backgroundImages,
+                    [contextKey]: resizedImageUrl
+                }
+            }));
+        } else {
+            throw new Error(`A IA não retornou uma imagem válida para ${background}.`);
+        }
+    } catch (error: any) {
+        console.error(`AI background generation for ${background} failed:`, error);
+        setBgGenError(error.message || `Falha ao gerar fundo para ${background}.`);
+    } finally {
+        setBgGenerating(prev => ({ ...prev, [contextKey]: false }));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
@@ -615,7 +684,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
                                 disabled={isGeneratingShowcase || !formData.baseImageUrl} 
                                 title={!apiKey ? noApiKeyTitle : "Gerar imagem de vitrine com IA"}
                                 className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
-                                {isGeneratingShowcase ? <Spinner /> : 'Gerar Vitrine com IA'}
+                                {isGeneratingShowcase ? <ButtonSpinner /> : 'Gerar Vitrine com IA'}
                             </button>
                             {showcaseAiError && <p className="text-xs text-red-500 mt-1">{showcaseAiError}</p>}
                         </div>
@@ -698,7 +767,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
                                             onClick={() => handleGenerateVariationImage(i)}
                                             title={!apiKey ? noApiKeyTitle : `Gerar imagem para variação ${v.size}`}
                                             className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>
-                                            {aiGenerating[v.size] ? <Spinner /> : 'Gerar Imagem IA'}
+                                            {aiGenerating[v.size] ? <ButtonSpinner /> : 'Gerar Imagem IA'}
                                         </button>
                                     </div>
                                 </div>
@@ -717,6 +786,46 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, onCl
                             </button>
                         </div>
                     </div>
+                    
+                    {/* Background Generation */}
+                    <div>
+                        <h3 className={`text-lg font-bold mb-3 ${titleClasses}`}>Fundos de Vitrine (IA)</h3>
+                        <p className={`text-sm mb-3 ${subtitleClasses}`}>
+                            Gere imagens do produto em diferentes ambientes. Estas imagens serão salvas e exibidas na vitrine.
+                        </p>
+                        {bgGenError && <p className="text-xs text-red-500 mb-2">{bgGenError}</p>}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            {(['Sala', 'Quarto', 'Varanda'] as const).map(bg => {
+                                const contextKey = bg.toLowerCase() as 'sala' | 'quarto' | 'varanda';
+                                const imageUrl = formData.backgroundImages?.[contextKey];
+                                const isGenerating = bgGenerating[contextKey];
+
+                                return (
+                                    <div key={bg} className="flex flex-col items-center">
+                                        <div className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
+                                            {isGenerating ? (
+                                                <ButtonSpinner />
+                                            ) : imageUrl ? (
+                                                <img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleGenerateBackgroundImage(bg)}
+                                            disabled={isGenerating || !formData.baseImageUrl}
+                                            title={!apiKey ? noApiKeyTitle : `Gerar fundo de ${bg}`}
+                                            className={`w-full text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}
+                                        >
+                                            {isGenerating ? <ButtonSpinner/> : `Gerar ${bg}`}
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
                 </div>
 
                 <div className="flex justify-end items-center pt-6 gap-4 border-t border-gray-200 dark:border-white/10 mt-6">
