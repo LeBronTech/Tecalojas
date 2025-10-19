@@ -12,26 +12,9 @@ const FireIcon = ({ className }: { className: string }) => (
 );
 
 
-const ProductCard: React.FC<{ product: Product, index: number, onClick: () => void, isExpandedView?: boolean }> = ({ product, index, onClick, isExpandedView }) => {
+const ProductCard: React.FC<{ product: Product, index: number, onClick: () => void }> = ({ product, index, onClick }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
-
-  const allImages = (product.hasColorVariations && product.colorVariations && product.colorVariations.length > 0)
-    ? [product.baseImageUrl, ...product.colorVariations.map(cv => cv.imageUrl)].filter(Boolean)
-    : [product.baseImageUrl];
-
-  useEffect(() => {
-    if (isExpandedView || allImages.length <= 1) {
-      return; // Stop slider in expanded view or if there's only one image
-    }
-
-    const intervalId = setInterval(() => {
-      setActiveImageIndex(prevIndex => (prevIndex + 1) % allImages.length);
-    }, 3000);
-
-    return () => clearInterval(intervalId);
-  }, [allImages.length, isExpandedView]);
 
   const cardClasses = isDark 
     ? "bg-black/20 backdrop-blur-xl border-white/10" 
@@ -67,14 +50,11 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
              opacity: 0 
          }}>
         <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
-             {allImages.map((url, idx) => (
-                <img 
-                    key={idx}
-                    src={url || 'https://i.imgur.com/gA0Wxkm.png'} 
-                    alt={`${product.name} variation ${idx + 1}`} 
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-[1500ms] ease-in-out ${activeImageIndex === idx ? 'opacity-100' : 'opacity-0'}`}
-                />
-             ))}
+             <img 
+                src={product.baseImageUrl || 'https://i.imgur.com/gA0Wxkm.png'} 
+                alt={product.name} 
+                className="absolute inset-0 w-full h-full object-cover"
+            />
              {waterResistanceDetails?.showcaseIndicator && (
                 <div className="absolute top-2 right-2 bg-black/50 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-full z-10">
                     {waterResistanceDetails.showcaseIndicator}
@@ -117,38 +97,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
 
   const categories = ['Todas', ...Array.from(new Set(products.map(p => p.category)))];
 
-  const isExpandedView = selectedCategory !== 'Todas';
-
-  let displayedProducts: Product[];
-  if (isExpandedView) {
-      const categoryProducts = products.filter(p => p.category === selectedCategory);
-      displayedProducts = categoryProducts.flatMap(product => {
-          if (product.hasColorVariations && product.colorVariations && product.colorVariations.length > 0) {
-              return product.colorVariations.map(colorVar => ({
-                  ...product,
-                  id: `${product.id}-${colorVar.hex}`, // Unique key for rendering
-                  originalId: product.id, // Keep track of the original product
-                  name: `${product.name} (${colorVar.name})`,
-                  baseImageUrl: colorVar.imageUrl,
-                  // These are now virtual products, so disable nested variations logic for them.
-                  hasColorVariations: false, 
-                  colorVariations: [],
-              }));
-          }
-          // FIX: Return an array to ensure consistent return type for flatMap callback, resolving a TypeScript inference issue.
-          return [product];
-      });
-  } else {
-      displayedProducts = products;
-  }
-
-  const handleCardClick = (clickedProduct: Product) => {
-    // If an expanded (virtual) product is clicked, find the original to show all details.
-    const productToShow = clickedProduct.originalId 
-        ? products.find(p => p.id === clickedProduct.originalId) 
-        : clickedProduct;
-    setSelectedProduct(productToShow || clickedProduct); // Fallback to clicked one if not found
-  }
+  const displayedProducts = products.filter(p => selectedCategory === 'Todas' || p.category === selectedCategory);
 
   const searchInputClasses = isDark 
     ? "bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400"
@@ -224,8 +173,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
                         key={product.id} 
                         product={product} 
                         index={index} 
-                        onClick={() => handleCardClick(product)} 
-                        isExpandedView={isExpandedView}
+                        onClick={() => setSelectedProduct(product)} 
                       />
                   ))}
               </div>

@@ -65,13 +65,19 @@ const getUserProfile = async (uid: string): Promise<Pick<User, 'role'>> => {
     const userDocSnap = await userDocRef.get();
     if (userDocSnap.exists) {
         const userData = userDocSnap.data();
-        // FIX: Check for both `role` and `rule` to accommodate the user's typo.
-        // This makes the admin check more robust and fixes the "read-only" issue immediately.
-        if (userData && (userData.role === 'admin' || userData.rule === 'admin')) {
-          return { role: 'admin' };
+        if (userData) {
+            // FIX: To make the admin check more robust, check for 'role' or a common typo 'rule'.
+            // Also, make the check case-insensitive to accept 'admin', 'Admin', or 'administrador'.
+            const userRole = userData.role || userData.rule;
+            if (userRole && typeof userRole === 'string') {
+                const roleLower = userRole.toLowerCase();
+                if (roleLower === 'admin' || roleLower === 'administrador') {
+                    return { role: 'admin' };
+                }
+            }
         }
     }
-    // Default to 'user' if no document, no role field, or role is not 'admin'.
+    // Default to 'user' if no document, no role field, or role is not 'admin'/'administrador'.
     return { role: 'user' };
 };
 

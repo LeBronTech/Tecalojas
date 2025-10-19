@@ -9,6 +9,7 @@ import SignUpModal from './components/SignUpModal';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import ApiKeyModal from './components/ApiKeyModal';
+import ConfirmationModal from './components/ConfirmationModal';
 import * as api from './firebase';
 import { firebaseConfig } from './firebaseConfig';
 
@@ -268,6 +269,7 @@ export default function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyAX1XcWqVjlnYVpHaaQNh91LgT2ge19Z4Q");
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [customColors, setCustomColors] = useState<{ name: string; hex: string }[]>([]);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
 
   // Effect for loading custom colors from localStorage on initial load
   useEffect(() => {
@@ -411,21 +413,45 @@ export default function App() {
     setIsApiKeyModalOpen(false);
   };
 
-  const handleSaveProduct = useCallback(async (productToSave: Product) => {
+  const handleSaveProduct = useCallback(async (productToSave: Product, nextProductData?: Omit<Product, 'id'>) => {
     try {
-      if (productToSave.id) { // Existing product with a real ID
-        const { id, ...productData } = productToSave;
+      let finalProductToSave = { ...productToSave };
+
+      // If we are creating a variation (nextProductData exists) and the parent doesn't have a group ID, create one.
+      if (!finalProductToSave.variationGroupId && nextProductData) {
+        finalProductToSave.variationGroupId = `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+
+      if (finalProductToSave.id) { // Existing product
+        const { id, ...productData } = finalProductToSave;
         await api.updateProduct(id, productData);
-      } else { // New product, ID is empty string
-        const { id, ...productData } = productToSave;
+      } else { // New product
+        const { id, ...productData } = finalProductToSave;
         await api.addProduct(productData as Omit<Product, 'id'>);
       }
-      setEditingProduct(null); // Close modal on success
+
+      if (nextProductData) {
+        setEditingProduct(null); // Close current modal
+        setTimeout(() => {
+            const newProductForEditing: Product = {
+                id: '', // It's a new product
+                ...nextProductData,
+                // Ensure the new product variation shares the same group ID
+                variationGroupId: finalProductToSave.variationGroupId,
+            };
+            setEditingProduct(newProductForEditing);
+        }, 150);
+      } else {
+          setEditingProduct(null); // Close modal on normal save
+      }
     } catch (error) {
       console.error("Failed to save product:", error);
-      // Re-throw error to be caught by the modal for displaying a message
       throw error;
     }
+  }, []);
+
+  const handleSwitchToProduct = useCallback((product: Product) => {
+    setEditingProduct(product);
   }, []);
   
   const handleUpdateStock = useCallback(async (productId: string, variationSize: CushionSize, store: StoreName, change: number) => {
@@ -462,20 +488,26 @@ export default function App() {
   }, [products]);
 
 
-  const handleDeleteProduct = useCallback(async (productId: string) => {
-    if (window.confirm("Tem certeza que deseja excluir este produto? A ação não pode ser desfeita.")) {
-      try {
-        await api.deleteProduct(productId);
-      } catch (error: any) {
-        console.error("Failed to delete product:", error);
-        if (error.code === 'permission-denied') {
-            window.alert('Permissão negada. Você não tem autorização para excluir produtos.');
-        } else {
-            window.alert('Falha ao excluir o produto. Tente novamente.');
-        }
-      }
-    }
+  const requestDeleteProduct = useCallback((productId: string) => {
+    setDeletingProductId(productId);
   }, []);
+
+  const confirmDeleteProduct = async () => {
+    if (!deletingProductId) return;
+
+    try {
+      await api.deleteProduct(deletingProductId);
+    } catch (error: any) {
+      console.error("Failed to delete product:", error);
+      if (error.code === 'permission-denied') {
+        window.alert('Permissão negada. Você não tem autorização para excluir produtos. Verifique se sua conta é um "admin" no banco de dados do Firebase.');
+      } else {
+        window.alert(`Falha ao excluir o produto. Erro: ${error.message}`);
+      }
+    } finally {
+      setDeletingProductId(null);
+    }
+  };
 
   const uniqueCategories = [...new Set(products.map(p => p.category))];
   
@@ -516,7 +548,7 @@ export default function App() {
             products={products}
             onEditProduct={setEditingProduct}
             onAddProduct={() => setEditingProduct('new')}
-            onDeleteProduct={handleDeleteProduct}
+            onDeleteProduct={requestDeleteProduct}
             onUpdateStock={handleUpdateStock}
             canManageStock={!!canManageStock}
             hasFetchError={hasFetchError}
@@ -557,8 +589,10 @@ export default function App() {
             {editingProduct && (
                 <AddEditProductModal
                     product={editingProduct === 'new' ? null : editingProduct}
+                    products={products}
                     onClose={() => setEditingProduct(null)}
                     onSave={handleSaveProduct}
+                    onSwitchProduct={handleSwitchToProduct}
                     categories={uniqueCategories}
                     apiKey={apiKey}
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
@@ -577,6 +611,15 @@ export default function App() {
                 <ApiKeyModal
                     onClose={() => setIsApiKeyModalOpen(false)}
                     onSave={handleSaveApiKey}
+                />
+            )}
+            {deletingProductId && (
+                <ConfirmationModal
+                    isOpen={!!deletingProductId}
+                    onClose={() => setDeletingProductId(null)}
+                    onConfirm={confirmDeleteProduct}
+                    title="Confirmar Exclusão"
+                    message="Tem certeza que deseja excluir este produto? A ação não pode ser desfeita."
                 />
             )}
         </div>

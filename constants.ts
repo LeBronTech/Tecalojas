@@ -343,8 +343,6 @@ export const INITIAL_PRODUCTS: Product[] = rawProductsData.map((p, index) => {
         waterResistance: WaterResistanceLevel.NONE, // Default value
         brand: brand,
         backgroundImages: {},
-        hasColorVariations: false,
-        colorVariations: [],
         variations: [
             {
                 size: defaultVariationSize,

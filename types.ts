@@ -35,15 +35,10 @@ export interface Variation {
   };
 }
 
-export interface ColorVariation {
-  name: string;
-  hex: string;
-  imageUrl: string;
-}
-
 export interface Product {
   id: string;
   originalId?: string;
+  variationGroupId?: string;
   name: string;
   baseImageUrl: string;
   unitsSold: number;
@@ -59,8 +54,6 @@ export interface Product {
     varanda?: string;
   };
   mainColor?: { name: string; hex: string };
-  hasColorVariations?: boolean;
-  colorVariations?: ColorVariation[];
 }
 
 export enum View {
