@@ -28,6 +28,24 @@ if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 const auth = firebase.auth();
+
+// FIX: Explicitly set auth persistence to handle environments like file://
+// where web storage (IndexedDB) might not be available. In a Cordova/WebView
+// environment, we'll use in-memory persistence for the session.
+const isWebViewForPersistence = !!window.cordova || window.location.protocol === 'file:';
+if (isWebViewForPersistence) {
+    auth.setPersistence(firebase.auth.Auth.Persistence.NONE)
+      .catch((error) => {
+        console.error("Firebase: Could not set persistence to NONE", error);
+      });
+} else {
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+      .catch((error) => {
+         console.error("Firebase: Could not set persistence to LOCAL", error);
+      });
+}
+
+
 const db = firebase.firestore();
 const storage = firebase.storage();
 
