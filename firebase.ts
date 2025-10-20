@@ -6,8 +6,17 @@ import "firebase/compat/storage";
 import { User, Product, DynamicBrand, CatalogPDF } from './types';
 import { firebaseConfig, googleCordovaWebClientId } from './firebaseConfig';
 
-// TypeScript declarations for Cordova plugins
-declare const window: any;
+// TypeScript declarations for Cordova plugins and Kodular/AppInventor communication
+declare global {
+  interface Window {
+    cordova?: any;
+    plugins?: any;
+    AppInventor?: {
+      setWebViewString: (message: string) => void;
+    };
+    completeGoogleSignIn?: (idToken: string | null, errorMsg: string | null) => void;
+  }
+}
 
 // Define types for Firebase v8
 type FirebaseUser = firebase.User;
@@ -79,45 +88,65 @@ export const signIn = async (email: string, password: string): Promise<User> => 
   return { uid, email, role: profile.role };
 };
 
+// --- GOOGLE SIGN IN REWORK FOR KODULAR ---
+
+let googleSignInResolver: ((user: User) => void) | null = null;
+let googleSignInRejecter: ((error: any) => void) | null = null;
+
+// This function will be called by the native Kodular app to complete the sign-in flow
+window.completeGoogleSignIn = async (idToken: string | null, errorMsg: string | null) => {
+    const resolver = googleSignInResolver;
+    const rejecter = googleSignInRejecter;
+    
+    // Clean up to prevent memory leaks and accidental calls
+    googleSignInResolver = null;
+    googleSignInRejecter = null;
+
+    if (errorMsg) {
+        rejecter?.(new Error(errorMsg));
+        return;
+    }
+
+    if (idToken) {
+        try {
+            const credential = firebase.auth.GoogleAuthProvider.credential(idToken);
+            const userCredential = await auth.signInWithCredential(credential);
+            
+            if (!userCredential.user) {
+              throw new Error("Google sign in failed after receiving token.");
+            }
+            const user = userCredential.user;
+            const profile = await getUserProfile(user.uid);
+            resolver?.({ uid: user.uid, email: user.email!, role: profile.role });
+        } catch (error) {
+            rejecter?.(error);
+        }
+    } else {
+        rejecter?.(new Error("Login com Google cancelado ou falhou no app."));
+    }
+};
+
+
 /**
- * Handles Google Sign-In for Cordova environments using the native plugin.
- * It gets an idToken from the native flow and uses it to sign in with Firebase.
+ * Handles Google Sign-In for Cordova/Kodular environments using the WebViewStringChange method.
+ * It sends a command to the native app, which then performs the sign-in and calls back `window.completeGoogleSignIn`.
  */
 const signInWithGoogleCordova = (): Promise<User> => {
   return new Promise((resolve, reject) => {
-    if (!window.plugins || !window.plugins.googleplus) {
-      reject(new Error("Plugin do Google não encontrado. Verifique a instalação."));
-      return;
-    }
+    // Store resolve/reject to be used by the global callback
+    googleSignInResolver = resolve;
+    googleSignInRejecter = reject;
 
-    window.plugins.googleplus.login(
-      {
-        'webClientId': googleCordovaWebClientId,
-        'offline': false,
-      },
-      async (userData: any) => {
-        try {
-          // The most important piece of data is the idToken.
-          // We use it to create a Firebase credential.
-          const credential = firebase.auth.GoogleAuthProvider.credential(userData.idToken);
-          const userCredential = await auth.signInWithCredential(credential);
-          
-          if (!userCredential.user) {
-            throw new Error("Google sign in failed.");
-          }
-          const user = userCredential.user;
-          const profile = await getUserProfile(user.uid);
-          resolve({ uid: user.uid, email: user.email!, role: profile.role });
-        } catch (error) {
-          console.error("Firebase signInWithCredential error:", error);
-          reject(error);
-        }
-      },
-      (msg: string) => {
-        console.error("Cordova Google login error:", msg);
-        reject(new Error(`Erro no login: ${msg}`));
-      }
-    );
+    if (window.AppInventor && typeof window.AppInventor.setWebViewString === 'function') {
+        // Send command to Kodular to start Google Login
+        window.AppInventor.setWebViewString('appkodular://iniciar-login-google');
+    } else {
+        // Fallback or error if the expected interface isn't there
+        reject(new Error("Interface com o App (AppInventor) não encontrada."));
+        // Clean up
+        googleSignInResolver = null;
+        googleSignInRejecter = null;
+    }
   });
 };
 
@@ -142,9 +171,9 @@ export const signInWithGoogle = async (): Promise<User> => {
 
 
 export const signOut = (): Promise<void> => {
-  // Also disconnect from Google if logged in via the plugin
-  if (window.cordova && window.plugins && window.plugins.googleplus) {
-      window.plugins.googleplus.disconnect();
+  // Also disconnect from Google if logged in via Kodular's native flow
+  if (window.cordova && window.AppInventor && typeof window.AppInventor.setWebViewString === 'function') {
+      window.AppInventor.setWebViewString('appkodular://iniciar-logout-google');
   }
   return auth.signOut();
 };
