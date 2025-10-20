@@ -215,7 +215,7 @@ export const signInWithGoogle = async (): Promise<User> => {
 
 export const signOut = (): Promise<void> => {
   // Also disconnect from Google if logged in via Kodular's native flow
-  if (window.cordova) {
+  if (!!window.cordova || window.location.protocol === 'file:') {
       window.location.href = 'appkodular://iniciar-logout-google';
   }
   return auth.signOut();
