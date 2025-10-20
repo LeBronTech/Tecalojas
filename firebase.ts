@@ -164,49 +164,11 @@ const signInWithGoogleCordova = (): Promise<User> => {
             cleanupGoogleSignIn();
         }
     }, 30000); // 30 seconds timeout
-
-    if (window.AppInventor && typeof window.AppInventor.setWebViewString === 'function') {
-        // ====================================================================================
-        // 🔥🔥🔥 INSTRUÇÃO IMPORTANTE PARA O DESENVOLVEDOR DO APP KODULAR/CORDOVA 🔥🔥🔥
-        // ====================================================================================
-        // O erro "403: disallowed_useragent" que você está vendo é uma política de segurança
-        // do Google. Ele acontece porque o Google não permite mais que o login seja feito
-        // diretamente dentro de um WebView simples por razões de segurança (phishing, etc).
-        //
-        // A SOLUÇÃO é garantir que o seu aplicativo nativo (Kodular) abra o fluxo de login
-        // do Google em um "Navegador Seguro" (como Chrome Custom Tabs no Android).
-        //
-        // O que verificar no seu projeto Kodular:
-        // 1. Componente Google Login: Certifique-se de que o componente "Google Login" do Kodular
-        //    esteja configurado para usar um navegador externo ou uma "Custom Tab", e não
-        //    uma WebView interna para a autenticação. A maioria das plataformas de app builder
-        //    já faz isso, mas vale a pena confirmar.
-        // 2. Firebase Console & Google Cloud Console:
-        //    a) Verifique se o "Web client ID" (colocado em `firebaseConfig.ts`)
-        //       está correto.
-        //    b) No Google Cloud Console, para o seu "Android client ID", verifique se o
-        //       NOME DO PACOTE e a impressão digital SHA-1 do seu app correspondem
-        //       exatamente aos do app que você está compilando no Kodular.
-        // 3. Blocos Kodular: Seus blocos devem seguir este fluxo:
-        //    a) Escutar o evento "WebViewStringChange".
-        //    b) Quando a string for 'appkodular://iniciar-login-google', chamar a função de
-        //       login do componente "Google Login".
-        //    c) No evento "Login bem-sucedido" do Google, pegar o `idToken`.
-        //    d) Chamar o WebView para executar o JavaScript:
-        //       `window.completeGoogleSignIn('${idToken}', null);`
-        //    e) No evento "Falha no Login", pegar a mensagem de erro e chamar:
-        //       `window.completeGoogleSignIn(null, '${mensagemDeErro}');`
-        //
-        // Este código web está correto, o problema reside na integração com a parte nativa.
-        // ====================================================================================
-        
-        // Send command to Kodular to start Google Login
-        window.AppInventor.setWebViewString('appkodular://iniciar-login-google');
-    } else {
-        // Fallback or error if the expected interface isn't there
-        reject(new Error("Interface com o App (AppInventor) não encontrada."));
-        cleanupGoogleSignIn();
-    }
+    
+    // Trigger the native login flow by navigating to a custom URL scheme.
+    // The native app (Kodular/Cordova) should be configured to intercept this navigation,
+    // perform the Google Sign-In, and then call `window.completeGoogleSignIn` with the result.
+    window.location.href = "appkodular://iniciar-login-google";
   });
 };
 
@@ -232,8 +194,8 @@ export const signInWithGoogle = async (): Promise<User> => {
 
 export const signOut = (): Promise<void> => {
   // Also disconnect from Google if logged in via Kodular's native flow
-  if (window.cordova && window.AppInventor && typeof window.AppInventor.setWebViewString === 'function') {
-      window.AppInventor.setWebViewString('appkodular://iniciar-logout-google');
+  if (window.cordova) {
+      window.location.href = 'appkodular://iniciar-logout-google';
   }
   return auth.signOut();
 };
