@@ -29,21 +29,21 @@ if (!firebase.apps.length) {
 }
 const auth = firebase.auth();
 
-// FIX: Explicitly set auth persistence to handle environments like file://
-// where web storage (IndexedDB) might not be available. In a Cordova/WebView
-// environment, we'll use in-memory persistence for the session.
-const isWebViewForPersistence = !!window.cordova || window.location.protocol === 'file:';
-if (isWebViewForPersistence) {
-    auth.setPersistence(firebase.auth.Auth.Persistence.NONE)
-      .catch((error) => {
-        console.error("Firebase: Could not set persistence to NONE", error);
-      });
-} else {
-    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-      .catch((error) => {
-         console.error("Firebase: Could not set persistence to LOCAL", error);
-      });
-}
+// FIX: Set auth persistence to 'local' for Cordova/WebView environments.
+// Per Firebase documentation, 'local' persistence is recommended for Cordova to ensure
+// the user's login state survives page reloads or app restarts, which is a likely
+// cause of the blank screen issue after login. The original code used 'none',
+// which does not persist the session across reloads. A fallback to 'none' is included
+// for older environments where local storage might not be available.
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+  .catch((error) => {
+    console.error("Firebase: Could not set persistence to LOCAL, falling back to NONE", error);
+    // If LOCAL fails (e.g. in very old webviews), use in-memory persistence for the session.
+    return auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+  })
+  .catch((fallbackError) => {
+    console.error("Firebase: Could not even set persistence to NONE", fallbackError);
+  });
 
 
 const db = firebase.firestore();
