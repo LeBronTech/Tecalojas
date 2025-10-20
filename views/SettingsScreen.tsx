@@ -1,7 +1,9 @@
-import React, { useState, useContext, useRef } from 'react';
+import React, { useState, useContext, useRef, useMemo } from 'react';
 import { ThemeContext } from '../App';
-import { DynamicBrand } from '../types';
+// FIX: The 'Brand' enum should be imported from the 'types' file where it is defined, not from 'constants' which only uses it.
+import { DynamicBrand, Brand } from '../types';
 import ApiKeyModal from '../components/ApiKeyModal';
+import { BRANDS, BRAND_LOGOS } from '../constants';
 
 interface SettingsScreenProps {
   onSaveApiKey: (key: string) => void;
@@ -11,7 +13,7 @@ interface SettingsScreenProps {
   brands: DynamicBrand[];
 }
 
-// --- Helper Components (Moved Outside) ---
+// --- Helper Components (Moved Outside to prevent re-rendering bugs) ---
 
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
     const { theme } = useContext(ThemeContext);
@@ -31,16 +33,17 @@ const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     );
 };
   
-const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => {
+const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>((props, ref) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     return (
         <input 
+            ref={ref}
             {...props}
             className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-50 text-gray-900 border-gray-200'}`}
         />
     );
-};
+});
 
 // --- Main Component ---
 
@@ -55,6 +58,24 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
   const [isSavingBrand, setIsSavingBrand] = useState(false);
   const [brandError, setBrandError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const allBrandsToDisplay = useMemo(() => {
+    const dynamicBrands = brands;
+    const staticBrandObjects: DynamicBrand[] = BRANDS.map(brandName => ({
+      id: brandName,
+      name: brandName,
+      logoUrl: BRAND_LOGOS[brandName] || ''
+    }));
+
+    const combined = [...dynamicBrands];
+    staticBrandObjects.forEach(staticBrand => {
+      if (!combined.some(dynamicBrand => dynamicBrand.name === staticBrand.name)) {
+        combined.push(staticBrand);
+      }
+    });
+    
+    return combined.sort((a, b) => a.name.localeCompare(b.name));
+  }, [brands]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -137,7 +158,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
                         <div className="border-t pt-4 mt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
                              <h3 className={`font-semibold mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Marcas existentes</h3>
                              <div className="flex flex-wrap gap-4">
-                                {brands.map(brand => (
+                                {allBrandsToDisplay.map(brand => (
                                     <div key={brand.id} className={`flex items-center gap-2 p-2 rounded-lg ${isDark ? 'bg-black/30' : 'bg-gray-100'}`}>
                                         <img src={brand.logoUrl} alt={brand.name} className="w-8 h-8 rounded-full object-contain bg-white p-1" />
                                         <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{brand.name}</span>

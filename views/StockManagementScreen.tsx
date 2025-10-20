@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useEffect, useMemo } from 'react';
 // FIX: Add DynamicBrand to imports to be used in component props.
 import { Product, StoreName, View, Brand, CushionSize, DynamicBrand } from '../types';
 import { ThemeContext } from '../App';
@@ -21,7 +21,7 @@ const StockControl: React.FC<{
          <div className="flex items-center space-x-1.5">
             <span className={`font-semibold text-xs w-10 text-right ${isDark ? 'text-purple-300/80' : 'text-gray-500'}`}>{store}:</span>
             <button
-                onClick={() => onUpdate(-1)}
+                onClick={(e) => { e.stopPropagation(); onUpdate(-1); }}
                 disabled={disabled || stock <= 0}
                 className={`w-8 h-8 rounded-lg font-bold text-2xl flex items-center justify-center transition-colors ${disabled || stock <= 0 ? disabledButtonClasses : buttonClasses}`}
                 aria-label={`Diminuir estoque de ${store}`}
@@ -30,7 +30,7 @@ const StockControl: React.FC<{
             </button>
             <span className={`font-bold w-8 text-center text-lg ${stockTextClasses}`}>{stock}</span>
             <button
-                onClick={() => onUpdate(1)}
+                onClick={(e) => { e.stopPropagation(); onUpdate(1); }}
                 disabled={disabled}
                 className={`w-8 h-8 rounded-lg font-bold text-2xl flex items-center justify-center transition-colors ${disabled ? disabledButtonClasses : buttonClasses}`}
                 aria-label={`Aumentar estoque de ${store}`}
@@ -81,7 +81,8 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
 
     return (
         <div 
-            className={`rounded-3xl p-4 flex items-center justify-between shadow-lg hover:shadow-xl transition-all duration-300 border ${cardClasses}`}
+            onClick={() => canManageStock && onEdit(product)}
+            className={`rounded-3xl p-4 flex items-center justify-between shadow-lg hover:shadow-xl transition-all duration-300 border ${cardClasses} ${canManageStock ? 'cursor-pointer' : ''}`}
             style={{ 
                 animation: 'float-in 0.3s ease-out forwards',
                 animationDelay: `${index * 50}ms`,
@@ -118,6 +119,7 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
                         <div className="mt-2">
                              <select
                                 value={selectedVariation}
+                                onClick={(e) => e.stopPropagation()}
                                 onChange={(e) => onSelectVariation(product.id, e.target.value as CushionSize)}
                                 className={`text-xs p-1.5 rounded-md border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${selectClasses}`}
                                 disabled={!canManageStock}
@@ -157,7 +159,7 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
                 </div>
                 <div className="flex items-center space-x-1">
                     <button 
-                        onClick={() => onEdit(product)}
+                        onClick={(e) => { e.stopPropagation(); onEdit(product); }}
                         disabled={!canManageStock}
                         className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? actionBtnClasses : disabledBtnClasses}`}
                         aria-label={`Editar ${product.name}`}
@@ -167,7 +169,7 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
                         </svg>
                     </button>
                     <button 
-                        onClick={() => onDelete(product.id)}
+                        onClick={(e) => { e.stopPropagation(); onDelete(product.id); }}
                         disabled={!canManageStock}
                         className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? deleteBtnClasses : disabledBtnClasses}`}
                         aria-label={`Excluir ${product.name}`}
@@ -202,6 +204,8 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
   const [selectedVariations, setSelectedVariations] = useState<Record<string, CushionSize>>({});
   const [showWarning, setShowWarning] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('Todas');
+  const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
   
   useEffect(() => {
     if (hasFetchError) {
@@ -235,9 +239,24 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
         setSelectedVariations(prev => ({ ...prev, [productId]: size }));
     };
     
-    const filteredProducts = products.filter(product =>
-        product.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const categories = useMemo(() => ['Todas', ...Array.from(new Set(products.map(p => p.category)))], [products]);
+    
+    const filteredProducts = useMemo(() => {
+        return products
+            .filter(product =>
+                product.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+                (selectedCategory === 'Todas' || product.category === selectedCategory)
+            )
+            .sort((a, b) => {
+                if (sortOrder === 'alpha') {
+                    return a.name.localeCompare(b.name);
+                } else { // 'recent'
+                    const timeA = parseInt(a.id.split('-')[0], 10) || 0;
+                    const timeB = parseInt(b.id.split('-')[0], 10) || 0;
+                    return timeB - timeA;
+                }
+            });
+    }, [products, searchQuery, selectedCategory, sortOrder]);
 
   return (
     <div className="h-full w-full flex flex-col relative overflow-hidden">
@@ -260,13 +279,13 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
         <div className="px-6 pt-20 pb-4 text-center">
             <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gerenciamento de Estoque</h1>
             <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
-                {searchQuery ? `Mostrando ${filteredProducts.length} de ${products.length} produtos` : `${products.length} produtos cadastrados`}
+                {searchQuery || selectedCategory !== 'Todas' ? `Mostrando ${filteredProducts.length} de ${products.length} produtos` : `${products.length} produtos cadastrados`}
             </p>
         </div>
       </div>
       
-       <div className="px-4 mb-4 z-10">
-            <div className="relative">
+       <div className="px-4 mb-4 z-10 flex items-center gap-4">
+            <div className="relative flex-grow">
                 <input
                     type="text"
                     placeholder="Buscar por nome..."
@@ -278,9 +297,41 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
             </div>
+             <select
+                value={sortOrder}
+                onChange={e => setSortOrder(e.target.value as 'recent' | 'alpha')}
+                className={`border rounded-full py-3 px-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow appearance-none ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white' : 'bg-white border-gray-300/80 text-gray-900 shadow-sm'}`}
+            >
+                <option value="recent">Mais Recentes</option>
+                <option value="alpha">Ordem Alfabética</option>
+            </select>
+        </div>
+        
+         <div className="px-4 flex flex-wrap gap-2 mb-4 z-10">
+            {categories.map(category => {
+                const isActive = selectedCategory === category;
+                const activeClasses = isDark 
+                    ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30 border-transparent hover:bg-fuchsia-500' 
+                    : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20 border-transparent hover:bg-purple-700';
+                const inactiveClasses = isDark 
+                    ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
+                    : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400';
+
+                return (
+                    <button
+                        key={category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
+                            isActive ? activeClasses : inactiveClasses
+                        }`}
+                    >
+                        {category}
+                    </button>
+                );
+            })}
         </div>
       
-      <main className="flex-grow overflow-y-auto px-4 space-y-3 pb-36 md:pb-6 z-10 no-scrollbar">
+      <main className="flex-grow overflow-y-auto px-4 space-y-3 pb-44 md:pb-6 z-10 no-scrollbar">
         {canManageStock && showWarning && (
             <div className={`relative border-l-4 p-4 rounded-lg shadow-md ${isDark ? 'bg-red-900/50 border-red-500 text-red-200' : 'bg-red-100 border-red-500 text-red-800'}`}>
                 <button 

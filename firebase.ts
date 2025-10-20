@@ -1,41 +1,3 @@
-// =================================================================================
-// 🔥🔥🔥 AÇÃO CRÍTICA NECESSÁRIA: CORRIGIR PERMISSÕES DO BANCO DE DADOS 🔥🔥🔥
-// =================================================================================
-// Olá! O erro "Missing or insufficient permissions" que você viu acontece porque
-// as regras de segurança do seu banco de dados (Firestore) não permitem que
-// o aplicativo leia a lista de MARCAS e CATÁLOGOS.
-//
-// Para corrigir isso de forma definitiva, siga estes passos simples:
-//
-// 1. ABRA O NOVO ARQUIVO `firestore.rules` que criei para você.
-//
-// 2. COPIE todo o conteúdo dele.
-//
-// 3. ACESSE O SITE do Firebase Console: https://console.firebase.google.com/
-//    e entre no seu projeto.
-//
-// 4. No menu à esquerda, clique em "Construir" (Build) e depois em "Firestore Database".
-//
-// 5. No topo da página do Firestore, clique na aba "REGRAS" (Rules).
-//
-// 6. Você verá um editor de texto. APAGUE todo o conteúdo que estiver lá.
-//
-// 7. COLE o conteúdo que você copiou do arquivo `firestore.rules`.
-//
-// 8. Clique no botão azul "PUBLICAR" (Publish) no topo.
-//
-// Assim que fizer isso, os erros de permissão irão desaparecer e as
-// marcas existentes aparecerão corretamente na tela de Catálogo.
-// =================================================================================
-//
-// 🔥 PARA DEFINIR UM USUÁRIO COMO ADMIN:
-// 1. Crie um usuário normal através do aplicativo.
-// 2. No Firebase Console, vá para o "Firestore Database".
-// 3. Encontre a coleção chamada 'users'.
-// 4. Encontre o documento do usuário que você quer promover (o ID do documento é o mesmo ID do usuário).
-// 5. Adicione um novo campo chamado 'role' e defina o valor dele como a palavra "admin" (em minúsculas).
-// =================================================================================
-
 import firebase from "firebase/compat/app";
 import "firebase/compat/auth";
 import "firebase/compat/firestore";
@@ -72,8 +34,7 @@ const getUserProfile = async (uid: string): Promise<Pick<User, 'role'>> => {
     if (userDocSnap.exists) {
         const userData = userDocSnap.data();
         if (userData) {
-            // FIX: To make the admin check more robust, check for 'role' or a common typo 'rule'.
-            // Also, make the check case-insensitive to accept 'admin', 'Admin', or 'administrador'.
+            // Check for a string role field (e.g., role: 'admin') - handles common typo 'rule'
             const userRole = userData.role || userData.rule;
             if (userRole && typeof userRole === 'string') {
                 const roleLower = userRole.toLowerCase();
@@ -81,9 +42,13 @@ const getUserProfile = async (uid: string): Promise<Pick<User, 'role'>> => {
                     return { role: 'admin' };
                 }
             }
+            // Check for a boolean admin field (e.g., isAdmin: true or admin: true)
+            if (userData.isAdmin === true || userData.admin === true) {
+                return { role: 'admin' };
+            }
         }
     }
-    // Default to 'user' if no document, no role field, or role is not 'admin'/'administrador'.
+    // Default to 'user' if no specific admin role is found
     return { role: 'user' };
 };
 
@@ -233,11 +198,40 @@ export const deleteProduct = (productId: string): Promise<void> => {
 };
 
 // --- STORAGE ---
-export const uploadFile = async (path: string, file: File): Promise<string> => {
+export const uploadFile = (path: string, file: File, onProgress?: (progress: number) => void): { promise: Promise<string>, cancel: () => void } => {
     const storageRef = storage.ref();
     const fileRef = storageRef.child(path);
-    await fileRef.put(file);
-    return fileRef.getDownloadURL();
+    const uploadTask = fileRef.put(file);
+
+    const promise = new Promise<string>((resolve, reject) => {
+        uploadTask.on(
+            'state_changed',
+            (snapshot) => { // "next" observer
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                if (onProgress) {
+                    onProgress(progress);
+                }
+            },
+            (error) => { // "error" observer
+                console.error("Upload failed:", error);
+                reject(error);
+            },
+            async () => { // "complete" observer
+                try {
+                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                    resolve(downloadURL);
+                } catch (error) {
+                    reject(error);
+                }
+            }
+        );
+    });
+    
+    const cancel = () => {
+        uploadTask.cancel();
+    };
+
+    return { promise, cancel };
 };
 
 

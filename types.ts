@@ -78,6 +78,7 @@ export enum View {
   STOCK,
   SETTINGS,
   CATALOG,
+  COMPOSITION_GENERATOR,
 }
 
 export type Theme = 'light' | 'dark';

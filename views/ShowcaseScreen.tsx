@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect, useMemo } from 'react';
-import { Product, View } from '../types';
+import { Product, View, DynamicBrand } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { ThemeContext } from '../App';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO } from '../constants';
@@ -166,19 +166,22 @@ interface ShowcaseScreenProps {
   hasFetchError: boolean;
   canManageStock: boolean;
   onEditProduct: (product: Product) => void;
-  brands: any[]; // Accept brands prop
+  brands: DynamicBrand[];
+  apiKey: string | null;
+  onRequestApiKey: () => void;
+  onNavigate: (view: View) => void;
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, hasFetchError, canManageStock, onEditProduct }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, hasFetchError, canManageStock, onEditProduct, apiKey, onRequestApiKey, onNavigate }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
+  const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
 
   const categories = ['Todas', ...Array.from(new Set(products.map(p => p.category)))];
 
   const groupedProducts = useMemo((): (Product | ProductGroup)[] => {
-    // Group products by family (category + fabricType)
     const familyMap = new Map<string, ProductGroup>();
     products.forEach(p => {
         const familyKey = `${p.category}|${p.fabricType}`;
@@ -201,12 +204,34 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
   }, [products]);
 
   const displayedProducts = useMemo(() => {
+    let filtered: (Product | ProductGroup)[] | Product[];
+    
     if (selectedCategory === 'Todas') {
-      return groupedProducts;
+      filtered = groupedProducts;
+    } else {
+      // When a category is selected, we show individual products, not groups.
+      filtered = products.filter(p => p.category === selectedCategory);
     }
-    // When a category is selected, we show individual products, not groups.
-    return products.filter(p => p.category === selectedCategory);
-  }, [selectedCategory, products, groupedProducts]);
+
+    // Apply sorting
+    const sorted = [...filtered].sort((a, b) => {
+        const itemA = Array.isArray(a) ? a[0] : a;
+        const itemB = Array.isArray(b) ? b[0] : b;
+        if (!itemA || !itemB) return 0;
+        
+        if (sortOrder === 'alpha') {
+            const nameA = Array.isArray(a) ? itemA.category : itemA.name;
+            const nameB = Array.isArray(b) ? itemB.category : itemB.name;
+            return nameA.localeCompare(nameB);
+        } else { // 'recent'
+            const timeA = parseInt(itemA.id.split('-')[0], 10) || 0;
+            const timeB = parseInt(itemB.id.split('-')[0], 10) || 0;
+            return timeB - timeA;
+        }
+    });
+    
+    return sorted;
+  }, [selectedCategory, products, groupedProducts, sortOrder]);
 
   const handleEdit = (product: Product) => {
     setSelectedProduct(null); // Close detail modal
@@ -249,18 +274,40 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
                     <p className="text-sm">Você está vendo uma vitrine de exemplo. O conteúdo real não pôde ser carregado.</p>
                 </div>
               )}
-              <div className="relative mb-6">
-                  <input type="text" placeholder="Buscar por almofadas..." className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${searchInputClasses}`}/>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-              </div>
-              
-              <div className="mb-4">
+               <div className="mb-6">
                   <h2 className={`text-sm font-bold tracking-widest ${headerTextClasses}`}>CATÁLOGO</h2>
                   <h3 className={`text-3xl font-bold ${titleTextClasses}`}>Almofadas</h3>
               </div>
 
+               <div className="mb-6">
+                    <button
+                        onClick={() => onNavigate(View.COMPOSITION_GENERATOR)}
+                        className={`w-full text-center font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-3 text-md shadow-lg transform hover:scale-105 ${isDark ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-fuchsia-600/20' : 'bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white shadow-purple-500/20'}`}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v1.073a1 1 0 01.09.313l.483 1.834a6.953 6.953 0 011.698 1.112l1.72-.69a1 1 0 011.155.44l.44 1.155a1 1 0 01-.44 1.155l-1.72.69a6.953 6.953 0 010 2.224l1.72.69a1 1 0 01.44 1.155l-.44 1.155a1 1 0 01-1.155.44l-1.72-.69a6.953 6.953 0 01-1.698 1.112l-.483 1.834a1 1 0 01-.09.313V18a1 1 0 01-1.4.954l-1.715-.572a.5.5 0 00-.57 0L6.6 18.954A1 1 0 015.2 18v-1.073a1 1 0 01-.09-.313l-.483-1.834a6.953 6.953 0 01-1.698-1.112l-1.72.69a1 1 0 01-1.155-.44l-.44-1.155a1 1 0 01.44-1.155l1.72-.69a6.953 6.953 0 010-2.224l-1.72-.69a1 1 0 01-.44-1.155l.44-1.155a1 1 0 011.155-.44l1.72.69A6.953 6.953 0 018.7 5.234l.483-1.834A1 1 0 019.277 3.09V2a1 1 0 01.7-1.046l1.323-.448zM9 10a1 1 0 112 0 1 1 0 01-2 0z" clipRule="evenodd" />
+                        </svg>
+                        Criar Composição com IA
+                    </button>
+                </div>
+
+              <div className="relative mb-6 flex items-center gap-4">
+                  <div className="relative flex-grow">
+                     <input type="text" placeholder="Buscar por almofadas..." className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${searchInputClasses}`}/>
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                     </svg>
+                  </div>
+                   <select
+                        value={sortOrder}
+                        onChange={e => setSortOrder(e.target.value as 'recent' | 'alpha')}
+                        className={`border rounded-full py-3 px-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow appearance-none ${searchInputClasses}`}
+                    >
+                        <option value="recent">Mais Recentes</option>
+                        <option value="alpha">Ordem Alfabética</option>
+                    </select>
+              </div>
+              
               <div className="flex flex-wrap gap-3 mb-8">
                   {categories.map(category => {
                       const isActive = selectedCategory === category;
@@ -289,7 +336,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
                   {displayedProducts.map((item, index) => (
                       Array.isArray(item)
                         ? <ProductGroupCard key={`${item[0].category}-${item[0].fabricType}`} group={item} index={index} onClick={setSelectedProduct} />
-                        : <ProductCard key={item.id} product={item} index={index} onClick={() => setSelectedProduct(item)} />
+                        : <ProductCard key={(item as Product).id} product={item as Product} index={index} onClick={() => setSelectedProduct(item as Product)} />
                   ))}
               </div>
           </main>
@@ -302,6 +349,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
               canManageStock={canManageStock}
               onEditProduct={handleEdit}
               onSwitchProduct={handleSwitchProduct}
+              apiKey={apiKey}
+              onRequestApiKey={onRequestApiKey}
           />
       )}
     </>

@@ -7,6 +7,7 @@ import ShowcaseScreen from './views/ShowcaseScreen';
 import StockManagementScreen from './views/StockManagementScreen';
 import SettingsScreen from './views/SettingsScreen';
 import CatalogScreen from './views/CatalogScreen';
+import CompositionGeneratorScreen from './views/CompositionGeneratorScreen';
 import AddEditProductModal from './components/AddEditProductModal';
 import SignUpModal from './components/SignUpModal';
 import Header from './components/Header';
@@ -448,27 +449,11 @@ export default function App() {
                 throw new Error("Nome, categoria, tipo de tecido e cor principal são obrigatórios.");
             }
     
-            // A "family" is defined by category and fabric type.
-            const familyProducts = products.filter(p => 
-                p.category === productToSave.category &&
-                p.fabricType === productToSave.fabricType &&
-                p.id !== productToSave.id // Exclude the product being saved from the check
-            );
-    
-            // Check for duplicate MAIN COLOR within the family
-            const existingProductWithSameColor = familyProducts.find(p => 
-                p.mainColor?.name.toLowerCase() === productToSave.mainColor.name.toLowerCase()
-            );
-            if (existingProductWithSameColor) {
-                throw new Error(`Já existe uma almofada com a cor "${productToSave.mainColor.name}" nesta família.`);
-            }
-
-            // Check for duplicate NAME within the family
-            const existingProductWithSameName = familyProducts.find(p => 
-                p.name.toLowerCase() === productToSave.name.toLowerCase()
+            const existingProductWithSameName = products.find(p => 
+                p.name.toLowerCase() === productToSave.name.toLowerCase() && p.id !== productToSave.id
             );
             if (existingProductWithSameName) {
-                throw new Error(`Já existe uma almofada com o nome "${productToSave.name}" nesta família.`);
+                throw new Error(`Já existe um produto com o nome exato "${productToSave.name}".`);
             }
             
             let finalProductToSave = { ...productToSave };
@@ -490,8 +475,11 @@ export default function App() {
                 setEditingProduct(null);
             }
             return finalProductToSave;
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save product:", error);
+            if (error.code === 'permission-denied') {
+                throw new Error('Permissão negada. Sua conta não tem privilégios de administrador para salvar produtos.');
+            }
             throw error;
         }
     }, [products]);
@@ -529,15 +517,17 @@ export default function App() {
                     }))
                 };
                 
-                // Ensure no 'id' field is passed for creation
                 const { id, ...rest } = newProductData as any;
                 return rest;
             });
     
             const creationPromises = productsToCreate.map(p => api.addProduct(p));
             await Promise.all(creationPromises);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to create color variations:", error);
+            if (error.code === 'permission-denied') {
+                throw new Error('Permissão negada. Sua conta não tem privilégios de administrador para criar produtos.');
+            }
             throw error;
         }
     }, [customColors]);
@@ -551,7 +541,6 @@ export default function App() {
           const creationPromises = productsToCreate.map(p => api.addProduct(p));
           const createdDocs = await Promise.all(creationPromises);
   
-          // Find the document that corresponds to the product we want to configure
           const configuredProductDoc = createdDocs.find((doc, index) => productsToCreate[index].mainColor?.name === productToConfigure.mainColor?.name);
   
           if (!configuredProductDoc) {
@@ -566,34 +555,49 @@ export default function App() {
           setIsWizardOpen(false);
           setEditingProduct(productToEdit);
   
-      } catch (error) {
+      } catch (error: any) {
           console.error("Failed to create products from wizard:", error);
-          window.alert(`Falha ao criar produtos: ${error instanceof Error ? error.message : String(error)}`);
+          if (error.code === 'permission-denied') {
+              throw new Error('Permissão negada. Sua conta não tem privilégios de administrador para criar produtos. Fale com o administrador do sistema.');
+          }
+          throw error;
       }
   }, []);
 
   const handleAddNewBrand = useCallback(async (brandName: string, logoFile?: File, logoUrl?: string) => {
-    if (!brandName.trim()) {
-        throw new Error("O nome da marca não pode ser vazio.");
-    }
+    try {
+        if (!brandName.trim()) {
+            throw new Error("O nome da marca não pode ser vazio.");
+        }
 
-    let finalLogoUrl = logoUrl || '';
-    if (logoFile) {
-        finalLogoUrl = await api.uploadFile(`brand_logos/${Date.now()}_${logoFile.name}`, logoFile);
-    }
+        let finalLogoUrl = logoUrl || '';
+        if (logoFile) {
+            finalLogoUrl = await api.uploadFile(`brand_logos/${Date.now()}_${logoFile.name}`, logoFile).promise;
+        }
 
-    if (!finalLogoUrl) {
-        throw new Error("É necessário fornecer uma URL ou um arquivo para o logo.");
+        if (!finalLogoUrl) {
+            throw new Error("É necessário fornecer uma URL ou um arquivo para o logo.");
+        }
+        await api.addBrand({ name: brandName.trim(), logoUrl: finalLogoUrl });
+    } catch (error: any) {
+        if (error.code === 'permission-denied') {
+            throw new Error('Permissão negada. Sua conta não tem privilégios de administrador para adicionar marcas.');
+        }
+        throw error;
     }
-    await api.addBrand({ name: brandName.trim(), logoUrl: finalLogoUrl });
   }, []);
 
-  const handleUploadCatalog = useCallback(async (brandName: string, pdfFile: File) => {
+  const handleUploadCatalog = useCallback(async (brandName: string, pdfFile: File, onProgress: (progress: number) => void) => {
       if (!brandName || !pdfFile) {
           throw new Error("Marca e arquivo PDF são obrigatórios.");
       }
-      const pdfUrl = await api.uploadFile(`catalogs/${brandName}_${Date.now()}_${pdfFile.name}`, pdfFile);
-      await api.addCatalog({ brandName, pdfUrl, fileName: pdfFile.name });
+      const { promise: uploadPromise, cancel } = api.uploadFile(`catalogs/${brandName}_${Date.now()}_${pdfFile.name}`, pdfFile, onProgress);
+
+      const overallPromise = uploadPromise.then(async (pdfUrl) => {
+        await api.addCatalog({ brandName, pdfUrl, fileName: pdfFile.name });
+      });
+      
+      return { promise: overallPromise, cancel };
   }, []);
 
   const handleSwitchToProduct = useCallback((product: Product) => {
@@ -625,9 +629,13 @@ export default function App() {
     const { id, ...productData } = updatedProduct;
     try {
         await api.updateProduct(id, productData);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Failed to update stock:", error);
-        window.alert('Falha ao atualizar o estoque.');
+        let alertMessage = 'Falha ao atualizar o estoque.';
+        if (error.code === 'permission-denied') {
+            alertMessage = 'Permissão negada. Sua conta não tem privilégios de administrador para atualizar o estoque.';
+        }
+        window.alert(alertMessage);
     }
   }, [products]);
 
@@ -700,6 +708,9 @@ export default function App() {
                     canManageStock={!!canManageStock}
                     onEditProduct={setEditingProduct}
                     brands={brands}
+                    apiKey={apiKey}
+                    onRequestApiKey={() => setIsApiKeyModalOpen(true)}
+                    onNavigate={handleNavigate}
                     {...mainScreenProps} 
                 />;
       case View.STOCK:
@@ -732,6 +743,13 @@ export default function App() {
                     brands={brands}
                     {...mainScreenProps}
                 />;
+      case View.COMPOSITION_GENERATOR:
+        return <CompositionGeneratorScreen
+                    products={products}
+                    onNavigate={handleNavigate}
+                    apiKey={apiKey}
+                    onRequestApiKey={() => setIsApiKeyModalOpen(true)}
+                />;
       default:
         return <ShowcaseScreen 
                     products={products} 
@@ -739,6 +757,9 @@ export default function App() {
                     canManageStock={!!canManageStock}
                     onEditProduct={setEditingProduct}
                     brands={brands}
+                    apiKey={apiKey}
+                    onRequestApiKey={() => setIsApiKeyModalOpen(true)}
+                    onNavigate={handleNavigate}
                     {...mainScreenProps} 
                 />;
     }

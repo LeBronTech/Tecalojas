@@ -1,16 +1,18 @@
-import React, { useState, useContext, useRef } from 'react';
+import React, { useState, useContext, useRef, useMemo } from 'react';
 import { ThemeContext } from '../App';
-import { CatalogPDF, DynamicBrand } from '../types';
+// FIX: The 'Brand' enum should be imported from the 'types' file where it is defined, not from 'constants' which only uses it.
+import { CatalogPDF, DynamicBrand, Brand } from '../types';
+import { BRANDS, BRAND_LOGOS } from '../constants';
 
 interface CatalogScreenProps {
   catalogs: CatalogPDF[];
-  onUploadCatalog: (brandName: string, pdfFile: File) => Promise<void>;
+  onUploadCatalog: (brandName: string, pdfFile: File, onProgress: (progress: number) => void) => Promise<{ promise: Promise<void>, cancel: () => void }>;
   onMenuClick: () => void;
   canManageStock: boolean;
   brands: DynamicBrand[];
 }
 
-// --- Helper Component (Moved Outside) ---
+// --- Helper Component (Moved Outside to prevent re-rendering bugs) ---
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
@@ -28,6 +30,8 @@ const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [cancelUpload, setCancelUpload] = useState<(() => void) | null>(null);
   
   const [selectionMode, setSelectionMode] = useState<'existing' | 'new'>('existing');
   const [selectedExistingBrand, setSelectedExistingBrand] = useState('');
@@ -36,6 +40,23 @@ const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const allBrandsToDisplay = useMemo(() => {
+    const dynamicBrands = brands;
+    const staticBrandObjects: DynamicBrand[] = BRANDS.map(brandName => ({
+      id: brandName,
+      name: brandName,
+      logoUrl: BRAND_LOGOS[brandName] || ''
+    }));
+
+    const combined = [...dynamicBrands];
+    staticBrandObjects.forEach(staticBrand => {
+      if (!combined.some(dynamicBrand => dynamicBrand.name === staticBrand.name)) {
+        combined.push(staticBrand);
+      }
+    });
+    
+    return combined.sort((a, b) => a.name.localeCompare(b.name));
+  }, [brands]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -47,6 +68,14 @@ const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog
       setUploadError('Por favor, selecione um arquivo PDF.');
     }
   };
+  
+  const resetForm = () => {
+      setSelectedExistingBrand('');
+      setNewBrandName('');
+      setSelectionMode('existing');
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+  }
 
   const handleUpload = async () => {
     const finalBrandName = selectionMode === 'existing' ? selectedExistingBrand : newBrandName;
@@ -62,20 +91,32 @@ const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog
 
     setIsUploading(true);
     setUploadError(null);
+    setUploadProgress(0);
     try {
-      await onUploadCatalog(finalBrandName.trim(), selectedFile);
-      // Reset form
-      setSelectedExistingBrand('');
-      setNewBrandName('');
-      setSelectionMode('existing');
-      setSelectedFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      const { promise, cancel } = await onUploadCatalog(finalBrandName.trim(), selectedFile, setUploadProgress);
+      setCancelUpload(() => cancel);
+      await promise;
+      resetForm();
     } catch (error: any) {
-      setUploadError(error.message || 'Falha ao enviar o catálogo.');
+      // Don't show an error if the user cancelled the upload
+      if (error.code !== 'storage/canceled') {
+        setUploadError(error.message || 'Falha ao enviar o catálogo.');
+      } else {
+        setUploadError(null);
+        resetForm();
+      }
     } finally {
       setIsUploading(false);
+      setUploadProgress(null);
+      setCancelUpload(null);
     }
   };
+  
+  const handleCancelUpload = () => {
+    if(cancelUpload){
+        cancelUpload();
+    }
+  }
 
   return (
     <div className="h-full w-full flex flex-col relative overflow-hidden">
@@ -101,7 +142,7 @@ const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog
                     {selectionMode === 'existing' && (
                         <div className={`p-3 rounded-lg border max-h-40 overflow-y-auto ${isDark ? 'bg-black/10 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
                             <div className="flex flex-wrap gap-3">
-                                {brands.map(brand => (
+                                {allBrandsToDisplay.map(brand => (
                                     <button
                                         type="button"
                                         key={brand.id}
@@ -143,9 +184,21 @@ const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog
                         />
                     </div>
                      {uploadError && <p className="text-sm text-red-500 font-semibold">{uploadError}</p>}
-                    <button onClick={handleUpload} disabled={isUploading} className="w-full mt-2 bg-cyan-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-cyan-700 transition disabled:bg-gray-500">
-                        {isUploading ? 'Enviando...' : 'Enviar Catálogo'}
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button onClick={handleUpload} disabled={isUploading} className="w-full mt-2 bg-cyan-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-cyan-700 transition disabled:bg-gray-500">
+                            {isUploading ? 'Enviando...' : 'Enviar Catálogo'}
+                        </button>
+                        {isUploading && (
+                             <button onClick={handleCancelUpload} className={`mt-2 font-bold py-3 px-4 rounded-lg transition-colors ${isDark ? 'text-gray-300 hover:bg-black/20' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                Cancelar
+                            </button>
+                        )}
+                    </div>
+                     {isUploading && uploadProgress !== null && (
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mt-2">
+                            <div className="bg-fuchsia-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                        </div>
+                    )}
                  </div>
             </Card>
         )}

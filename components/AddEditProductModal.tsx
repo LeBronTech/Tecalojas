@@ -270,7 +270,7 @@ const FormInput = ({ label, children, ...props }: { label: string, children?: Re
             <div className="relative">
                 <input 
                     {...props}
-                    className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses} ${children ? 'pr-12' : ''}`} 
+                    className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses} ${children ? 'pr-28' : ''}`} 
                 />
                 {children}
             </div>
@@ -316,6 +316,56 @@ const resizeImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promis
 };
 
 
+const pluralizeCategory = (category: string): string => {
+    const trimmed = category.trim();
+    if (!trimmed) return '';
+    
+    // Capitalize first letter
+    let capitalized = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    
+    const lower = capitalized.toLowerCase();
+
+    if (lower.endsWith('s')) return capitalized;
+    
+    if (['a', 'e', 'i', 'o', 'u'].some(vowel => lower.endsWith(vowel))) {
+        return capitalized + 's';
+    }
+    if (lower.endsWith('l')) {
+        return capitalized.slice(0, -1) + 'is';
+    }
+
+    return capitalized + 's';
+};
+
+const standardizeProductName = (name: string, colors: {name: string, hex: string}[]): string => {
+    let productName = name.trim();
+    let matchedColor = null;
+
+    const sortedColors = [...colors].sort((a, b) => b.name.length - a.name.length);
+
+    for (const color of sortedColors) {
+        const regex = new RegExp(`\\b${color.name}\\b`, 'i');
+        if (regex.test(productName)) {
+            matchedColor = color;
+            productName = productName.replace(regex, '').trim();
+            break;
+        }
+    }
+
+    if (matchedColor) {
+        let baseName = productName.replace(/\s\s+/g, ' ').trim();
+        baseName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
+        const colorName = matchedColor.name.charAt(0).toUpperCase() + matchedColor.name.slice(1);
+        
+        // Remove parentheses if they exist in the base name
+        baseName = baseName.replace(/[()]/g, '').trim();
+
+        return `${baseName} (${colorName})`;
+    }
+
+    return name.trim();
+};
+
 const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, apiKey, onRequestApiKey, customColors, onAddCustomColor, brands }) => {
   const [formData, setFormData] = useState<Product>(initialFormState);
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
@@ -335,6 +385,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [isNameAiLoading, setIsNameAiLoading] = useState(false);
   const [imageRotation, setImageRotation] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isVariationsVisible, setIsVariationsVisible] = useState(true);
+  const [isBackgroundsVisible, setIsBackgroundsVisible] = useState(true);
 
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -350,22 +402,36 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     return [...new Set([...dynamicNames, ...staticNames])];
   }, [brands]);
 
-  // A "family" is defined by category and fabric type. These are its members.
   const familyProducts = useMemo(() => {
-    if (!formData.category || !formData.fabricType) return [];
+    if (!formData.category || !formData.fabricType || !formData.brand) return [];
     return products.filter(p => 
         p.category === formData.category &&
-        p.fabricType === formData.fabricType
+        p.fabricType === formData.fabricType &&
+        p.brand === formData.brand
     );
-  }, [products, formData.category, formData.fabricType]);
-  
-  // Names of colors already used by other products in the same family.
+  }, [products, formData.category, formData.fabricType, formData.brand]);
+
+  const currentBaseName = useMemo(() => {
+    if (!formData.name || !formData.mainColor?.name) return formData.name.trim();
+    // Create a regex to find the color name as a whole word to avoid partial matches
+    const colorName = formData.mainColor.name;
+    const regex = new RegExp(`\\b${colorName}\\b`, 'i');
+    return formData.name.replace(regex, '').trim().replace(/\s\s+/g, ' ');
+  }, [formData.name, formData.mainColor]);
+
   const usedColorNamesInFamily = useMemo(() => {
+    if (!currentBaseName) return [];
     return familyProducts
-        .filter(p => p.id !== formData.id) // Exclude the product currently being edited
-        .map(p => p.mainColor?.name)
-        .filter((name): name is string => !!name);
-  }, [familyProducts, formData.id]);
+        .filter(p => {
+            if (p.id === formData.id || !p.mainColor?.name) return false;
+            // Infer base name for other products in the family
+            const regex = new RegExp(`\\b${p.mainColor.name}\\b`, 'i');
+            const pBaseName = p.name.replace(regex, '').trim().replace(/\s\s+/g, ' ');
+            // Disable color if the base names match
+            return pBaseName.toLowerCase() === currentBaseName.toLowerCase();
+        })
+        .map(p => p.mainColor!.name);
+  }, [familyProducts, formData.id, currentBaseName]);
 
 
   useEffect(() => {
@@ -459,11 +525,33 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
      setFormData(prev => ({ ...prev, variations: prev.variations.filter((_, i) => i !== indexToRemove)}));
   };
 
+  const getBase64FromImageUrl = async (imageUrl: string): Promise<{ base64Data: string; mimeType: string }> => {
+    if (imageUrl.startsWith('data:')) {
+        const parts = imageUrl.split(',');
+        const mimeTypePart = parts[0].match(/:(.*?);/);
+        if (!mimeTypePart || !parts[1]) {
+            throw new Error('URL de dados da imagem base inválida.');
+        }
+        return { mimeType: mimeTypePart[1], base64Data: parts[1] };
+    } else {
+        const response = await fetch(imageUrl);
+        if (!response.ok) throw new Error('Falha ao buscar a imagem pela URL.');
+        const blob = await response.blob();
+        const base64Data = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+        return { mimeType: blob.type, base64Data };
+    }
+  };
+
   const getAiPromptForSize = (size: CushionSize): string => {
     switch (size) {
-        case CushionSize.SQUARE_60: return 'Gere uma imagem fotorrealista de uma sala de estar moderna e bem iluminada. Coloque esta almofada, que é um modelo grande e cheio de 60x60, no chão, encostada elegantemente no pé de uma poltrona. A imagem deve parecer uma foto de catálogo, enfatizando a textura da almofada e, mais importante, mantendo uma perspectiva e escala realistas para que o tamanho grande da almofada seja claramente visível em relação à poltrona.';
-        case CushionSize.LUMBAR: return 'Gere uma imagem fotorrealista de uma poltrona aconchegante em uma sala de estar bem iluminada. Coloque esta almofada lombar, que é um travesseiro pequeno e retangular, sobre a poltrona. A imagem deve ser como uma foto de catálogo de produtos, destacando a textura da almofada e mantendo uma perspectiva e escala realistas para mostrar seu tamanho pequeno e formato retangular em relação à poltrona.';
-        default: return `Gere uma imagem fotorrealista de uma poltrona moderna em uma sala de estar bem iluminada. Coloque esta almofada sobre a poltrona. A imagem deve ter a qualidade de uma foto de catálogo, com foco na textura do tecido e mantendo uma perspectiva e escala realistas da almofada em relação à poltrona.`;
+        case CushionSize.SQUARE_60: return 'Foto de produto estilo catálogo. A almofada (grande, 60x60) está no chão, encostada em uma poltrona moderna em uma sala bem iluminada. Foco na textura e escala realista.';
+        case CushionSize.LUMBAR: return 'Foto de produto estilo catálogo. A almofada lombar (pequena, retangular) está em uma poltrona moderna em uma sala bem iluminada. Foco na textura e escala realista.';
+        default: return `Foto de produto estilo catálogo. A almofada está em uma poltrona moderna, em uma sala de estar bem iluminada. Foco na textura da almofada e na escala realista.`;
     }
   };
 
@@ -474,28 +562,35 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setAiGenerating(prev => ({ ...prev, [variation.size]: true }));
     setVariationsAiError(null);
     try {
-        const response = await fetch(formData.baseImageUrl);
-        if (!response.ok) throw new Error('Falha ao buscar a imagem base.');
-        const blob = await response.blob();
-        const base64Data = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
+        const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
         const ai = new GoogleGenAI({ apiKey });
-        const imagePart = { inlineData: { data: base64Data, mimeType: blob.type } };
+        const imagePart = { inlineData: { data: base64Data, mimeType } };
         const textPart = { text: getAiPromptForSize(variation.size) };
         const aiResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [imagePart, textPart] }, config: { responseModalities: [Modality.IMAGE] } });
+        
         const candidate = aiResponse.candidates?.[0];
-        const generatedImagePart = candidate?.content?.parts?.find(p => p.inlineData);
-        if (generatedImagePart?.inlineData) {
-            const newImageUrl = `data:${generatedImagePart.inlineData.mimeType};base64,${generatedImagePart.inlineData.data}`;
-            const resizedImageUrl = await resizeImage(newImageUrl);
-            const updatedVariations = [...formData.variations];
-            updatedVariations[index].imageUrl = resizedImageUrl;
-            setFormData(prev => ({ ...prev, variations: updatedVariations }));
-        } else { throw new Error(`A IA não retornou uma imagem válida para o tamanho ${variation.size}.`); }
+        if (candidate?.finishReason === 'NO_IMAGE') { throw new Error('A IA não conseguiu gerar uma imagem. Tente usar uma imagem base diferente.'); }
+        if (candidate?.finishReason === 'SAFETY') { throw new Error('Geração bloqueada por políticas de segurança. Tente uma imagem ou texto diferente.'); }
+        if (!candidate) {
+            const blockReason = aiResponse.promptFeedback?.blockReason;
+            if (blockReason) { throw new Error(`Geração bloqueada: ${blockReason}.`); }
+            throw new Error('A IA não retornou uma resposta. Tente novamente.');
+        }
+        if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'FINISH_REASON_UNSPECIFIED') {
+            throw new Error(`Geração falhou. Motivo: ${candidate.finishReason}.`);
+        }
+        const generatedImagePart = candidate.content?.parts?.find(p => p.inlineData);
+        if (!generatedImagePart?.inlineData) {
+            const textResponse = aiResponse.text?.trim();
+            if (textResponse) { throw new Error(`A IA retornou texto em vez de imagem: "${textResponse}"`); }
+            throw new Error(`A IA não retornou uma imagem válida para o tamanho ${variation.size}.`);
+        }
+
+        const newImageUrl = `data:${generatedImagePart.inlineData.mimeType};base64,${generatedImagePart.inlineData.data}`;
+        const resizedImageUrl = await resizeImage(newImageUrl);
+        const updatedVariations = [...formData.variations];
+        updatedVariations[index].imageUrl = resizedImageUrl;
+        setFormData(prev => ({ ...prev, variations: updatedVariations }));
     } catch (error: any) { console.error("AI image generation failed:", error); setVariationsAiError(error.message || "Falha ao gerar imagem com IA."); } 
     finally { setAiGenerating(prev => ({ ...prev, [variation.size]: false })); }
   };
@@ -508,26 +603,33 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setShowcaseAiError(null);
 
     try {
-        const response = await fetch(formData.baseImageUrl);
-        if (!response.ok) throw new Error('Falha ao buscar a imagem base.');
-        const blob = await response.blob();
-        const base64Data = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
+        const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
         const ai = new GoogleGenAI({ apiKey });
-        const imagePart = { inlineData: { data: base64Data, mimeType: blob.type } };
-        const textPart = { text: 'Crie uma imagem de vitrine de alta qualidade para esta almofada, colocando-a sobre um fundo branco liso. A imagem deve ter qualidade de estúdio, com foco total na textura e design do produto, sem distrações.' };
+        const imagePart = { inlineData: { data: base64Data, mimeType } };
+        const textPart = { text: 'Foto de produto para catálogo, close-up de uma única almofada quadrada. A almofada está perfeitamente centralizada, vista de frente, preenchendo cerca de 80% do quadro. Fundo branco liso e infinito. Iluminação de estúdio suave e difusa para destacar a textura do tecido sem criar sombras fortes. A imagem deve ser limpa e minimalista.' };
         const aiResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [imagePart, textPart] }, config: { responseModalities: [Modality.IMAGE] } });
+        
         const candidate = aiResponse.candidates?.[0];
-        const imagePartResponse = candidate?.content?.parts?.find(p => p.inlineData);
-        if (imagePartResponse?.inlineData) {
-            const newImageUrl = `data:${imagePartResponse.inlineData.mimeType};base64,${imagePartResponse.inlineData.data}`;
-            const resizedImageUrl = await resizeImage(newImageUrl);
-            setFormData(prev => ({ ...prev, baseImageUrl: resizedImageUrl }));
-        } else { throw new Error("A IA não retornou uma imagem válida."); }
+        if (candidate?.finishReason === 'NO_IMAGE') { throw new Error('A IA não conseguiu gerar uma imagem. Tente usar uma imagem base diferente.'); }
+        if (candidate?.finishReason === 'SAFETY') { throw new Error('Geração bloqueada por políticas de segurança. Tente uma imagem ou texto diferente.'); }
+        if (!candidate) {
+            const blockReason = aiResponse.promptFeedback?.blockReason;
+            if (blockReason) { throw new Error(`Geração bloqueada: ${blockReason}.`); }
+            throw new Error('A IA não retornou uma resposta. Tente novamente.');
+        }
+        if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'FINISH_REASON_UNSPECIFIED') {
+            throw new Error(`Geração falhou. Motivo: ${candidate.finishReason}.`);
+        }
+        const imagePartResponse = candidate.content?.parts?.find(p => p.inlineData);
+        if (!imagePartResponse?.inlineData) {
+            const textResponse = aiResponse.text?.trim();
+            if (textResponse) { throw new Error(`A IA retornou texto em vez de imagem: "${textResponse}"`); }
+            throw new Error("A IA não retornou uma imagem válida.");
+        }
+
+        const newImageUrl = `data:${imagePartResponse.inlineData.mimeType};base64,${imagePartResponse.inlineData.data}`;
+        const resizedImageUrl = await resizeImage(newImageUrl);
+        setFormData(prev => ({ ...prev, baseImageUrl: resizedImageUrl }));
     } catch (error: any) { console.error("AI showcase image generation failed:", error); setShowcaseAiError(error.message || "Falha ao gerar imagem de vitrine com IA."); } 
     finally { setIsGeneratingShowcase(false); }
   };
@@ -542,10 +644,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
     const getPromptForBackground = (background: 'Quarto' | 'Sala' | 'Varanda' | 'Piscina'): string => {
         const prompts = {
-            'Quarto': 'Coloque esta almofada sobre uma cama bem arrumada em um quarto aconchegante e bem iluminado. O estilo deve ser moderno e convidativo. Qualidade de foto profissional.',
-            'Sala': 'Coloque esta almofada em um sofá moderno em uma sala de estar elegante com luz natural. O estilo deve ser clean e sofisticado. Qualidade de foto profissional.',
-            'Varanda': 'Coloque esta almofada em uma confortável cadeira de exterior em uma varanda bonita com algumas plantas verdes ao fundo. A cena deve ser clara e relaxante. Qualidade de foto profissional.',
-            'Piscina': 'Coloque esta almofada em uma espreguiçadeira ao lado de uma piscina de luxo. A cena deve ser ensolarada e vibrante, com a água da piscina ao fundo. A imagem deve ter qualidade de foto de verão de alta classe.'
+            'Quarto': 'Foto de produto profissional. A almofada está em uma cama arrumada em um quarto moderno e aconchegante.',
+            'Sala': 'Foto de produto profissional. A almofada está em um sofá moderno numa sala de estar elegante e com luz natural.',
+            'Varanda': 'Foto de produto profissional. A almofada está em uma cadeira de exterior confortável em uma varanda com plantas.',
+            'Piscina': 'Foto de produto profissional. A almofada está em uma espreguiçadeira ao lado de uma piscina de luxo em um dia ensolarado.'
         };
         return prompts[background];
     };
@@ -557,26 +659,33 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setBgGenerating(prev => ({ ...prev, [contextKey]: true }));
     setBgGenError(null);
     try {
-        const response = await fetch(formData.baseImageUrl);
-        if (!response.ok) throw new Error('Falha ao buscar a imagem base.');
-        const blob = await response.blob();
-        const base64Data = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
+        const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
         const ai = new GoogleGenAI({ apiKey });
-        const imagePart = { inlineData: { data: base64Data, mimeType: blob.type } };
+        const imagePart = { inlineData: { data: base64Data, mimeType } };
         const textPart = { text: getPromptForBackground(background) };
         const aiResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [imagePart, textPart] }, config: { responseModalities: [Modality.IMAGE] } });
+        
         const candidate = aiResponse.candidates?.[0];
-        const imagePartResponse = candidate?.content?.parts?.find(p => p.inlineData);
-        if (imagePartResponse?.inlineData) {
-            const newImageUrl = `data:${imagePartResponse.inlineData.mimeType};base64,${imagePartResponse.inlineData.data}`;
-            const resizedImageUrl = await resizeImage(newImageUrl);
-            setFormData(prev => ({ ...prev, backgroundImages: { ...prev.backgroundImages, [contextKey]: resizedImageUrl } }));
-        } else { throw new Error(`A IA não retornou uma imagem válida para ${background}.`); }
+        if (candidate?.finishReason === 'NO_IMAGE') { throw new Error('A IA não conseguiu gerar uma imagem. Tente usar uma imagem base diferente.'); }
+        if (candidate?.finishReason === 'SAFETY') { throw new Error('Geração bloqueada por políticas de segurança. Tente uma imagem ou texto diferente.'); }
+        if (!candidate) {
+            const blockReason = aiResponse.promptFeedback?.blockReason;
+            if (blockReason) { throw new Error(`Geração bloqueada: ${blockReason}.`); }
+            throw new Error('A IA não retornou uma resposta. Tente novamente.');
+        }
+        if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'FINISH_REASON_UNSPECIFIED') {
+            throw new Error(`Geração falhou. Motivo: ${candidate.finishReason}.`);
+        }
+        const imagePartResponse = candidate.content?.parts?.find(p => p.inlineData);
+        if (!imagePartResponse?.inlineData) {
+            const textResponse = aiResponse.text?.trim();
+            if (textResponse) { throw new Error(`A IA retornou texto em vez de imagem: "${textResponse}"`); }
+            throw new Error(`A IA não retornou uma imagem válida para ${background}.`);
+        }
+
+        const newImageUrl = `data:${imagePartResponse.inlineData.mimeType};base64,${imagePartResponse.inlineData.data}`;
+        const resizedImageUrl = await resizeImage(newImageUrl);
+        setFormData(prev => ({ ...prev, backgroundImages: { ...prev.backgroundImages, [contextKey]: resizedImageUrl } }));
     } catch (error: any) { console.error(`AI background generation for ${background} failed:`, error); setBgGenError(error.message || `Falha ao gerar fundo para ${background}.`); } 
     finally { setBgGenerating(prev => ({ ...prev, [contextKey]: false })); }
   };
@@ -649,11 +758,24 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     e.preventDefault();
     setIsSaving(true);
     setSaveError(null);
-    try { 
-      await onSave(formData); 
+    try {
+        const productToSave = { ...formData };
+
+        // Standardize category and name before validation and saving
+        productToSave.category = pluralizeCategory(productToSave.category);
+        productToSave.name = standardizeProductName(productToSave.name, allColors);
+
+        const existingProductWithSameName = products.find(p => 
+            p.name.toLowerCase() === productToSave.name.toLowerCase() && p.id !== productToSave.id
+        );
+        if (existingProductWithSameName) {
+            throw new Error(`Já existe um produto com o nome exato "${productToSave.name}".`);
+        }
+
+        await onSave(productToSave); 
     } catch (error: any) { 
-      console.error("Failed to save product:", error); 
-      setSaveError(error.message || "Ocorreu um erro desconhecido ao salvar."); 
+        console.error("Failed to save product:", error);
+        setSaveError(error.message || "Ocorreu um erro desconhecido ao salvar.");
     } finally { 
       setIsSaving(false); 
     }
@@ -737,22 +859,17 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                 </div>
 
                 <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar pr-2 -mr-2 space-y-6 pb-24">
+                    {/* Reordered Fields Start */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormInput 
                             label="Nome do Produto" 
                             name="name" 
                             value={formData.name} 
                             onChange={handleChange}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleAiCorrectName();
-                                }
-                            }}
                             required
                         >
-                            <button type="button" onClick={handleAiCorrectName} disabled={isNameAiLoading || !apiKey} title="Corrigir Nome com IA (Enter)" className={`absolute top-1/2 right-3 -translate-y-1/2 ${isDark ? 'text-purple-300' : 'text-purple-500'} hover:text-fuchsia-500 disabled:opacity-50`}>
-                                {isNameAiLoading ? <ButtonSpinner /> : <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v1.046a1 1 0 01-1.447.894l-.894-.447a1 1 0 01.894-1.447l.447-.223zM1.046 8.553a1 1 0 011.447-.894l.894.447A1 1 0 012 9v1.046a1 1 0 01-1.894.447l-.447-.894a1 1 0 01.894-1.447zM18 10a1 1 0 01-1.447.894l-.894-.447a1 1 0 01.894-1.447l.447-.223A1 1 0 0118 10zM5.553 18.954a1 1 0 01.894-1.447l.447.894A1 1 0 017 19v-1.046a1 1 0 01-1.447-.894l-.894-.447zM10 18a1 1 0 01.894 1.447l-.447.894a1 1 0 01-1.447-.894V19a1 1 0 011-1z" clipRule="evenodd" /><path d="M12.293 8.293a1 1 0 011.414 0l2 2a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-2-2a1 1 0 010-1.414l8-8zM11 10.414l-6 6L6.414 15l6-6L11 10.414z" /></svg>}
+                             <button type="button" onClick={handleAiCorrectName} disabled={isNameAiLoading || !apiKey} title="Corrigir Nome com IA" className={`absolute top-1/2 right-2 -translate-y-1/2 text-xs font-bold py-2 px-3 rounded-md transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                                {isNameAiLoading ? <ButtonSpinner /> : 'Corrigir texto'}
                             </button>
                         </FormInput>
                         <div>
@@ -761,15 +878,23 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
                         </div>
                     </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div>
+                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
+                            <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(brandName => <option key={brandName} value={brandName}>{brandName}</option>)}</select>
+                        </div>
+                        <div>
+                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
+                            <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
+                        </div>
+                    </div>
                      <div>
-                        <h3 className={`text-lg font-bold mb-2 ${titleClasses}`}>Cor Principal</h3>
-                        <ColorSelector
-                            allColors={allColors}
-                            selectedColor={formData.mainColor}
-                            onSelectColor={handleSelectColor}
-                            disabledColors={usedColorNamesInFamily}
-                            onAddCustomColor={onAddCustomColor}
-                        />
+                        <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Proteção contra líquidos</label>
+                        <div className="space-y-2">
+                             <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.NONE} checked={formData.waterResistance === WaterResistanceLevel.NONE} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>Nenhum</span></label>
+                            <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.SEMI} checked={formData.waterResistance === WaterResistanceLevel.SEMI} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.SEMI]?.label}</span></label>
+                            <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.FULL} checked={formData.waterResistance === WaterResistanceLevel.FULL} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.FULL]?.label}</span></label>
+                        </div>
                     </div>
                     <div className="flex items-start gap-4">
                         <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
@@ -804,62 +929,72 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             {showcaseAiError && <p className="text-xs text-red-500 mt-1">{showcaseAiError}</p>}
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         <div>
-                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
-                            <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(brandName => <option key={brandName} value={brandName}>{brandName}</option>)}</select>
-                        </div>
-                        <div>
-                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
-                            <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
-                        </div>
-                    </div>
-                     <div>
-                        <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Proteção contra líquidos</label>
-                        <div className="space-y-2">
-                             <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.NONE} checked={formData.waterResistance === WaterResistanceLevel.NONE} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>Nenhum</span></label>
-                            <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.SEMI} checked={formData.waterResistance === WaterResistanceLevel.SEMI} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.SEMI]?.label}</span></label>
-                            <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.FULL} checked={formData.waterResistance === WaterResistanceLevel.FULL} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.FULL]?.label}</span></label>
-                        </div>
+                    <div>
+                        <h3 className={`text-lg font-bold mb-2 ${titleClasses}`}>Cor Principal</h3>
+                        <ColorSelector
+                            allColors={allColors}
+                            selectedColor={formData.mainColor}
+                            onSelectColor={handleSelectColor}
+                            disabledColors={usedColorNamesInFamily}
+                            onAddCustomColor={onAddCustomColor}
+                        />
                     </div>
                     <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label><textarea name="description" value={formData.description} onChange={handleChange} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}></textarea></div>
-                    
-                    {/* Size Variations */}
+                    {/* Reordered Fields End */}
+
+                    {/* Collapsible Size Variations */}
                     <div>
-                        <h3 className={`text-lg font-bold mb-3 ${titleClasses}`}>Variações de Tamanho e Estoque</h3>
-                        <div className="space-y-3">{formData.variations.map((v, i) => (<div key={v.size} className={`p-4 rounded-xl border ${cardClasses}`}><div className="flex justify-between items-center mb-3"><h4 className="font-bold text-fuchsia-400">{v.size}</h4><button type="button" onClick={() => handleRemoveVariation(i)} className="text-red-500 hover:text-red-700 p-1"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div><div className="grid grid-cols-2 gap-4"><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label><input type="number" value={v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label><input type="number" value={v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>{STORE_NAMES.map(storeName => (<div key={storeName}><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Estoque ({storeName})</label><input type="number" value={v.stock[storeName]} onChange={e => handleVariationChange(i, `stock-${storeName}`, e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`} /></div>))}</div><div className="mt-3 flex items-center gap-4"><div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>{v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}</div><button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} title={!apiKey ? noApiKeyTitle : `Gerar imagem para variação ${v.size}`} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>{aiGenerating[v.size] ? <ButtonSpinner /> : 'Gerar Imagem IA'}</button></div></div>))}</div>
-                        {variationsAiError && <p className="text-xs text-red-500 mt-2">{variationsAiError}</p>}
-                        <div className={`flex gap-2 mt-4 p-2 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
-                             <select value={addVariationSize} onChange={e => setAddVariationSize(e.target.value as CushionSize)} className={`flex-grow border-2 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}><option value="" disabled>Selecione um tamanho</option>{Object.values(CushionSize).map(size => (<option key={size} value={size} disabled={formData.variations.some(v => v.size === size)}>{size}</option>))}</select>
-                            <button type="button" onClick={handleAddVariation} className="bg-fuchsia-600 text-white font-bold p-3 rounded-lg hover:bg-fuchsia-700 transition-transform transform hover:scale-105"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg></button>
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className={`text-lg font-bold ${titleClasses}`}>Variações de Tamanho e Estoque</h3>
+                             <button type="button" onClick={() => setIsVariationsVisible(!isVariationsVisible)} className="p-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isVariationsVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                        </div>
+                        <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isVariationsVisible ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <div className="space-y-3 pt-2">
+                                {formData.variations.map((v, i) => (<div key={v.size} className={`p-4 rounded-xl border ${cardClasses}`}><div className="flex justify-between items-center mb-3"><h4 className="font-bold text-fuchsia-400">{v.size}</h4><button type="button" onClick={() => handleRemoveVariation(i)} className="text-red-500 hover:text-red-700 p-1"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div><div className="grid grid-cols-2 gap-4"><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label><input type="number" value={v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label><input type="number" value={v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>{STORE_NAMES.map(storeName => (<div key={storeName}><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Estoque ({storeName})</label><input type="number" value={v.stock[storeName]} onChange={e => handleVariationChange(i, `stock-${storeName}`, e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`} /></div>))}</div><div className="mt-3 flex items-center gap-4"><div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>{v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}</div><button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} title={!apiKey ? noApiKeyTitle : `Gerar imagem para variação ${v.size}`} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>{aiGenerating[v.size] ? <ButtonSpinner /> : 'Gerar Imagem IA'}</button></div></div>))}
+                                {variationsAiError && <p className="text-xs text-red-500 mt-2">{variationsAiError}</p>}
+                                <div className={`flex gap-2 mt-4 p-2 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+                                     <select value={addVariationSize} onChange={e => setAddVariationSize(e.target.value as CushionSize)} className={`flex-grow border-2 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}><option value="" disabled>Selecione um tamanho</option>{Object.values(CushionSize).map(size => (<option key={size} value={size} disabled={formData.variations.some(v => v.size === size)}>{size}</option>))}</select>
+                                    <button type="button" onClick={handleAddVariation} className="bg-fuchsia-600 text-white font-bold p-3 rounded-lg hover:bg-fuchsia-700 transition-transform transform hover:scale-105"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg></button>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    {/* Collapsible Backgrounds */}
                     <div>
-                        <h3 className={`text-lg font-bold mb-3 ${titleClasses}`}>Fundos de Vitrine (IA)</h3>
-                        <p className={`text-sm mb-3 ${subtitleClasses}`}>Gere imagens do produto em diferentes ambientes. Estas imagens serão salvas e exibidas na vitrine.</p>
-                        {bgGenError && <p className="text-xs text-red-500 mb-2">{bgGenError}</p>}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            {backgroundOptions.map(bg => { 
-                                const contextKey = bg.toLowerCase() as 'sala' | 'quarto' | 'varanda' | 'piscina'; 
-                                const imageUrl = formData.backgroundImages?.[contextKey]; 
-                                const isGenerating = bgGenerating[contextKey]; 
-                                return (
-                                <div key={bg} className="flex flex-col items-center">
-                                    <div className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>{isGenerating ? (<ButtonSpinner />) : imageUrl ? (<img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />) : (<span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>)}</div>
-                                    <button type="button" onClick={() => handleGenerateBackgroundImage(bg)} disabled={isGenerating || !formData.baseImageUrl} title={!apiKey ? noApiKeyTitle : `Gerar fundo de ${bg}`} className={`w-full text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
-                                        {isGenerating ? <ButtonSpinner/> : `Gerar ${bg}`}
-                                    </button>
-                                </div>
-                                );
-                            })}
+                         <div className="flex justify-between items-center mb-3">
+                            <h3 className={`text-lg font-bold ${titleClasses}`}>Fundos de Vitrine (IA)</h3>
+                             <button type="button" onClick={() => setIsBackgroundsVisible(!isBackgroundsVisible)} className="p-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isBackgroundsVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                        </div>
+                         <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isBackgroundsVisible ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <p className={`text-sm mb-3 ${subtitleClasses}`}>Gere imagens do produto em diferentes ambientes. Estas imagens serão salvas e exibidas na vitrine.</p>
+                            {bgGenError && <p className="text-xs text-red-500 mb-2">{bgGenError}</p>}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {backgroundOptions.map(bg => { 
+                                    const contextKey = bg.toLowerCase() as 'sala' | 'quarto' | 'varanda' | 'piscina'; 
+                                    const imageUrl = formData.backgroundImages?.[contextKey]; 
+                                    const isGenerating = bgGenerating[contextKey]; 
+                                    return (
+                                    <div key={bg} className="flex flex-col items-center">
+                                        <div className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>{isGenerating ? (<ButtonSpinner />) : imageUrl ? (<img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />) : (<span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>)}</div>
+                                        <button type="button" onClick={() => handleGenerateBackgroundImage(bg)} disabled={isGenerating || !formData.baseImageUrl} title={!apiKey ? noApiKeyTitle : `Gerar fundo de ${bg}`} className={`w-full text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                                            {isGenerating ? <ButtonSpinner/> : `Gerar ${bg}`}
+                                        </button>
+                                    </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
 
                     <div className="border-t pt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-                        <h3 className={`text-lg font-bold mb-3 ${titleClasses}`}>Variações de Cor (Produtos Relacionados)</h3>
-                        {familyProducts.filter(p => p.id !== formData.id).length > 0 && (
+                        <h3 className={`text-lg font-bold mb-3 ${titleClasses}`}>Produtos Relacionados (Mesma Família)</h3>
+                        {familyProducts.filter(p => p.id !== formData.id).length > 0 ? (
                             <div className="mb-4 space-y-2">
-                                <h4 className={`text-sm font-semibold mb-2 ${labelClasses}`}>Cores existentes nesta família:</h4>
                                 {familyProducts.filter(p => p.id !== formData.id).map(p => (
                                     <div key={p.id} className={`p-2 rounded-xl flex items-center justify-between border ${isDark ? 'bg-black/20 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
                                         <div className="flex items-center gap-3 min-w-0">
@@ -886,11 +1021,13 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                             title={`Editar ${p.name}`}
                                             className={`flex-shrink-0 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
                                         >
-                                            Editar esse produto
+                                            Editar esse
                                         </button>
                                     </div>
                                 ))}
                             </div>
+                        ) : (
+                             <p className={`text-sm mb-3 ${subtitleClasses}`}>Nenhum outro produto encontrado nesta família.</p>
                         )}
                         <div className="flex items-center">
                             <label htmlFor="isBatchColorMode" className={`text-sm font-semibold mr-3 ${labelClasses} ${!canCreateVariations ? 'opacity-50' : ''}`} title={!canCreateVariations ? 'Preencha o nome e a categoria para criar variações.' : ''}>Criar produtos para novas cores?</label>
