@@ -26,6 +26,7 @@ const DOHLER_FABRIC_INFO: Record<string, string> = {
   'Waterhavana': 'Trata-se de uma linha dentro da coleção Havana. É um tecido 100% algodão com estampas digitais e um acabamento impermeabilizante (ou semi-impermeável, com película protetora). É indicado para revestimento de estofados, cadeiras e almofadas, podendo ser usado em áreas internas e externas (desde que protegido do sol e chuva diretos).',
   'Tricoline': 'Um tecido clássico e muito versátil, 100% algodão, conhecido por sua textura fina, leveza e resistência. É macio ao toque e fácil de manusear, sendo amplamente utilizado em artesanato, patchwork, confecção de roupas (como camisas e vestidos) e decoração.',
   'Belize': 'Esta é uma linha de tecidos para decoração, geralmente com composição mista (ex: 67% algodão e 33% poliéster). É conhecido por seu tratamento impermeabilizante (frequentemente sob a chancela Waterblock) e anti-manchas, o que o torna ideal para estofados, cadeiras, almofadas e revestimento de paredes em áreas internas.',
+  'Belize Waterblock': 'Uma evolução da linha Belize, este tecido combina a estética e o toque do Belize com a tecnologia Waterblock®, oferecendo 100% de impermeabilidade, proteção anti-manchas e alta durabilidade. Ideal para estofados e almofadas que exigem máxima proteção contra líquidos em áreas internas.',
   'Atoalhados': 'Refere-se aos tecidos felpudos, 100% algodão, usados principalmente para a confecção de toalhas de banho, roupões e artigos similares. Caracteriza-se pela sua alta capacidade de absorção e toque macio.',
   'Havana': 'Uma linha de tecidos decorativos, 100% algodão, que se destaca pelas estampas digitais de alta definição. Possui uma película protetora que repele líquidos, facilitando a limpeza (semi-impermeável). É muito usado para toalhas de mesa, jogos americanos, almofadas e revestimento de móveis em áreas internas.',
   'Decokasa': 'Linha de tecidos para decoração, descrita como leve e durável. Possui estampas em alta definição e um acabamento protetor (em alguns casos, impermeável) que facilita a manutenção diária. É indicado para estofados, almofadas e também para aplicação em paredes.'
@@ -37,7 +38,7 @@ const KARSTEN_FABRIC_INFO: Record<string, string> = {
   'Karsten Marble': 'Coleção focada na decoração de interiores com design sofisticado e proteção anti-mancha. Utiliza tecelagem Jacquard e estampas digitais de alta definição. Repele líquidos (não é totalmente impermeável), priorizando a estética e o toque agradável. Composição geralmente mista (ex: 70% algodão, 30% poliéster).',
 };
 
-export const BRAND_FABRIC_MAP: Record<Brand, Record<string, string>> = {
+export const BRAND_FABRIC_MAP: Record<string, Record<string, string>> = {
     [Brand.MARCA_PROPRIA]: MARCA_PROPRIA_FABRIC_INFO,
     [Brand.KARSTEN]: KARSTEN_FABRIC_INFO,
     [Brand.DOLHER]: DOHLER_FABRIC_INFO,
@@ -46,21 +47,12 @@ export const BRAND_FABRIC_MAP: Record<Brand, Record<string, string>> = {
 
 export const BRANDS = [Brand.MARCA_PROPRIA, Brand.DOLHER, Brand.KARSTEN];
 
-export const BRAND_LOGOS: Record<Brand, string> = {
+export const BRAND_LOGOS: Record<string, string> = {
     [Brand.DOLHER]: 'https://i.postimg.cc/G3k2G58y/image.png',
     [Brand.KARSTEN]: 'https://i.postimg.cc/DzBQvzFf/image.png',
     [Brand.MARCA_PROPRIA]: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png', // Using Teca logo as placeholder
 };
 
-
-export const IMAGE_BANK_URLS = [
-  'https://i.imgur.com/8Q8Y22j.png', // Velvet Plum
-  'https://i.imgur.com/tYtqG2k.png', // Visemtric Lavender
-  'https://i.imgur.com/pA2kS1L.png', // Geometric Square
-  'https://i.imgur.com/X5n4a7q.png', // Cozy Olive Green
-  'https://i.imgur.com/dZaYg2b.png', // Bohemian Textured
-  'https://i.imgur.com/R3tA2Y8.png', // Rustic Linen
-];
 
 export const STORE_IMAGE_URLS = {
   teca: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png',
@@ -332,10 +324,14 @@ export const INITIAL_PRODUCTS: Product[] = rawProductsData.map((p, index) => {
     const fabricInfo = BRAND_FABRIC_MAP[brand];
     const defaultFabricType = Object.keys(fabricInfo).includes(fabricType) ? fabricType : Object.keys(fabricInfo)[0];
 
+    const allColors = [...PREDEFINED_COLORS].sort((a, b) => b.name.length - a.name.length);
+    let mainColor = allColors.find(c => p.name.toLowerCase().includes(c.name.toLowerCase())) || { name: 'Indefinida', hex: '#808080' };
+
+
     return {
         id: p.id,
         name: p.name,
-        baseImageUrl: IMAGE_BANK_URLS[index % IMAGE_BANK_URLS.length],
+        baseImageUrl: '', // IMAGE_BANK_URLS[index % IMAGE_BANK_URLS.length],
         unitsSold: Math.floor(Math.random() * 75) + 5, // Random units sold: 5-79
         category: p.category,
         fabricType: defaultFabricType,
@@ -343,6 +339,7 @@ export const INITIAL_PRODUCTS: Product[] = rawProductsData.map((p, index) => {
         waterResistance: WaterResistanceLevel.NONE, // Default value
         brand: brand,
         backgroundImages: {},
+        mainColor: mainColor,
         variations: [
             {
                 size: defaultVariationSize,

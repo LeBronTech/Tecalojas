@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
-import { Product, StoreName, Variation, CushionSize, Brand, WaterResistanceLevel } from '../types';
-import { IMAGE_BANK_URLS, VARIATION_DEFAULTS, BRAND_FABRIC_MAP, STORE_NAMES, BRANDS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
+import React, { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react';
+import { Product, StoreName, Variation, CushionSize, Brand, WaterResistanceLevel, DynamicBrand } from '../types';
+import { VARIATION_DEFAULTS, BRAND_FABRIC_MAP, STORE_NAMES, BRANDS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
 import { ThemeContext } from '../App';
 import { GoogleGenAI, Modality } from '@google/genai';
+import ColorSelector from './ColorSelector';
 
 // --- Cordova/TypeScript Declarations ---
 declare var navigator: any;
@@ -126,6 +127,7 @@ const OptionButton: React.FC<{ onClick: () => void, icon: React.ReactNode, label
 
 const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, onTakePhoto }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageUrl, setImageUrl] = useState('');
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
 
@@ -145,11 +147,17 @@ const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
+  
+  const handleUrlSubmit = () => {
+    if (imageUrl.trim()) {
+        onSelect(imageUrl.trim());
+    }
+  };
 
   const modalBgClasses = isDark ? "bg-[#2D1F49] border-white/10" : "bg-white border-gray-200";
   const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
-  const subtitleClasses = isDark ? "text-gray-400" : "text-gray-500";
   const closeBtnClasses = isDark ? "text-gray-400 hover:text-white bg-gray-800/50" : "text-gray-500 hover:text-gray-800 bg-gray-100/50";
+  const inputClasses = isDark ? "bg-black/20 text-white border-white/10" : "bg-gray-100 text-gray-900 border-gray-300";
 
 
   return (
@@ -184,16 +192,20 @@ const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, 
                 sublabel="Escolha uma imagem existente"
                 icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-fuchsia-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
             />
-        </div>
-
-        <div>
-            <h3 className={`text-sm font-bold mb-3 uppercase tracking-wider ${subtitleClasses}`}>Banco de Imagens</h3>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-48 overflow-y-auto pr-2">
-                {IMAGE_BANK_URLS.map(url => (
-                    <button key={url} onClick={() => onSelect(url)} className="aspect-square rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2 transition-transform hover:scale-105">
-                        <img src={url} alt="Imagem do banco" className="w-full h-full object-cover" />
-                    </button>
-                ))}
+             <div className="relative">
+                <input 
+                    type="text"
+                    placeholder="Ou cole uma URL de imagem aqui"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    className={`w-full border-2 rounded-lg pl-4 pr-16 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} 
+                />
+                <button 
+                    onClick={handleUrlSubmit} 
+                    className="absolute top-1/2 right-2 -translate-y-1/2 bg-fuchsia-600 text-white font-bold py-2 px-3 text-sm rounded-md hover:bg-fuchsia-700 transition-colors"
+                >
+                    Usar
+                </button>
             </div>
         </div>
       </div>
@@ -201,20 +213,22 @@ const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, 
   );
 };
 
-
 // --- Main AddEditProductModal Component ---
 
 interface AddEditProductModalProps {
-  product: Product | null;
+  product: Product;
   products: Product[];
   onClose: () => void;
-  onSave: (product: Product, nextProduct?: Omit<Product, 'id'>) => Promise<void>;
+  onSave: (product: Product, options?: { closeModal?: boolean }) => Promise<Product>;
+  onCreateVariations: (parentProduct: Product, newColors: {name: string, hex: string}[]) => Promise<void>;
   onSwitchProduct: (product: Product) => void;
+  onRequestDelete: (productId: string) => void;
   categories: string[];
   apiKey: string | null;
   onRequestApiKey: () => void;
   customColors: { name: string; hex: string }[];
   onAddCustomColor: (color: { name: string; hex: string }) => void;
+  brands: DynamicBrand[];
 }
 
 const defaultFabricInfo = BRAND_FABRIC_MAP[Brand.MARCA_PROPRIA];
@@ -302,7 +316,7 @@ const resizeImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promis
 };
 
 
-const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onSwitchProduct, categories, apiKey, onRequestApiKey, customColors, onAddCustomColor }) => {
+const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, apiKey, onRequestApiKey, customColors, onAddCustomColor, brands }) => {
   const [formData, setFormData] = useState<Product>(initialFormState);
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -315,33 +329,56 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [saveError, setSaveError] = useState<string | null>(null);
   const [bgGenerating, setBgGenerating] = useState<Record<string, boolean>>({});
   const [bgGenError, setBgGenError] = useState<string | null>(null);
-  const [newColor, setNewColor] = useState({ name: '', hex: '#ffffff' });
-  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
-  const [showNewColorVariations, setShowNewColorVariations] = useState(false);
-  const [newColorVariations, setNewColorVariations] = useState<Array<{ name: string; hex: string }>>([]);
+  const [isBatchColorMode, setIsBatchColorMode] = useState(false);
+  const [selectedNewColors, setSelectedNewColors] = useState<{name: string, hex: string}[]>([]);
+  const [isCreatingVariations, setIsCreatingVariations] = useState(false);
   const [isNameAiLoading, setIsNameAiLoading] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const noApiKeyTitle = "Adicionar chave de API da Gemini para usar IA";
 
-  const allColors = [...PREDEFINED_COLORS, ...customColors].filter(
-    (color, index, self) => index === self.findIndex((c) => c.name === color.name)
-  );
+  const allColors = useMemo(() => [...PREDEFINED_COLORS, ...customColors].filter(
+    (color, index, self) => index === self.findIndex((c) => c.name.toLowerCase() === color.name.toLowerCase())
+  ), [customColors]);
+  
+  const allBrandNames = useMemo(() => {
+    const dynamicNames = brands.map(b => b.name);
+    const staticNames = Object.values(Brand);
+    return [...new Set([...dynamicNames, ...staticNames])];
+  }, [brands]);
+
+  // A "family" is defined by category and fabric type. These are its members.
+  const familyProducts = useMemo(() => {
+    if (!formData.category || !formData.fabricType) return [];
+    return products.filter(p => 
+        p.category === formData.category &&
+        p.fabricType === formData.fabricType
+    );
+  }, [products, formData.category, formData.fabricType]);
+  
+  // Names of colors already used by other products in the same family.
+  const usedColorNamesInFamily = useMemo(() => {
+    return familyProducts
+        .filter(p => p.id !== formData.id) // Exclude the product currently being edited
+        .map(p => p.mainColor?.name)
+        .filter((name): name is string => !!name);
+  }, [familyProducts, formData.id]);
+
 
   useEffect(() => {
-    if (product) {
-      setFormData({ 
+    setFormData({ 
         ...initialFormState, 
         ...product, 
         backgroundImages: product.backgroundImages || {},
         mainColor: product.mainColor || initialFormState.mainColor,
-      });
-    } else {
-      setFormData(initialFormState);
+    });
+    if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = 0;
     }
-    setShowNewColorVariations(false);
-    setNewColorVariations([]);
+    setIsBatchColorMode(false);
+    setSelectedNewColors([]);
   }, [product]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -353,14 +390,23 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setFormData(prev => {
         let newState = { ...prev, [name]: parsedValue };
         if (name === 'brand') {
-            const newBrand = parsedValue as Brand;
+            const newBrand = parsedValue as string;
             const fabricInfo = BRAND_FABRIC_MAP[newBrand];
-            const newFabricType = Object.keys(fabricInfo)[0];
-            newState.fabricType = newFabricType;
-            newState.description = fabricInfo[newFabricType] || '';
+            if (fabricInfo) {
+              const newFabricType = Object.keys(fabricInfo)[0];
+              newState.fabricType = newFabricType;
+              newState.description = fabricInfo[newFabricType] || '';
+            }
         } else if (name === 'fabricType') {
+            const newFabricType = parsedValue as string;
             const fabricInfo = BRAND_FABRIC_MAP[newState.brand];
-            newState.description = fabricInfo[parsedValue as string] || '';
+            if (fabricInfo) {
+               newState.description = fabricInfo[newFabricType] || '';
+            }
+            // Automatically set water resistance for specific fabrics
+            if (newFabricType.toLowerCase().includes('waterblock')) {
+                newState.waterResistance = WaterResistanceLevel.FULL;
+            }
         }
         return newState;
     });
@@ -407,8 +453,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setAddVariationSize('');
   };
   
-  const handleRemoveVariation = (index: number) => {
-     setFormData(prev => ({ ...prev, variations: prev.variations.filter((_, i) => i !== index)}));
+  const handleRemoveVariation = (indexToRemove: number) => {
+     setFormData(prev => ({ ...prev, variations: prev.variations.filter((_, i) => i !== indexToRemove)}));
   };
 
   const getAiPromptForSize = (size: CushionSize): string => {
@@ -522,69 +568,28 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
   const handleSelectColor = (color: { name: string; hex: string }) => {
     setFormData(prev => ({ ...prev, mainColor: color }));
-    setIsColorPickerOpen(false);
-  };
-  
-  const handleAddNewColorVariation = (color: { name: string; hex: string }) => {
-    if (!newColorVariations.some(c => c.name === color.name)) {
-        setNewColorVariations(prev => [...prev, color]);
-    }
-    setIsColorPickerOpen(false);
   };
 
-  const handleAddNewColor = () => {
-    if (newColor.name.trim() && !allColors.some(c => c.name === newColor.name.trim())) {
-      onAddCustomColor(newColor);
-      if (showNewColorVariations) {
-          handleAddNewColorVariation(newColor);
-      } else {
-          handleSelectColor(newColor);
+  const findMatchingFabricType = (aiFabric: string, brand: string): string | null => {
+      const fabricMap = BRAND_FABRIC_MAP[brand];
+      if (!fabricMap) return null;
+      
+      const aiFabricLower = aiFabric.toLowerCase().trim();
+      const fabricKeys = Object.keys(fabricMap);
+
+      for (const key of fabricKeys) {
+          const keyLower = key.toLowerCase();
+          if (keyLower === aiFabricLower) return key;
+          const keyBase = keyLower.split('(')[0].trim();
+          if (keyBase === aiFabricLower) return key;
       }
-      setNewColor({ name: '', hex: '#ffffff' });
-    }
-  };
-  
-  const handleConfigureNewColorProduct = (index: number) => {
-    const colorToConfigure = newColorVariations[index];
-
-    const nextProductData: Omit<Product, 'id'> = {
-        ...formData,
-        id: '',
-        name: `${formData.category} ${colorToConfigure.name} ${formData.fabricType}`,
-        mainColor: colorToConfigure,
-        variationGroupId: formData.variationGroupId,
-        baseImageUrl: '',
-        backgroundImages: {},
-        unitsSold: 0,
-        variations: formData.variations.map(v => ({ ...v, imageUrl: '', stock: { [StoreName.TECA]: 0, [StoreName.IONE]: 0 } }))
-    };
-
-    setNewColorVariations(prev => prev.filter((_, i) => i !== index));
-
-    onSave(formData, nextProductData);
-  };
-  
-    const findMatchingFabricType = (aiFabric: string, brand: Brand): string | null => {
-        const fabricMap = BRAND_FABRIC_MAP[brand];
-        if (!fabricMap) return null;
-        
-        const aiFabricLower = aiFabric.toLowerCase().trim();
-        const fabricKeys = Object.keys(fabricMap);
-
-        for (const key of fabricKeys) {
-            const keyLower = key.toLowerCase();
-            if (keyLower === aiFabricLower) return key;
-            const keyBase = keyLower.split('(')[0].trim();
-            if (keyBase === aiFabricLower) return key;
-        }
-        for (const key of fabricKeys) {
-            if (key.toLowerCase().includes(aiFabricLower) || aiFabricLower.includes(key.toLowerCase().split('(')[0].trim())) {
-                return key;
-            }
-        }
-        return null;
-    }
-
+      for (const key of fabricKeys) {
+          if (key.toLowerCase().includes(aiFabricLower) || aiFabricLower.includes(key.toLowerCase().split('(')[0].trim())) {
+              return key;
+          }
+      }
+      return null;
+  }
 
   const handleAiCorrectName = async () => {
     if (!apiKey) { onRequestApiKey(); return; }
@@ -629,9 +634,14 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     e.preventDefault();
     setIsSaving(true);
     setSaveError(null);
-    try { await onSave(formData); } 
-    catch (error: any) { console.error("Failed to save product:", error); setSaveError(error.message || "Ocorreu um erro desconhecido ao salvar."); } 
-    finally { setIsSaving(false); }
+    try { 
+      await onSave(formData); 
+    } catch (error: any) { 
+      console.error("Failed to save product:", error); 
+      setSaveError(error.message || "Ocorreu um erro desconhecido ao salvar."); 
+    } finally { 
+      setIsSaving(false); 
+    }
   };
   
   const handleTakePhoto = () => {
@@ -646,6 +656,43 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     } else { setIsCameraOpen(true); }
   };
 
+  const handleToggleNewColor = (color: {name: string, hex: string}) => {
+    setSelectedNewColors(prev => {
+        if (prev.some(c => c.name === color.name)) {
+            return prev.filter(c => c.name !== color.name);
+        } else {
+            return [...prev, color];
+        }
+    });
+  };
+
+  const handleCreateVariations = async () => {
+    if (selectedNewColors.length === 0) return;
+    setIsCreatingVariations(true);
+    setSaveError(null);
+    try {
+        // Step 1: Save the current product to ensure its data (especially variationGroupId) is up-to-date.
+        const savedParentProduct = await onSave(formData, { closeModal: false });
+        
+        // Step 2: Call the dedicated function to create only the new variations.
+        await onCreateVariations(savedParentProduct, selectedNewColors);
+
+        // Update the form with the potentially updated parent product (e.g., with a new variationGroupId)
+        setFormData(savedParentProduct); 
+        setSelectedNewColors([]);
+        setIsBatchColorMode(false);
+
+    } catch (err: any) {
+        setSaveError(err.message || 'Falha ao criar variações de cor.');
+    } finally {
+        setIsCreatingVariations(false);
+    }
+  };
+  
+  const handleSwitch = (productToSwitchTo: Product) => {
+    onSwitchProduct(productToSwitchTo);
+  };
+
   const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
   const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
   const subtitleClasses = isDark ? "text-gray-400" : "text-gray-500";
@@ -656,48 +703,21 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const cancelBtnClasses = isDark ? "text-gray-300 hover:bg-black/20" : "text-gray-600 hover:bg-gray-100";
   
   const availableFabricTypes = Object.keys(BRAND_FABRIC_MAP[formData.brand] || {});
+  const canCreateVariations = formData.name.trim() && formData.category.trim();
   
-  const relatedProducts = product && formData.variationGroupId
-    ? products.filter(p => p.variationGroupId === formData.variationGroupId && p.id !== formData.id)
-    : [];
-
-  const renderColorPicker = () => (
-    <div className={`p-4 rounded-xl border ${cardClasses}`}>
-        <div className="flex justify-between items-center mb-3">
-            <h4 className={`font-bold ${titleClasses}`}>Selecione uma Cor</h4>
-            <button type="button" onClick={() => setIsColorPickerOpen(false)} className={closeBtnClasses + " rounded-full p-1"}>
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-        </div>
-        <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-            {allColors.map(color => (
-                <button type="button" key={color.name} onClick={() => showNewColorVariations ? handleAddNewColorVariation(color) : handleSelectColor(color)} style={{ backgroundColor: color.hex }} className={`w-8 h-8 rounded-full border-2 ${isDark ? 'border-gray-500' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-fuchsia-500`} title={color.name}></button>
-            ))}
-        </div>
-        <div className="flex gap-2 mt-4 items-center border-t pt-3" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-            <input type="text" placeholder="Nome da nova cor" value={newColor.name} onChange={e => setNewColor(c => ({...c, name: e.target.value}))} className={`flex-grow text-sm p-2 rounded ${inputClasses}`} />
-            <input type="color" value={newColor.hex} onChange={e => setNewColor(c => ({...c, hex: e.target.value}))} className="w-10 h-10 p-1 rounded bg-transparent border-0 cursor-pointer" />
-            <button type="button" onClick={handleAddNewColor} title="Adicionar e Salvar Nova Cor" className="bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white font-bold p-2 rounded-lg hover:opacity-80 transition-opacity flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-            </button>
-        </div>
-    </div>
-  );
-
-
   return (
       <>
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-40 p-4 transition-opacity duration-300" onClick={onClose}>
             <form onSubmit={handleSubmit} className={`border rounded-3xl shadow-2xl w-full max-w-lg p-6 relative transform transition-all duration-300 scale-95 opacity-0 animate-fade-in-scale flex flex-col ${modalBgClasses}`} onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh' }}>
                 <style>{` @keyframes fade-in-scale { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } } .animate-fade-in-scale { animation: fade-in-scale 0.3s forwards; } `}</style>
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className={`text-2xl font-bold ${titleClasses}`}>{product ? 'Editar Produto' : 'Adicionar Produto'}</h2>
+                    <h2 className={`text-2xl font-bold ${titleClasses}`}>Editar Produto</h2>
                     <button type="button" onClick={onClose} className={`rounded-full p-2 transition-colors z-10 ${closeBtnClasses}`}>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
 
-                <div className="flex-grow overflow-y-auto no-scrollbar pr-2 -mr-2 space-y-6 pb-24">
+                <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar pr-2 -mr-2 space-y-6 pb-24">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormInput 
                             label="Nome do Produto" 
@@ -724,21 +744,27 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     </div>
                      <div>
                         <h3 className={`text-lg font-bold mb-2 ${titleClasses}`}>Cor Principal</h3>
-                        {isColorPickerOpen && !showNewColorVariations ? renderColorPicker() : (
-                            <div className={`p-3 rounded-xl border flex items-center justify-between ${cardClasses}`}>
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full border-2" style={{ backgroundColor: formData.mainColor?.hex, borderColor: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.2)' }}></div>
-                                    <span className={`font-semibold ${titleClasses}`}>{formData.mainColor?.name}</span>
-                                </div>
-                                <button type="button" onClick={() => setIsColorPickerOpen(true)} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
-                                    Alterar Cor
-                                </button>
-                            </div>
-                        )}
+                        <ColorSelector
+                            allColors={allColors}
+                            selectedColor={formData.mainColor}
+                            onSelectColor={handleSelectColor}
+                            disabledColors={usedColorNamesInFamily}
+                            onAddCustomColor={onAddCustomColor}
+                        />
                     </div>
                     <div className="flex items-start gap-4">
                         <div className={`w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
-                            {formData.baseImageUrl ? <img src={formData.baseImageUrl} alt="Preview" className="w-full h-full object-cover" /> : <span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span> }
+                            {formData.baseImageUrl ? (
+                                <img src={formData.baseImageUrl} alt="Preview" className="w-full h-full object-cover" /> 
+                            ) : (
+                                <div className={`w-full h-full flex items-center justify-center relative ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+                                    <img 
+                                        src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
+                                        alt="Sem Imagem" 
+                                        className="w-1/2 h-1/2 object-contain opacity-20" 
+                                    />
+                                </div>
+                            )}
                         </div>
                         <div className="flex-grow">
                              <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Imagem Principal</label>
@@ -752,7 +778,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div>
                             <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
-                            <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{BRANDS.map(brand => <option key={brand} value={brand}>{brand}</option>)}</select>
+                            <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(brandName => <option key={brandName} value={brandName}>{brandName}</option>)}</select>
                         </div>
                         <div>
                             <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
@@ -772,7 +798,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     {/* Size Variations */}
                     <div>
                         <h3 className={`text-lg font-bold mb-3 ${titleClasses}`}>Variações de Tamanho e Estoque</h3>
-                        <div className="space-y-3">{formData.variations.map((v, i) => (<div key={i} className={`p-4 rounded-xl border ${cardClasses}`}><div className="flex justify-between items-center mb-3"><h4 className="font-bold text-fuchsia-400">{v.size}</h4><button type="button" onClick={() => handleRemoveVariation(i)} className="text-red-500 hover:text-red-700"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div><div className="grid grid-cols-2 gap-4"><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label><input type="number" value={v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label><input type="number" value={v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>{STORE_NAMES.map(storeName => (<div key={storeName}><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Estoque ({storeName})</label><input type="number" value={v.stock[storeName]} onChange={e => handleVariationChange(i, `stock-${storeName}`, e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`} /></div>))}</div><div className="mt-3 flex items-center gap-4"><div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>{v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}</div><button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} title={!apiKey ? noApiKeyTitle : `Gerar imagem para variação ${v.size}`} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>{aiGenerating[v.size] ? <ButtonSpinner /> : 'Gerar Imagem IA'}</button></div></div>))}</div>
+                        <div className="space-y-3">{formData.variations.map((v, i) => (<div key={v.size} className={`p-4 rounded-xl border ${cardClasses}`}><div className="flex justify-between items-center mb-3"><h4 className="font-bold text-fuchsia-400">{v.size}</h4><button type="button" onClick={() => handleRemoveVariation(i)} className="text-red-500 hover:text-red-700 p-1"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div><div className="grid grid-cols-2 gap-4"><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label><input type="number" value={v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label><input type="number" value={v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>{STORE_NAMES.map(storeName => (<div key={storeName}><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Estoque ({storeName})</label><input type="number" value={v.stock[storeName]} onChange={e => handleVariationChange(i, `stock-${storeName}`, e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`} /></div>))}</div><div className="mt-3 flex items-center gap-4"><div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>{v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}</div><button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} title={!apiKey ? noApiKeyTitle : `Gerar imagem para variação ${v.size}`} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>{aiGenerating[v.size] ? <ButtonSpinner /> : 'Gerar Imagem IA'}</button></div></div>))}</div>
                         {variationsAiError && <p className="text-xs text-red-500 mt-2">{variationsAiError}</p>}
                         <div className={`flex gap-2 mt-4 p-2 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
                              <select value={addVariationSize} onChange={e => setAddVariationSize(e.target.value as CushionSize)} className={`flex-grow border-2 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}><option value="" disabled>Selecione um tamanho</option>{Object.values(CushionSize).map(size => (<option key={size} value={size} disabled={formData.variations.some(v => v.size === size)}>{size}</option>))}</select>
@@ -786,57 +812,87 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">{(['Sala', 'Quarto', 'Varanda'] as const).map(bg => { const contextKey = bg.toLowerCase() as 'sala' | 'quarto' | 'varanda'; const imageUrl = formData.backgroundImages?.[contextKey]; const isGenerating = bgGenerating[contextKey]; return (<div key={bg} className="flex flex-col items-center"><div className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>{isGenerating ? (<ButtonSpinner />) : imageUrl ? (<img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />) : (<span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>)}</div><button type="button" onClick={() => handleGenerateBackgroundImage(bg)} disabled={isGenerating || !formData.baseImageUrl} title={!apiKey ? noApiKeyTitle : `Gerar fundo de ${bg}`} className={`w-full text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>{isGenerating ? <ButtonSpinner/> : `Gerar ${bg}`}</button></div>);})}</div>
                     </div>
 
-                    {/* Color Variations Section */}
-                     <div className="border-t pt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+                    <div className="border-t pt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
                         <h3 className={`text-lg font-bold mb-3 ${titleClasses}`}>Variações de Cor (Produtos Relacionados)</h3>
-                        {relatedProducts.length > 0 && (
-                            <div className="mb-4">
-                                <h4 className={`text-sm font-semibold mb-2 ${labelClasses}`}>Cores existentes neste grupo:</h4>
-                                <div className="flex flex-wrap gap-2">
-                                    {relatedProducts.map(p => (
+                        {familyProducts.filter(p => p.id !== formData.id).length > 0 && (
+                            <div className="mb-4 space-y-2">
+                                <h4 className={`text-sm font-semibold mb-2 ${labelClasses}`}>Cores existentes nesta família:</h4>
+                                {familyProducts.filter(p => p.id !== formData.id).map(p => (
+                                    <div key={p.id} className={`p-2 rounded-xl flex items-center justify-between border ${isDark ? 'bg-black/20 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`w-10 h-10 rounded-lg object-cover flex-shrink-0 flex items-center justify-center overflow-hidden ${isDark ? 'bg-black/20' : 'bg-gray-200'}`}>
+                                                {p.baseImageUrl ? (
+                                                    <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover"/>
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center relative">
+                                                        <img src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" alt="Sem Imagem" className="w-1/2 h-1/2 object-contain opacity-20" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-grow min-w-0">
+                                                <p className={`text-sm font-bold truncate ${titleClasses}`}>{p.name}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <div style={{backgroundColor: p.mainColor?.hex}} className="w-4 h-4 rounded-full border border-black/20 flex-shrink-0"></div>
+                                                    <span className={`text-xs font-medium truncate ${subtitleClasses}`}>{p.mainColor?.name}</span>
+                                                </div>
+                                            </div>
+                                        </div>
                                         <button
                                             type="button"
-                                            key={p.id}
-                                            onClick={() => onSwitchProduct(p)}
+                                            onClick={() => handleSwitch(p)}
                                             title={`Editar ${p.name}`}
-                                            className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${isDark ? 'bg-black/20 hover:bg-black/40' : 'bg-gray-100 hover:bg-gray-200'}`}
+                                            className={`flex-shrink-0 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
                                         >
-                                            <div style={{backgroundColor: p.mainColor?.hex}} className="w-5 h-5 rounded-full border border-black/20"></div>
-                                            <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{p.mainColor?.name || p.name}</span>
+                                            Editar esse produto
                                         </button>
-                                    ))}
-                                </div>
+                                    </div>
+                                ))}
                             </div>
                         )}
                         <div className="flex items-center">
-                            <label htmlFor="showNewColorVariations" className={`text-sm font-semibold mr-3 ${labelClasses}`}>Adicionar novas cores a este produto?</label>
-                            <input type="checkbox" id="showNewColorVariations" name="showNewColorVariations" checked={showNewColorVariations} onChange={(e) => setShowNewColorVariations(e.target.checked)} className="h-5 w-5 rounded text-fuchsia-600 focus:ring-fuchsia-500" />
+                            <label htmlFor="isBatchColorMode" className={`text-sm font-semibold mr-3 ${labelClasses} ${!canCreateVariations ? 'opacity-50' : ''}`} title={!canCreateVariations ? 'Preencha o nome e a categoria para criar variações.' : ''}>Criar produtos para novas cores?</label>
+                            <input type="checkbox" id="isBatchColorMode" checked={isBatchColorMode} onChange={(e) => setIsBatchColorMode(e.target.checked)} className="h-5 w-5 rounded text-fuchsia-600 focus:ring-fuchsia-500 disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canCreateVariations} />
                         </div>
-                        {showNewColorVariations && (
-                            <div className={`p-4 mt-3 rounded-xl border ${cardClasses}`}>
-                                <p className={`text-sm mb-3 ${subtitleClasses}`}>Cada cor será um novo produto. Após salvar, configure os detalhes de cada um.</p>
-                                {isColorPickerOpen ? renderColorPicker() : (
-                                    <button type="button" onClick={() => setIsColorPickerOpen(true)} className={`w-full font-bold py-3 px-4 rounded-lg mb-3 flex items-center justify-center gap-2 transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}>
-                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="url(#paint0_radial_0_1)"/><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="url(#paint1_linear_0_1)"/><defs><radialGradient id="paint0_radial_0_1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(12) rotate(90) scale(12)"><stop stopColor="#FF0000"/><stop offset="0.16" stopColor="#FF7A00"/><stop offset="0.33" stopColor="#FFD600"/><stop offset="0.5" stopColor="#00FF00"/><stop offset="0.66" stopColor="#00FFFF"/><stop offset="0.83" stopColor="#0000FF"/><stop offset="1" stopColor="#FF00FF"/></radialGradient><linearGradient id="paint1_linear_0_1" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse"><stop stopColor="white" stopOpacity="0.4"/><stop offset="1" stopColor="white" stopOpacity="0.1"/></linearGradient></defs></svg>
-                                        Adicionar Cor
-                                    </button>
-                                )}
-                                <div className="flex flex-wrap gap-4 mt-4">
-                                    {newColorVariations.map((color, i) => (
-                                        <div key={i} className={`p-3 rounded-lg border w-28 flex flex-col items-center text-center ${isDark ? 'bg-black/30 border-white/20' : 'bg-white border-gray-300'}`}>
-                                            <div className="w-12 h-12 rounded-full border-2 mb-2" style={{ backgroundColor: color.hex, borderColor: isDark ? '#fff' : '#000' }}></div>
-                                            <span className={`font-semibold text-sm h-10 flex items-center ${titleClasses}`}>{color.name}</span>
-                                            <button type="button" onClick={() => handleConfigureNewColorProduct(i)} className={`w-full font-semibold mt-2 py-1 px-2 rounded-md text-xs transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'}`}>Configurar</button>
-                                            <button type="button" onClick={() => setNewColorVariations(p => p.filter((_, idx) => idx !== i))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-xs">X</button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                         {!canCreateVariations && (
+                           <p className="text-xs text-amber-500 mt-1">Preencha o nome e a categoria do produto antes de criar variações de cor.</p>
+                         )}
+
+                        {isBatchColorMode && canCreateVariations && (
+                            <>
+                            <ColorSelector
+                                allColors={allColors}
+                                multiSelect
+                                selectedColors={selectedNewColors}
+                                onToggleColor={handleToggleNewColor}
+                                disabledColors={[...usedColorNamesInFamily, formData.mainColor?.name].filter((name): name is string => !!name)}
+                                onAddCustomColor={onAddCustomColor}
+                            />
+                            <button 
+                                type="button" 
+                                onClick={handleCreateVariations} 
+                                disabled={isCreatingVariations || selectedNewColors.length === 0}
+                                className="w-full mt-4 bg-cyan-600 text-white font-bold py-3 rounded-lg shadow-lg shadow-cyan-600/30 hover:bg-cyan-700 transition flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:shadow-none"
+                            >
+                                {isCreatingVariations ? <ButtonSpinner /> : `Criar ${selectedNewColors.length} Variações de Cor`}
+                            </button>
+                            </>
                         )}
                     </div>
 
                 </div>
-                <div className="flex justify-end items-center pt-6 gap-4 border-t border-gray-200 dark:border-white/10 mt-auto">{saveError && <p className="text-sm text-red-500 font-semibold flex-grow">{saveError}</p>}<button type="button" onClick={onClose} className={`font-bold py-3 px-6 rounded-lg transition ${cancelBtnClasses}`}>Cancelar</button><button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100">{isSaving ? 'Salvando...' : 'Salvar'}</button></div>
+                <div className="flex justify-between items-center pt-6 gap-4 border-t border-gray-200 dark:border-white/10 mt-auto">
+                    {product && (
+                        <button type="button" onClick={() => onRequestDelete(formData.id)} className="text-red-500 font-bold py-3 px-4 rounded-lg transition hover:bg-red-500/10 flex items-center gap-2">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            Excluir
+                        </button>
+                    )}
+                     <div className="flex-grow">
+                        {saveError && <p className="text-sm text-red-500 font-semibold text-right">{saveError}</p>}
+                    </div>
+                    <button type="button" onClick={onClose} className={`font-bold py-3 px-6 rounded-lg transition ${cancelBtnClasses}`}>Cancelar</button>
+                    <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100">{isSaving ? 'Salvando...' : 'Salvar'}</button>
+                </div>
             </form>
         </div>
         {isImagePickerOpen && <ImagePickerModal onSelect={handleImageSelect} onClose={() => setIsImagePickerOpen(false)} onTakePhoto={handleTakePhoto} />}

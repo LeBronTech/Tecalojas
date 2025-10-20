@@ -1,14 +1,18 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { Product, Variation, WaterResistanceLevel } from '../types';
 import { ThemeContext } from '../App';
 import { WATER_RESISTANCE_INFO, BRAND_LOGOS } from '../constants';
 
 interface ProductDetailModalProps {
     product: Product;
+    products: Product[];
     onClose: () => void;
+    canManageStock: boolean;
+    onEditProduct: (product: Product) => void;
+    onSwitchProduct: (product: Product) => void;
 }
 
-const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClose }) => {
+const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct }) => {
     const { theme } = useContext(ThemeContext);
     const [variationIndex, setVariationIndex] = useState(0);
     const [displayImageUrl, setDisplayImageUrl] = useState(product.baseImageUrl);
@@ -24,6 +28,11 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
     const isDark = theme === 'dark';
     const currentVariation: Variation | undefined = product.variations[variationIndex];
     const waterResistanceDetails = WATER_RESISTANCE_INFO[product.waterResistance];
+
+    const relatedProducts = useMemo(() => {
+        if (!product.variationGroupId) return [];
+        return products.filter(p => p.variationGroupId === product.variationGroupId && p.id !== product.id);
+    }, [products, product]);
     
     const galleryImages = [
         { url: product.baseImageUrl, label: 'Principal' },
@@ -51,6 +60,16 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
     const carouselBtnClasses = isDark ? "bg-black/30 hover:bg-black/60 text-white" : "bg-white/50 hover:bg-white/90 text-gray-800";
     const priceBoxClasses = isDark ? "bg-black/20 border-white/10" : "bg-gray-100 border-gray-200";
 
+    const ImagePlaceholder: React.FC = () => (
+        <div className={`w-full h-full flex items-center justify-center relative ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+            <img 
+                src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
+                alt="Sem Imagem" 
+                className="w-1/2 h-1/2 object-contain opacity-20" 
+            />
+        </div>
+    );
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300" onClick={onClose}>
             <div 
@@ -66,23 +85,34 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
                 <button onClick={onClose} className={`absolute top-4 right-4 rounded-full p-2 transition-colors z-20 ${closeBtnClasses}`}>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
+                 {canManageStock && (
+                    <button onClick={() => onEditProduct(product)} className={`absolute top-4 left-4 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 z-20 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
+                        Editar
+                    </button>
+                )}
+
 
                 <div className="flex-grow overflow-y-auto no-scrollbar">
                     {/* Main Image and Gallery */}
                     <div className="mb-4">
                         <div className="relative w-full aspect-square rounded-2xl overflow-hidden mb-3">
-                            <img 
-                                src={displayImageUrl || 'https://i.imgur.com/gA0Wxkm.png'} 
-                                alt="Visualização do produto" 
-                                className="w-full h-full object-cover transition-transform duration-300"
-                                style={{ transform: `rotate(${rotation}deg)` }}
-                            />
+                            {displayImageUrl ? (
+                                <img 
+                                    src={displayImageUrl} 
+                                    alt="Visualização do produto" 
+                                    className="w-full h-full object-cover transition-transform duration-300"
+                                    style={{ transform: `rotate(${rotation}deg)` }}
+                                />
+                            ) : (
+                                <ImagePlaceholder />
+                            )}
                             <button
                                 onClick={handleRotate}
                                 className="absolute bottom-3 right-3 w-10 h-10 rounded-full z-10 bg-transparent hover:bg-black/10 flex items-center justify-center transition-colors"
                                 aria-label="Girar imagem"
                             >
-                                <img src="https://i.postimg.cc/QMgBhNLq/Gemini-Generated-Image-2csq4y2csq4y2csq.png" alt="Girar Imagem" className="w-8 h-8" />
+                                <img src="https://i.postimg.cc/C1qXzX3z/20251019-214841-0000.png" alt="Girar Imagem" className="w-8 h-8" />
                             </button>
                         </div>
                         
@@ -133,18 +163,50 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, onClos
                         <p className={`text-sm ${subtitleClasses}`}>{product.description}</p>
                     </div>
 
+                     {relatedProducts.length > 0 && (
+                        <div className="mt-6">
+                            <h3 className={`font-bold mb-2 ${titleClasses}`}>Outras Cores</h3>
+                            <div className="flex items-center space-x-2 overflow-x-auto pb-2 -ml-2 pl-2">
+                                {relatedProducts.map(p => (
+                                    <button 
+                                        key={p.id}
+                                        onClick={() => onSwitchProduct(p)}
+                                        className={`relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all border-transparent hover:border-fuchsia-500`}
+                                        title={p.name}
+                                    >
+                                        {p.baseImageUrl ? (
+                                            <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full"><ImagePlaceholder /></div>
+                                        )}
+                                        <div 
+                                            className="absolute bottom-1 right-1 w-5 h-5 rounded-full border border-black/20"
+                                            style={{backgroundColor: p.mainColor?.hex}}
+                                        ></div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+
                     {/* Variations Carousel */}
                     <div className="mt-6">
                         <h3 className={`font-bold mb-2 ${titleClasses}`}>Variações Disponíveis</h3>
                         <div className="relative">
                             <div className="w-full aspect-square rounded-2xl overflow-hidden relative">
                                 {product.variations.map((variation, index) => (
-                                    <img
-                                        key={variation.size}
-                                        src={variation.imageUrl || product.baseImageUrl || 'https://i.imgur.com/gA0Wxkm.png'}
-                                        alt={`Variação ${variation.size}`}
-                                        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${index === variationIndex ? 'opacity-100' : 'opacity-0'}`}
-                                    />
+                                    <div key={variation.size} className={`absolute inset-0 transition-opacity duration-300 ${index === variationIndex ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                                        {variation.imageUrl || product.baseImageUrl ? (
+                                             <img
+                                                src={variation.imageUrl || product.baseImageUrl}
+                                                alt={`Variação ${variation.size}`}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <ImagePlaceholder />
+                                        )}
+                                    </div>
                                 ))}
                             </div>
                             {product.variations.length > 1 && (

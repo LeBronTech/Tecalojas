@@ -1,8 +1,10 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { Product, View } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { ThemeContext } from '../App';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO } from '../constants';
+
+type ProductGroup = Product[];
 
 const FireIcon = ({ className }: { className: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
@@ -50,11 +52,21 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
              opacity: 0 
          }}>
         <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
-             <img 
-                src={product.baseImageUrl || 'https://i.imgur.com/gA0Wxkm.png'} 
-                alt={product.name} 
-                className="absolute inset-0 w-full h-full object-cover"
-            />
+             {product.baseImageUrl ? (
+                <img 
+                    src={product.baseImageUrl} 
+                    alt={product.name} 
+                    className="absolute inset-0 w-full h-full object-cover"
+                />
+             ) : (
+                <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
+                    <img 
+                        src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
+                        alt="Sem Imagem" 
+                        className="w-1/2 h-1/2 object-contain opacity-20" 
+                    />
+                </div>
+             )}
              {waterResistanceDetails?.showcaseIndicator && (
                 <div className="absolute top-2 right-2 bg-black/50 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-full z-10">
                     {waterResistanceDetails.showcaseIndicator}
@@ -73,13 +85,75 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
                 <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
                 <span className="font-semibold">{product.brand}</span>
             </div>
-            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
-                {product.fabricType}
-            </span>
         </div>
         <span className="text-md font-bold text-fuchsia-500 mt-2">{getPriceRange()}</span>
     </button>
   );
+};
+
+const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: (product: Product) => void }> = ({ group, index, onClick }) => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+    const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+    const validImages = useMemo(() => group.map(p => p.baseImageUrl).filter(Boolean), [group]);
+
+    useEffect(() => {
+        if (validImages.length <= 1) return;
+
+        const timer = setInterval(() => {
+            setActiveImageIndex(prev => (prev + 1) % validImages.length);
+        }, 3000); // Change image every 3 seconds
+
+        return () => clearInterval(timer);
+    }, [validImages.length]);
+
+    const cardClasses = isDark ? "bg-black/20 backdrop-blur-xl border-white/10" : "bg-white border-gray-200/80 shadow-md";
+    const textNameClasses = isDark ? "text-purple-200" : "text-gray-800";
+    const textMetaClasses = isDark ? "text-purple-300" : "text-gray-500";
+    const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
+    
+    const representativeProduct = group[0];
+
+    return (
+        <button 
+            onClick={() => onClick(representativeProduct)}
+            className={`rounded-3xl p-3 shadow-lg flex flex-col items-center text-center border transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2 ${cardClasses} ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
+            style={{ animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms`, opacity: 0 }}
+        >
+            <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
+                {validImages.length > 0 ? (
+                    validImages.map((src, idx) => (
+                         <img 
+                            key={idx}
+                            src={src} 
+                            alt={`${representativeProduct.name} variation`}
+                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${idx === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
+                        />
+                    ))
+                ) : (
+                     <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
+                        <img 
+                            src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
+                            alt="Sem Imagem" 
+                            className="w-1/2 h-1/2 object-contain opacity-20" 
+                        />
+                    </div>
+                )}
+            </div>
+            <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{representativeProduct.category}</h3>
+            <div className={`flex items-center justify-center flex-wrap gap-x-3 gap-y-2 text-xs mt-2`}>
+                 <div className={`flex items-center gap-1 ${textMetaClasses}`}>
+                    <img src={BRAND_LOGOS[representativeProduct.brand]} alt={representativeProduct.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
+                    <span className="font-semibold">{representativeProduct.brand}</span>
+                </div>
+                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
+                    {representativeProduct.fabricType}
+                </span>
+            </div>
+            <span className="text-md font-bold text-fuchsia-500 mt-2">{group.length} cores</span>
+        </button>
+    );
 };
 
 
@@ -87,9 +161,12 @@ interface ShowcaseScreenProps {
   products: Product[];
   onMenuClick: () => void;
   hasFetchError: boolean;
+  canManageStock: boolean;
+  onEditProduct: (product: Product) => void;
+  brands: any[]; // Accept brands prop
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, hasFetchError }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, hasFetchError, canManageStock, onEditProduct }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const { theme } = useContext(ThemeContext);
@@ -97,7 +174,45 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
 
   const categories = ['Todas', ...Array.from(new Set(products.map(p => p.category)))];
 
-  const displayedProducts = products.filter(p => selectedCategory === 'Todas' || p.category === selectedCategory);
+  const groupedProducts = useMemo((): (Product | ProductGroup)[] => {
+    // Group products by family (category + fabricType)
+    const familyMap = new Map<string, ProductGroup>();
+    products.forEach(p => {
+        const familyKey = `${p.category}|${p.fabricType}`;
+        if (!familyMap.has(familyKey)) {
+            familyMap.set(familyKey, []);
+        }
+        familyMap.get(familyKey)!.push(p);
+    });
+
+    const result: (Product | ProductGroup)[] = [];
+    familyMap.forEach(group => {
+        if (group.length > 1) {
+            result.push(group);
+        } else {
+            result.push(group[0]);
+        }
+    });
+
+    return result;
+  }, [products]);
+
+  const displayedProducts = useMemo(() => {
+    if (selectedCategory === 'Todas') {
+      return groupedProducts;
+    }
+    // When a category is selected, we show individual products, not groups.
+    return products.filter(p => p.category === selectedCategory);
+  }, [selectedCategory, products, groupedProducts]);
+
+  const handleEdit = (product: Product) => {
+    setSelectedProduct(null); // Close detail modal
+    onEditProduct(product); // Open edit modal
+  };
+
+  const handleSwitchProduct = (product: Product) => {
+    setSelectedProduct(product); // Switch to another product variation in the detail modal
+  };
 
   const searchInputClasses = isDark 
     ? "bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400"
@@ -168,13 +283,10 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                  {displayedProducts.map((product, index) => (
-                      <ProductCard 
-                        key={product.id} 
-                        product={product} 
-                        index={index} 
-                        onClick={() => setSelectedProduct(product)} 
-                      />
+                  {displayedProducts.map((item, index) => (
+                      Array.isArray(item)
+                        ? <ProductGroupCard key={`${item[0].category}-${item[0].fabricType}`} group={item} index={index} onClick={setSelectedProduct} />
+                        : <ProductCard key={item.id} product={item} index={index} onClick={() => setSelectedProduct(item)} />
                   ))}
               </div>
           </main>
@@ -182,7 +294,11 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
       {selectedProduct && (
           <ProductDetailModal
               product={selectedProduct}
+              products={products}
               onClose={() => setSelectedProduct(null)}
+              canManageStock={canManageStock}
+              onEditProduct={handleEdit}
+              onSwitchProduct={handleSwitchProduct}
           />
       )}
     </>

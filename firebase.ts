@@ -1,12 +1,13 @@
 // =================================================================================
-// 🔥🔥🔥 PASSO FINAL E OBRIGATÓRIO: Aplicar Regras de Segurança (Método Visual) 🔥🔥🔥
+// 🔥🔥🔥 AÇÃO CRÍTICA NECESSÁRIA: CORRIGIR PERMISSÕES DO BANCO DE DADOS 🔥🔥🔥
 // =================================================================================
-// Olá! Para que o sistema de administrador funcione e seus dados fiquem seguros,
-// você PRECISA aplicar as regras de segurança que criei para você.
+// Olá! O erro "Missing or insufficient permissions" que você viu acontece porque
+// as regras de segurança do seu banco de dados (Firestore) não permitem que
+// o aplicativo leia a lista de MARCAS e CATÁLOGOS.
 //
-// É muito simples e não precisa de nenhuma linha de comando (bash). Siga estes passos:
+// Para corrigir isso de forma definitiva, siga estes passos simples:
 //
-// 1. ABRA O ARQUIVO `firestoreT2.rules` que criei para você.
+// 1. ABRA O NOVO ARQUIVO `firestore.rules` que criei para você.
 //
 // 2. COPIE todo o conteúdo dele.
 //
@@ -19,11 +20,12 @@
 //
 // 6. Você verá um editor de texto. APAGUE todo o conteúdo que estiver lá.
 //
-// 7. COLE o conteúdo que você copiou do arquivo `firestoreT2.rules`.
+// 7. COLE o conteúdo que você copiou do arquivo `firestore.rules`.
 //
 // 8. Clique no botão azul "PUBLICAR" (Publish) no topo.
 //
-// Assim que fizer isso, o modo "somente leitura" para o admin irá desaparecer!
+// Assim que fizer isso, os erros de permissão irão desaparecer e as
+// marcas existentes aparecerão corretamente na tela de Catálogo.
 // =================================================================================
 //
 // 🔥 PARA DEFINIR UM USUÁRIO COMO ADMIN:
@@ -37,8 +39,9 @@
 import firebase from "firebase/compat/app";
 import "firebase/compat/auth";
 import "firebase/compat/firestore";
+import "firebase/compat/storage";
 
-import { User, Product } from './types';
+import { User, Product, DynamicBrand, CatalogPDF } from './types';
 import { firebaseConfig, googleCordovaWebClientId } from './firebaseConfig';
 
 // TypeScript declarations for Cordova plugins
@@ -55,8 +58,11 @@ if (!firebase.apps.length) {
 }
 const auth = firebase.auth();
 const db = firebase.firestore();
+const storage = firebase.storage();
 
 const productsCollection = db.collection("products");
+const brandsCollection = db.collection("brands");
+const catalogsCollection = db.collection("catalogs");
 const provider = new firebase.auth.GoogleAuthProvider();
 
 // --- AUTHENTICATION ---
@@ -224,4 +230,51 @@ export const updateProduct = (productId: string, productData: Omit<Product, 'id'
 export const deleteProduct = (productId: string): Promise<void> => {
     const productDoc = db.collection("products").doc(productId);
     return productDoc.delete();
+};
+
+// --- STORAGE ---
+export const uploadFile = async (path: string, file: File): Promise<string> => {
+    const storageRef = storage.ref();
+    const fileRef = storageRef.child(path);
+    await fileRef.put(file);
+    return fileRef.getDownloadURL();
+};
+
+
+// --- FIRESTORE (BRANDS) ---
+export const onBrandsUpdate = (
+    onSuccess: (brands: DynamicBrand[]) => void,
+    onError: (error: FirestoreError) => void
+) => {
+    return brandsCollection.onSnapshot(
+      (snapshot) => {
+        const brands = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() } as DynamicBrand)
+        );
+        onSuccess(brands);
+      },
+      onError
+    );
+};
+export const addBrand = (brandData: Omit<DynamicBrand, 'id'>) => {
+    return brandsCollection.add(brandData);
+};
+
+// --- FIRESTORE (CATALOGS) ---
+export const onCatalogsUpdate = (
+    onSuccess: (catalogs: CatalogPDF[]) => void,
+    onError: (error: FirestoreError) => void
+) => {
+    return catalogsCollection.onSnapshot(
+        (snapshot) => {
+            const catalogs = snapshot.docs.map(
+                (doc) => ({ id: doc.id, ...doc.data() } as CatalogPDF)
+            );
+            onSuccess(catalogs);
+        },
+        onError
+    );
+};
+export const addCatalog = (catalogData: Omit<CatalogPDF, 'id'>) => {
+    return catalogsCollection.add(catalogData);
 };

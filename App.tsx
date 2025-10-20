@@ -1,15 +1,19 @@
 import React, { useState, useCallback, createContext, useContext, useEffect } from 'react';
-import { Product, View, Theme, User, StoreName, Variation, CushionSize } from './types';
-import { INITIAL_PRODUCTS } from './constants';
+import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF } from './types';
+// FIX: Import PREDEFINED_COLORS to be used when creating color variations for products.
+import { INITIAL_PRODUCTS, PREDEFINED_COLORS } from './constants';
 import LoginScreen from './views/LoginScreen';
 import ShowcaseScreen from './views/ShowcaseScreen';
 import StockManagementScreen from './views/StockManagementScreen';
+import SettingsScreen from './views/SettingsScreen';
+import CatalogScreen from './views/CatalogScreen';
 import AddEditProductModal from './components/AddEditProductModal';
 import SignUpModal from './components/SignUpModal';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import ApiKeyModal from './components/ApiKeyModal';
 import ConfirmationModal from './components/ConfirmationModal';
+import ProductCreationWizard from './components/ProductCreationWizard'; // Import the new wizard
 import * as api from './firebase';
 import { firebaseConfig } from './firebaseConfig';
 
@@ -148,6 +152,19 @@ const InventoryIcon = () => (
     </svg>
 );
 
+const SettingsIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+);
+
+const CatalogIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+    </svg>
+);
+
 
 // --- Side Menu Component ---
 interface SideMenuProps {
@@ -155,13 +172,12 @@ interface SideMenuProps {
   onClose: () => void;
   onLogout: () => void;
   onPixClick: () => void;
-  onApiKeyClick: () => void;
   activeView: View;
   onNavigate: (view: View) => void;
   isLoggedIn: boolean;
 }
 
-const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixClick, onApiKeyClick, activeView, onNavigate, isLoggedIn }) => {
+const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixClick, activeView, onNavigate, isLoggedIn }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   const menuBgColor = theme === 'dark' ? 'bg-[#1A1129]' : 'bg-white';
@@ -197,6 +213,8 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixCli
           <nav className="flex flex-col space-y-2">
             <NavItem label="Vitrine" view={View.SHOWCASE} icon={<HomeIcon />} />
             <NavItem label="Estoque" view={View.STOCK} icon={<InventoryIcon />} />
+            <NavItem label="Catálogo" view={View.CATALOG} icon={<CatalogIcon />} />
+            <NavItem label="Configurações" view={View.SETTINGS} icon={<SettingsIcon />} />
             
             <div className={`border-b pt-2 my-2 ${theme === 'dark' ? 'border-purple-500/20' : 'border-gray-200'}`}></div>
 
@@ -223,15 +241,6 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixCli
               </span>
               <span className="font-semibold">Pagamento PIX</span>
             </button>
-            <button 
-              onClick={() => { onApiKeyClick(); onClose(); }}
-              className={`w-full flex items-center p-3 rounded-lg text-left transition-colors ${itemBgHover}`}
-            >
-              <span className="mr-3">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7h2a2 2 0 012 2v6a2 2 0 01-2 2h-2m-6 0H7a2 2 0 01-2-2V9a2 2 0 012-2h2m4 0h-4m4 0v10m-4-10V5a2 2 0 012-2h2a2 2 0 012 2v2" /></svg>
-              </span>
-              <span className="font-semibold">Chave API (IA)</span>
-            </button>
             {isLoggedIn && (
                  <button 
                   onClick={onLogout}
@@ -256,9 +265,11 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [view, setView] = useState<View>(View.SHOWCASE);
   const [products, setProducts] = useState<Product[]>([]);
+  const [brands, setBrands] = useState<DynamicBrand[]>([]);
+  const [catalogs, setCatalogs] = useState<CatalogPDF[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [hasFetchError, setHasFetchError] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | 'new' | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [theme, setTheme] = useState<Theme>(() => {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY) as Theme;
     return storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : 'light';
@@ -270,6 +281,8 @@ export default function App() {
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [customColors, setCustomColors] = useState<{ name: string; hex: string }[]>([]);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+
 
   // Effect for loading custom colors from localStorage on initial load
   useEffect(() => {
@@ -343,8 +356,7 @@ export default function App() {
     };
   }, []);
   
-  // Effect for listening to real-time product updates.
-  // It re-runs when the user logs in or out to ensure the correct data is fetched.
+  // Effect for listening to real-time data updates (products, brands, catalogs).
   useEffect(() => {
     if (!isConfigValid) {
         setProducts(INITIAL_PRODUCTS);
@@ -354,22 +366,26 @@ export default function App() {
     };
     setProductsLoading(true);
     setHasFetchError(false);
-    const unsubscribe = api.onProductsUpdate(
-      (updatedProducts) => {
-        setProducts(updatedProducts);
-        setProductsLoading(false);
-        setHasFetchError(false);
-      },
-      (error) => {
-        console.error("Firestore error. Could not fetch live product data. If you are a visitor, this may be due to database permissions.", error);
-        setProducts(INITIAL_PRODUCTS); // Fallback to demo data for visitors
-        setHasFetchError(true); // Flag that we are showing fallback data
-        setProductsLoading(false);
-      }
+
+    const unsubProducts = api.onProductsUpdate(
+        (updatedProducts) => { setProducts(updatedProducts); setProductsLoading(false); setHasFetchError(false); },
+        (error) => { console.error("Firestore error (products):", error); setProducts(INITIAL_PRODUCTS); setHasFetchError(true); setProductsLoading(false); }
     );
-    // Cleanup the listener when the component unmounts or the user changes
-    return () => unsubscribe();
-  }, [currentUser, isConfigValid]); // Dependency on currentUser ensures re-fetch on login/logout
+    const unsubBrands = api.onBrandsUpdate(
+        (updatedBrands) => setBrands(updatedBrands),
+        (error) => console.error("Firestore error (brands):", error)
+    );
+    const unsubCatalogs = api.onCatalogsUpdate(
+        (updatedCatalogs) => setCatalogs(updatedCatalogs),
+        (error) => console.error("Firestore error (catalogs):", error)
+    );
+
+    return () => {
+      unsubProducts();
+      unsubBrands();
+      unsubCatalogs();
+    };
+  }, [currentUser, isConfigValid]);
 
 
   useEffect(() => {
@@ -413,42 +429,159 @@ export default function App() {
     setIsApiKeyModalOpen(false);
   };
 
-  const handleSaveProduct = useCallback(async (productToSave: Product, nextProductData?: Omit<Product, 'id'>) => {
-    try {
-      let finalProductToSave = { ...productToSave };
+    const handleSaveProduct = useCallback(async (productToSave: Product, options?: { closeModal?: boolean }): Promise<Product> => {
+        try {
+            if (!productToSave.category?.trim() || !productToSave.fabricType?.trim() || !productToSave.mainColor?.name?.trim() || !productToSave.name?.trim()) {
+                throw new Error("Nome, categoria, tipo de tecido e cor principal são obrigatórios.");
+            }
+    
+            // A "family" is defined by category and fabric type.
+            const familyProducts = products.filter(p => 
+                p.category === productToSave.category &&
+                p.fabricType === productToSave.fabricType &&
+                p.id !== productToSave.id // Exclude the product being saved from the check
+            );
+    
+            // Check for duplicate MAIN COLOR within the family
+            const existingProductWithSameColor = familyProducts.find(p => 
+                p.mainColor?.name.toLowerCase() === productToSave.mainColor.name.toLowerCase()
+            );
+            if (existingProductWithSameColor) {
+                throw new Error(`Já existe uma almofada com a cor "${productToSave.mainColor.name}" nesta família.`);
+            }
 
-      // If we are creating a variation (nextProductData exists) and the parent doesn't have a group ID, create one.
-      if (!finalProductToSave.variationGroupId && nextProductData) {
-        finalProductToSave.variationGroupId = `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      }
+            // Check for duplicate NAME within the family
+            const existingProductWithSameName = familyProducts.find(p => 
+                p.name.toLowerCase() === productToSave.name.toLowerCase()
+            );
+            if (existingProductWithSameName) {
+                throw new Error(`Já existe uma almofada com o nome "${productToSave.name}" nesta família.`);
+            }
+            
+            let finalProductToSave = { ...productToSave };
+            
+            if (!finalProductToSave.variationGroupId) {
+                finalProductToSave.variationGroupId = `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            }
+    
+            if (finalProductToSave.id) {
+                const { id, ...productData } = finalProductToSave;
+                await api.updateProduct(id, productData);
+            } else {
+                const { id, ...productData } = finalProductToSave;
+                const newDoc = await api.addProduct(productData);
+                finalProductToSave.id = newDoc.id;
+            }
+          
+            if (options?.closeModal !== false) {
+                setEditingProduct(null);
+            }
+            return finalProductToSave;
+        } catch (error) {
+            console.error("Failed to save product:", error);
+            throw error;
+        }
+    }, [products]);
 
-      if (finalProductToSave.id) { // Existing product
-        const { id, ...productData } = finalProductToSave;
-        await api.updateProduct(id, productData);
-      } else { // New product
-        const { id, ...productData } = finalProductToSave;
-        await api.addProduct(productData as Omit<Product, 'id'>);
-      }
+    const handleCreateColorVariations = useCallback(async (parentProduct: Product, newColors: {name: string, hex: string}[]) => {
+        try {
+            const allColors = [...PREDEFINED_COLORS, ...customColors];
+            
+            const productsToCreate = newColors.map(color => {
+                let baseName = parentProduct.name;
+                const allColorNames = allColors.map(c => c.name).sort((a, b) => b.length - a.length); 
+                
+                for (const colorName of allColorNames) {
+                    const regex = new RegExp(`\\b${colorName}\\b`, 'i');
+                    if (regex.test(baseName)) {
+                        baseName = baseName.replace(regex, '').trim();
+                        break;
+                    }
+                }
+                baseName = baseName.replace(/\s\s+/g, ' ').trim();
+                const newName = `${color.name} ${baseName}`.trim();
 
-      if (nextProductData) {
-        setEditingProduct(null); // Close current modal
-        setTimeout(() => {
-            const newProductForEditing: Product = {
-                id: '', // It's a new product
-                ...nextProductData,
-                // Ensure the new product variation shares the same group ID
-                variationGroupId: finalProductToSave.variationGroupId,
-            };
-            setEditingProduct(newProductForEditing);
-        }, 150);
-      } else {
-          setEditingProduct(null); // Close modal on normal save
+                const newProductData: Omit<Product, 'id'> = {
+                    ...parentProduct,
+                    name: newName,
+                    mainColor: color,
+                    baseImageUrl: '',
+                    unitsSold: 0,
+                    backgroundImages: {},
+                    variationGroupId: parentProduct.variationGroupId,
+                    variations: parentProduct.variations.map(v => ({
+                        ...v,
+                        imageUrl: '',
+                        stock: { [StoreName.TECA]: 0, [StoreName.IONE]: 0 },
+                    }))
+                };
+                
+                // Ensure no 'id' field is passed for creation
+                const { id, ...rest } = newProductData as any;
+                return rest;
+            });
+    
+            const creationPromises = productsToCreate.map(p => api.addProduct(p));
+            await Promise.all(creationPromises);
+        } catch (error) {
+            console.error("Failed to create color variations:", error);
+            throw error;
+        }
+    }, [customColors]);
+
+
+  const handleCreateProductsFromWizard = async (
+    productsToCreate: Omit<Product, 'id'>[], 
+    productToConfigure: Omit<Product, 'id'>
+  ) => {
+      try {
+          const creationPromises = productsToCreate.map(p => api.addProduct(p));
+          const createdDocs = await Promise.all(creationPromises);
+  
+          // Find the document that corresponds to the product we want to configure
+          const configuredProductDoc = createdDocs.find((doc, index) => productsToCreate[index].mainColor?.name === productToConfigure.mainColor?.name);
+  
+          if (!configuredProductDoc) {
+              throw new Error("Could not find the created product to configure.");
+          }
+  
+          const productToEdit: Product = {
+              ...productToConfigure,
+              id: configuredProductDoc.id,
+          };
+  
+          setIsWizardOpen(false);
+          setEditingProduct(productToEdit);
+  
+      } catch (error) {
+          console.error("Failed to create products from wizard:", error);
+          window.alert(`Falha ao criar produtos: ${error instanceof Error ? error.message : String(error)}`);
       }
-    } catch (error) {
-      console.error("Failed to save product:", error);
-      throw error;
+  };
+
+  const handleAddNewBrand = async (brandName: string, logoFile?: File, logoUrl?: string) => {
+    if (!brandName.trim()) {
+        throw new Error("O nome da marca não pode ser vazio.");
     }
-  }, []);
+
+    let finalLogoUrl = logoUrl || '';
+    if (logoFile) {
+        finalLogoUrl = await api.uploadFile(`brand_logos/${Date.now()}_${logoFile.name}`, logoFile);
+    }
+
+    if (!finalLogoUrl) {
+        throw new Error("É necessário fornecer uma URL ou um arquivo para o logo.");
+    }
+    await api.addBrand({ name: brandName.trim(), logoUrl: finalLogoUrl });
+  };
+
+  const handleUploadCatalog = async (brandName: string, pdfFile: File) => {
+      if (!brandName || !pdfFile) {
+          throw new Error("Marca e arquivo PDF são obrigatórios.");
+      }
+      const pdfUrl = await api.uploadFile(`catalogs/${brandName}_${Date.now()}_${pdfFile.name}`, pdfFile);
+      await api.addCatalog({ brandName, pdfUrl, fileName: pdfFile.name });
+  };
 
   const handleSwitchToProduct = useCallback((product: Product) => {
     setEditingProduct(product);
@@ -461,9 +594,7 @@ export default function App() {
         return;
     }
 
-    // Create a deep copy to avoid direct state mutation before API call
     const updatedProduct = JSON.parse(JSON.stringify(productToUpdate));
-    
     const variationToUpdate = updatedProduct.variations.find((v: Variation) => v.size === variationSize);
 
     if (!variationToUpdate) {
@@ -472,9 +603,9 @@ export default function App() {
     }
 
     const currentStock = variationToUpdate.stock[store];
-    const newStock = Math.max(0, currentStock + change); // Ensure stock doesn't go below 0
+    const newStock = Math.max(0, currentStock + change);
 
-    if (newStock === currentStock) return; // No change needed
+    if (newStock === currentStock) return; 
 
     variationToUpdate.stock[store] = newStock;
     
@@ -497,6 +628,9 @@ export default function App() {
 
     try {
       await api.deleteProduct(deletingProductId);
+      if (typeof editingProduct === 'object' && editingProduct?.id === deletingProductId) {
+        setEditingProduct(null);
+      }
     } catch (error: any) {
       console.error("Failed to delete product:", error);
       if (error.code === 'permission-denied') {
@@ -511,7 +645,6 @@ export default function App() {
 
   const uniqueCategories = [...new Set(products.map(p => p.category))];
   
-  // Determine if the user has management permissions based on their role.
   const canManageStock = currentUser?.role === 'admin';
   const isLoggedIn = !!currentUser;
 
@@ -541,22 +674,53 @@ export default function App() {
 
     switch (view) {
       case View.SHOWCASE:
-        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} {...mainScreenProps} />;
+        return <ShowcaseScreen 
+                    products={products} 
+                    hasFetchError={hasFetchError} 
+                    canManageStock={!!canManageStock}
+                    onEditProduct={setEditingProduct}
+                    brands={brands}
+                    {...mainScreenProps} 
+                />;
       case View.STOCK:
         return (
           <StockManagementScreen
             products={products}
             onEditProduct={setEditingProduct}
-            onAddProduct={() => setEditingProduct('new')}
+            onAddProduct={() => setIsWizardOpen(true)}
             onDeleteProduct={requestDeleteProduct}
             onUpdateStock={handleUpdateStock}
             canManageStock={!!canManageStock}
             hasFetchError={hasFetchError}
+            brands={brands}
             {...mainScreenProps}
           />
         );
+       case View.SETTINGS:
+        return <SettingsScreen
+                    onSaveApiKey={handleSaveApiKey}
+                    onAddNewBrand={handleAddNewBrand}
+                    canManageStock={!!canManageStock}
+                    brands={brands}
+                    {...mainScreenProps}
+                />;
+       case View.CATALOG:
+        return <CatalogScreen
+                    catalogs={catalogs}
+                    onUploadCatalog={handleUploadCatalog}
+                    canManageStock={!!canManageStock}
+                    brands={brands}
+                    {...mainScreenProps}
+                />;
       default:
-        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} {...mainScreenProps} />;
+        return <ShowcaseScreen 
+                    products={products} 
+                    hasFetchError={hasFetchError} 
+                    canManageStock={!!canManageStock}
+                    onEditProduct={setEditingProduct}
+                    brands={brands}
+                    {...mainScreenProps} 
+                />;
     }
   };
 
@@ -576,7 +740,6 @@ export default function App() {
                     onClose={() => setIsMenuOpen(false)}
                     onLogout={handleLogout}
                     onPixClick={() => setIsPixModalOpen(true)}
-                    onApiKeyClick={() => setIsApiKeyModalOpen(true)}
                     activeView={view}
                     onNavigate={handleNavigate}
                     isLoggedIn={!!isLoggedIn}
@@ -586,18 +749,33 @@ export default function App() {
                 </div>
             </div>
 
+            {isWizardOpen && (
+                <ProductCreationWizard
+                    onClose={() => setIsWizardOpen(false)}
+                    onConfigure={handleCreateProductsFromWizard}
+                    customColors={customColors}
+                    onAddCustomColor={addCustomColor}
+                    categories={uniqueCategories}
+                    products={products}
+                    brands={brands}
+                />
+            )}
+
             {editingProduct && (
                 <AddEditProductModal
-                    product={editingProduct === 'new' ? null : editingProduct}
+                    product={editingProduct}
                     products={products}
                     onClose={() => setEditingProduct(null)}
                     onSave={handleSaveProduct}
+                    onCreateVariations={handleCreateColorVariations}
                     onSwitchProduct={handleSwitchToProduct}
+                    onRequestDelete={requestDeleteProduct}
                     categories={uniqueCategories}
                     apiKey={apiKey}
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
                     customColors={customColors}
                     onAddCustomColor={addCustomColor}
+                    brands={brands}
                 />
             )}
             {isSignUpModalOpen && (

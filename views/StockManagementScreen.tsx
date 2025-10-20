@@ -88,8 +88,18 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
             }}
         >
             <div className="flex items-center space-x-4 flex-grow min-w-0">
-                <div className={`w-16 h-16 ${imageBgClasses} rounded-xl flex-shrink-0 overflow-hidden shadow-md`}>
-                    <img src={product.baseImageUrl} alt={product.name} className="w-full h-full object-cover" />
+                <div className={`w-16 h-16 ${imageBgClasses} rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden shadow-md`}>
+                    {product.baseImageUrl ? (
+                        <img src={product.baseImageUrl} alt={product.name} className="w-full h-full object-cover" />
+                    ) : (
+                        <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
+                            <img 
+                                src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
+                                alt="Sem Imagem" 
+                                className="w-1/2 h-1/2 object-contain opacity-20" 
+                            />
+                        </div>
+                    )}
                 </div>
                 <div className="flex-grow min-w-0">
                     <h4 className={`font-bold text-base leading-tight truncate ${textNameClasses}`} title={product.name}>{product.name}</h4>

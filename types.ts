@@ -12,11 +12,27 @@ export enum CushionSize {
   LUMBAR = 'Lombar (25x45)',
 }
 
+// The Brand enum is being deprecated in favor of a dynamic Brand interface
+// It's kept temporarily for compatibility with existing data structures.
 export enum Brand {
   DOLHER = 'Döhler®',
   KARSTEN = 'Karsten®',
   MARCA_PROPRIA = 'Marca Própia',
 }
+
+export interface DynamicBrand {
+  id: string;
+  name: string;
+  logoUrl: string;
+}
+
+export interface CatalogPDF {
+    id: string;
+    brandName: string;
+    fileName: string;
+    pdfUrl: string;
+}
+
 
 export enum WaterResistanceLevel {
   NONE = 'none',
@@ -46,7 +62,7 @@ export interface Product {
   fabricType: string;
   description: string;
   waterResistance: WaterResistanceLevel;
-  brand: Brand;
+  brand: Brand | string; // Can be enum for old data or string for new
   variations: Variation[];
   backgroundImages?: {
     quarto?: string;
@@ -59,6 +75,8 @@ export interface Product {
 export enum View {
   SHOWCASE,
   STOCK,
+  SETTINGS,
+  CATALOG,
 }
 
 export type Theme = 'light' | 'dark';
