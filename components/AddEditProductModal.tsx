@@ -606,7 +606,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
         const ai = new GoogleGenAI({ apiKey });
         const imagePart = { inlineData: { data: base64Data, mimeType } };
-        const textPart = { text: 'Foto de produto para catálogo, close-up de uma única almofada quadrada. A almofada está perfeitamente centralizada, vista de frente, preenchendo cerca de 80% do quadro. Fundo branco liso e infinito. Iluminação de estúdio suave e difusa para destacar a textura do tecido sem criar sombras fortes. A imagem deve ser limpa e minimalista.' };
+        const textPart = { text: 'Foto de produto para catálogo, close-up de uma única almofada quadrada. A almofada está perfeitamente centralizada, vista de frente, preenchendo cerca de 80% do quadro. Fundo branco liso com uma sombra suave projetada pela almofada no chão, criando profundidade. Iluminação de estúdio profissional que destaca a textura do tecido e cria uma sombra natural e suave. A imagem deve ser limpa, realista e com qualidade de estúdio.' };
         const aiResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [imagePart, textPart] }, config: { responseModalities: [Modality.IMAGE] } });
         
         const candidate = aiResponse.candidates?.[0];

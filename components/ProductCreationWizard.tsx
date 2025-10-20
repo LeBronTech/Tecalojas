@@ -91,6 +91,114 @@ const pluralizeCategory = (category: string): string => {
     return capitalized + 's';
 };
 
+// --- CameraView Component ---
+interface CameraViewProps {
+  onCapture: (imageDataUrl: string) => void;
+  onClose: () => void;
+}
+
+const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const cleanupCamera = useCallback(() => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+    }
+  }, [stream]);
+
+  useEffect(() => {
+    async function setupCamera() {
+      try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+        setStream(mediaStream);
+      } catch (err) {
+        console.error("Error accessing camera:", err);
+        setError("Não foi possível acessar a câmera. Verifique as permissões do seu navegador.");
+      }
+    }
+    setupCamera();
+
+    return () => {
+      cleanupCamera();
+    };
+  }, [cleanupCamera]);
+
+  const handleCapture = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (video && canvas && stream) {
+      const context = canvas.getContext('2d');
+      if (context) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg');
+        onCapture(dataUrl);
+        cleanupCamera();
+      }
+    }
+  };
+
+  const handleClose = () => {
+    cleanupCamera();
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black z-[70] flex flex-col items-center justify-center">
+      {error ? (
+        <div className="text-white text-center p-4">
+          <p>{error}</p>
+          <button onClick={handleClose} className="mt-4 bg-fuchsia-600 text-white font-bold py-2 px-4 rounded-lg">
+            Fechar
+          </button>
+        </div>
+      ) : (
+        <>
+          <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover"></video>
+          <canvas ref={canvasRef} className="hidden"></canvas>
+          <div className="absolute bottom-0 left-0 right-0 p-4 bg-black bg-opacity-50 flex justify-around items-center">
+            <button onClick={handleClose} className="text-white font-semibold">
+              Cancelar
+            </button>
+            <button onClick={handleCapture} className="w-20 h-20 bg-white rounded-full border-4 border-gray-400 focus:outline-none focus:ring-2 focus:ring-fuchsia-500"></button>
+            <div className="w-16"></div> {/* Spacer */}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+
+const OptionButton: React.FC<{ onClick: () => void, icon: React.ReactNode, label: string, sublabel: string }> = ({ onClick, icon, label, sublabel }) => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+    const buttonClasses = isDark 
+        ? "bg-gray-700/50 hover:bg-purple-900/50 border-white/10" 
+        : "bg-gray-50 hover:bg-gray-100 border-gray-200";
+    const iconBgClasses = isDark ? "bg-gray-800" : "bg-white";
+    const labelClasses = isDark ? "text-gray-200" : "text-gray-800";
+    const sublabelClasses = isDark ? "text-gray-400" : "text-gray-500";
+    
+    return (
+        <button onClick={onClick} className={`w-full flex items-center p-4 rounded-xl transition-colors duration-200 border ${buttonClasses}`}>
+            <div className={`p-3 rounded-lg shadow-sm mr-4 ${iconBgClasses}`}>{icon}</div>
+            <div>
+                <p className={`font-bold text-left ${labelClasses}`}>{label}</p>
+                <p className={`text-sm text-left ${sublabelClasses}`}>{sublabel}</p>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        </button>
+    );
+};
+
 
 interface ImagePickerModalProps {
   onSelect: (imageUrl: string) => void;
@@ -151,14 +259,19 @@ const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, 
         </div>
 
         <div className="space-y-4 mb-6">
+            <OptionButton
+                onClick={onTakePhoto}
+                label="Tirar Foto"
+                sublabel="Use a câmera do seu dispositivo"
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-fuchsia-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+            />
             <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-            <button onClick={handleUploadClick} className={`w-full flex items-center p-4 rounded-xl transition-colors duration-200 border ${isDark ? "bg-gray-700/50 hover:bg-purple-900/50 border-white/10" : "bg-gray-50 hover:bg-gray-100 border-gray-200"}`}>
-                <div className={`p-3 rounded-lg shadow-sm mr-4 ${isDark ? "bg-gray-800" : "bg-white"}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-fuchsia-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>
-                <div>
-                    <p className={`font-bold text-left ${isDark ? "text-gray-200" : "text-gray-800"}`}>Galeria de Fotos</p>
-                    <p className={`text-sm text-left ${isDark ? "text-gray-400" : "text-gray-500"}`}>Escolha uma imagem existente</p>
-                </div>
-            </button>
+            <OptionButton
+                onClick={handleUploadClick}
+                label="Galeria de Fotos"
+                sublabel="Escolha uma imagem existente"
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-fuchsia-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+            />
              <div className="relative">
                 <input 
                     type="text"
@@ -223,6 +336,7 @@ const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ products,
     const [selectedColors, setSelectedColors] = useState<{ name: string; hex: string }[]>([]);
     const [mainImage, setMainImage] = useState<string | null>(null);
     const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
+    const [isCameraOpen, setIsCameraOpen] = useState(false);
     const [isExtractingColors, setIsExtractingColors] = useState(false);
     const [extractedColors, setExtractedColors] = useState<{ hex: string, name: string }[] | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -287,6 +401,19 @@ const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ products,
         }
         setMainImage(finalImageUrl);
         setIsImagePickerOpen(false);
+        setIsCameraOpen(false);
+    };
+
+    const handleTakePhoto = () => {
+        setIsImagePickerOpen(false);
+        if (navigator.camera && typeof Camera !== 'undefined') {
+            navigator.camera.getPicture((imageData: string) => {
+                handleImageSelect("data:image/jpeg;base64," + imageData);
+            }, (msg: string) => { alert('Falha ao tirar foto: ' + msg); }, {
+                quality: 50, destinationType: Camera.DestinationType.DATA_URL, sourceType: Camera.PictureSourceType.CAMERA,
+                allowEdit: false, encodingType: Camera.EncodingType.JPEG, targetWidth: 800, targetHeight: 800, saveToPhotoAlbum: false
+            });
+        } else { setIsCameraOpen(true); }
     };
 
     const handleExtractColors = async () => {
@@ -509,7 +636,6 @@ const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ products,
                     {isLoading ? <ButtonSpinner /> : (selectedColors.length <= 1 ? 'Configurar Produto' : 'Próximo')}
                  </button>
             </div>
-            {isImagePickerOpen && <ImagePickerModal onSelect={handleImageSelect} onClose={() => setIsImagePickerOpen(false)} onTakePhoto={() => {}} />}
         </>
     );
 
@@ -546,6 +672,8 @@ const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ products,
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
             <div className={`border rounded-3xl shadow-2xl w-full max-w-lg p-6 relative flex flex-col ${modalBgClasses}`} onClick={e => e.stopPropagation()} style={{ height: '90vh', maxHeight: '700px' }}>
                 {step === 1 ? renderStep1() : renderStep2()}
+                {isImagePickerOpen && <ImagePickerModal onSelect={handleImageSelect} onClose={() => setIsImagePickerOpen(false)} onTakePhoto={handleTakePhoto} />}
+                {isCameraOpen && <CameraView onCapture={handleImageSelect} onClose={() => setIsCameraOpen(false)} />}
             </div>
         </div>
     );
