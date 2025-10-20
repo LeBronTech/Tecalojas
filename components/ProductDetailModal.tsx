@@ -39,6 +39,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         ...(product.backgroundImages?.sala ? [{ url: product.backgroundImages.sala, label: 'Sala' }] : []),
         ...(product.backgroundImages?.quarto ? [{ url: product.backgroundImages.quarto, label: 'Quarto' }] : []),
         ...(product.backgroundImages?.varanda ? [{ url: product.backgroundImages.varanda, label: 'Varanda' }] : []),
+        ...(product.backgroundImages?.piscina ? [{ url: product.backgroundImages.piscina, label: 'Piscina' }] : []),
     ].filter(image => image.url); // Ensure no empty URLs
 
     const handlePrevVariation = () => {
@@ -107,13 +108,15 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                             ) : (
                                 <ImagePlaceholder />
                             )}
-                            <button
-                                onClick={handleRotate}
-                                className="absolute bottom-3 right-3 w-10 h-10 rounded-full z-10 bg-transparent hover:bg-black/10 flex items-center justify-center transition-colors"
-                                aria-label="Girar imagem"
-                            >
-                                <img src="https://i.postimg.cc/C1qXzX3z/20251019-214841-0000.png" alt="Girar Imagem" className="w-8 h-8" />
-                            </button>
+                            {displayImageUrl === product.baseImageUrl && (
+                                <button
+                                    onClick={handleRotate}
+                                    className="absolute bottom-3 right-3 w-10 h-10 rounded-full z-10 bg-transparent hover:bg-black/10 flex items-center justify-center transition-colors"
+                                    aria-label="Girar imagem"
+                                >
+                                    <img src="https://i.postimg.cc/C1qXzX3z/20251019-214841-0000.png" alt="Girar Imagem" className="w-8 h-8" />
+                                </button>
+                            )}
                         </div>
                         
                         <div className="flex items-center space-x-2 overflow-x-auto pb-2 -ml-2 pl-2">

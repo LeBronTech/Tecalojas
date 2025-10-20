@@ -68,6 +68,7 @@ export interface Product {
     quarto?: string;
     sala?: string;
     varanda?: string;
+    piscina?: string;
   };
   mainColor?: { name: string; hex: string };
 }

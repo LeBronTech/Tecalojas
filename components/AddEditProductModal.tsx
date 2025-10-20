@@ -333,6 +333,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [selectedNewColors, setSelectedNewColors] = useState<{name: string, hex: string}[]>([]);
   const [isCreatingVariations, setIsCreatingVariations] = useState(false);
   const [isNameAiLoading, setIsNameAiLoading] = useState(false);
+  const [imageRotation, setImageRotation] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const { theme } = useContext(ThemeContext);
@@ -379,6 +380,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     }
     setIsBatchColorMode(false);
     setSelectedNewColors([]);
+    setImageRotation(0);
   }, [product]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -530,15 +532,28 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     finally { setIsGeneratingShowcase(false); }
   };
   
-  const getPromptForBackground = (background: 'Quarto' | 'Sala' | 'Varanda'): string => {
-      const prompts = { 'Quarto': 'Coloque esta almofada sobre uma cama bem arrumada em um quarto aconchegante e bem iluminado. O estilo deve ser moderno e convidativo. Qualidade de foto profissional.', 'Sala': 'Coloque esta almofada em um sofá moderno em uma sala de estar elegante com luz natural. O estilo deve ser clean e sofisticado. Qualidade de foto profissional.', 'Varanda': 'Coloque esta almofada em uma confortável cadeira de exterior em uma varanda bonita com algumas plantas verdes ao fundo. A cena deve ser clara e relaxante. Qualidade de foto profissional.' };
-      return prompts[background];
-  };
+    const backgroundOptions = useMemo(() => {
+        const options: ('Sala' | 'Quarto' | 'Varanda' | 'Piscina')[] = ['Sala', 'Quarto', 'Varanda'];
+        if (formData.waterResistance === WaterResistanceLevel.FULL) {
+            options.push('Piscina');
+        }
+        return options;
+    }, [formData.waterResistance]);
+
+    const getPromptForBackground = (background: 'Quarto' | 'Sala' | 'Varanda' | 'Piscina'): string => {
+        const prompts = {
+            'Quarto': 'Coloque esta almofada sobre uma cama bem arrumada em um quarto aconchegante e bem iluminado. O estilo deve ser moderno e convidativo. Qualidade de foto profissional.',
+            'Sala': 'Coloque esta almofada em um sofá moderno em uma sala de estar elegante com luz natural. O estilo deve ser clean e sofisticado. Qualidade de foto profissional.',
+            'Varanda': 'Coloque esta almofada em uma confortável cadeira de exterior em uma varanda bonita com algumas plantas verdes ao fundo. A cena deve ser clara e relaxante. Qualidade de foto profissional.',
+            'Piscina': 'Coloque esta almofada em uma espreguiçadeira ao lado de uma piscina de luxo. A cena deve ser ensolarada e vibrante, com a água da piscina ao fundo. A imagem deve ter qualidade de foto de verão de alta classe.'
+        };
+        return prompts[background];
+    };
   
-  const handleGenerateBackgroundImage = async (background: 'Quarto' | 'Sala' | 'Varanda') => {
+  const handleGenerateBackgroundImage = async (background: 'Quarto' | 'Sala' | 'Varanda' | 'Piscina') => {
     if (!apiKey) { onRequestApiKey(); return; }
     if (!formData.baseImageUrl) { setBgGenError("Primeiro, adicione uma imagem base para o produto."); return; }
-    const contextKey = background.toLowerCase() as 'quarto' | 'sala' | 'varanda';
+    const contextKey = background.toLowerCase() as 'quarto' | 'sala' | 'varanda' | 'piscina';
     setBgGenerating(prev => ({ ...prev, [contextKey]: true }));
     setBgGenError(null);
     try {
@@ -692,6 +707,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const handleSwitch = (productToSwitchTo: Product) => {
     onSwitchProduct(productToSwitchTo);
   };
+  
+  const handleRotateImage = () => {
+    setImageRotation(prev => (prev + 90) % 360);
+  };
 
   const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
   const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
@@ -753,9 +772,9 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         />
                     </div>
                     <div className="flex items-start gap-4">
-                        <div className={`w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
+                        <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
                             {formData.baseImageUrl ? (
-                                <img src={formData.baseImageUrl} alt="Preview" className="w-full h-full object-cover" /> 
+                                <img src={formData.baseImageUrl} alt="Preview" className="w-full h-full object-cover transition-transform duration-300" style={{ transform: `rotate(${imageRotation}deg)` }} /> 
                             ) : (
                                 <div className={`w-full h-full flex items-center justify-center relative ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
                                     <img 
@@ -764,6 +783,16 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                         className="w-1/2 h-1/2 object-contain opacity-20" 
                                     />
                                 </div>
+                            )}
+                            {formData.baseImageUrl && (
+                                <button
+                                    type="button"
+                                    onClick={handleRotateImage}
+                                    className="absolute bottom-1 right-1 w-8 h-8 rounded-full z-10 bg-black/20 hover:bg-black/40 flex items-center justify-center transition-colors"
+                                    aria-label="Girar imagem"
+                                >
+                                    <img src="https://i.postimg.cc/C1qXzX3z/20251019-214841-0000.png" alt="Girar Imagem" className="w-6 h-6" />
+                                </button>
                             )}
                         </div>
                         <div className="flex-grow">
@@ -809,7 +838,21 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         <h3 className={`text-lg font-bold mb-3 ${titleClasses}`}>Fundos de Vitrine (IA)</h3>
                         <p className={`text-sm mb-3 ${subtitleClasses}`}>Gere imagens do produto em diferentes ambientes. Estas imagens serão salvas e exibidas na vitrine.</p>
                         {bgGenError && <p className="text-xs text-red-500 mb-2">{bgGenError}</p>}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">{(['Sala', 'Quarto', 'Varanda'] as const).map(bg => { const contextKey = bg.toLowerCase() as 'sala' | 'quarto' | 'varanda'; const imageUrl = formData.backgroundImages?.[contextKey]; const isGenerating = bgGenerating[contextKey]; return (<div key={bg} className="flex flex-col items-center"><div className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>{isGenerating ? (<ButtonSpinner />) : imageUrl ? (<img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />) : (<span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>)}</div><button type="button" onClick={() => handleGenerateBackgroundImage(bg)} disabled={isGenerating || !formData.baseImageUrl} title={!apiKey ? noApiKeyTitle : `Gerar fundo de ${bg}`} className={`w-full text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>{isGenerating ? <ButtonSpinner/> : `Gerar ${bg}`}</button></div>);})}</div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {backgroundOptions.map(bg => { 
+                                const contextKey = bg.toLowerCase() as 'sala' | 'quarto' | 'varanda' | 'piscina'; 
+                                const imageUrl = formData.backgroundImages?.[contextKey]; 
+                                const isGenerating = bgGenerating[contextKey]; 
+                                return (
+                                <div key={bg} className="flex flex-col items-center">
+                                    <div className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>{isGenerating ? (<ButtonSpinner />) : imageUrl ? (<img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />) : (<span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>)}</div>
+                                    <button type="button" onClick={() => handleGenerateBackgroundImage(bg)} disabled={isGenerating || !formData.baseImageUrl} title={!apiKey ? noApiKeyTitle : `Gerar fundo de ${bg}`} className={`w-full text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                                        {isGenerating ? <ButtonSpinner/> : `Gerar ${bg}`}
+                                    </button>
+                                </div>
+                                );
+                            })}
+                        </div>
                     </div>
 
                     <div className="border-t pt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>

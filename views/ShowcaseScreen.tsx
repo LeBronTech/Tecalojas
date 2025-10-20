@@ -85,6 +85,9 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
                 <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
                 <span className="font-semibold">{product.brand}</span>
             </div>
+             <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
+                {product.fabricType}
+            </span>
         </div>
         <span className="text-md font-bold text-fuchsia-500 mt-2">{getPriceRange()}</span>
     </button>
