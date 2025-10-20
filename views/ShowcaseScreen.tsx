@@ -174,12 +174,23 @@ interface ShowcaseScreenProps {
 
 const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, hasFetchError, canManageStock, onEditProduct, apiKey, onRequestApiKey, onNavigate }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
+  const [selectedFabric, setSelectedFabric] = useState<string>('Todos os Tecidos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
 
   const categories = ['Todas', ...Array.from(new Set(products.map(p => p.category)))];
+
+  const availableFabrics = useMemo(() => {
+    if (selectedCategory === 'Todas') {
+      return [];
+    }
+    const fabricsInCategory = products
+      .filter(p => p.category === selectedCategory)
+      .map(p => p.fabricType);
+    return ['Todos os Tecidos', ...Array.from(new Set(fabricsInCategory))];
+  }, [selectedCategory, products]);
 
   const groupedProducts = useMemo((): (Product | ProductGroup)[] => {
     const familyMap = new Map<string, ProductGroup>();
@@ -210,7 +221,11 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
       filtered = groupedProducts;
     } else {
       // When a category is selected, we show individual products, not groups.
-      filtered = products.filter(p => p.category === selectedCategory);
+      let categoryProducts: Product[] = products.filter(p => p.category === selectedCategory);
+      if (selectedFabric !== 'Todos os Tecidos') {
+          categoryProducts = categoryProducts.filter(p => p.fabricType === selectedFabric);
+      }
+      filtered = categoryProducts;
     }
 
     // Apply sorting
@@ -231,7 +246,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
     });
     
     return sorted;
-  }, [selectedCategory, products, groupedProducts, sortOrder]);
+  }, [selectedCategory, selectedFabric, products, groupedProducts, sortOrder]);
 
   const handleEdit = (product: Product) => {
     setSelectedProduct(null); // Close detail modal
@@ -308,7 +323,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
                     </select>
               </div>
               
-              <div className="flex flex-wrap gap-3 mb-8">
+              <div className="flex flex-wrap gap-3 mb-4">
                   {categories.map(category => {
                       const isActive = selectedCategory === category;
                       const activeClasses = isDark 
@@ -321,7 +336,10 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
                       return (
                           <button
                               key={category}
-                              onClick={() => setSelectedCategory(category)}
+                              onClick={() => {
+                                setSelectedCategory(category);
+                                setSelectedFabric('Todos os Tecidos');
+                              }}
                               className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
                                   isActive ? activeClasses : inactiveClasses
                               }`}
@@ -331,6 +349,31 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
                       );
                   })}
               </div>
+
+              {availableFabrics.length > 0 && (
+                <div className="flex flex-wrap gap-3 mb-8 transition-all duration-300" style={{ animation: 'float-in 0.3s forwards', opacity: 0 }}>
+                    {availableFabrics.map(fabric => {
+                      const isActive = selectedFabric === fabric;
+                      const activeClasses = isDark 
+                          ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30 border-transparent hover:bg-cyan-500' 
+                          : 'bg-teal-500 text-white shadow-lg shadow-teal-500/20 border-transparent hover:bg-teal-600';
+                      const inactiveClasses = isDark 
+                          ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
+                          : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400';
+                      return (
+                         <button
+                              key={fabric}
+                              onClick={() => setSelectedFabric(fabric)}
+                              className={`px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
+                                  isActive ? activeClasses : inactiveClasses
+                              }`}
+                          >
+                              {fabric}
+                          </button>
+                      )
+                    })}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {displayedProducts.map((item, index) => (

@@ -1,4 +1,4 @@
-import React, { useState, useContext, useMemo } from 'react';
+import React, { useState, useContext, useMemo, useEffect } from 'react';
 import { Product, View } from '../types';
 import { ThemeContext } from '../App';
 import { GoogleGenAI } from '@google/genai';
@@ -84,17 +84,65 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     const isDark = theme === 'dark';
 
     const [startProducts, setStartProducts] = useState<Product[]>([]);
-    const [compositionSize, setCompositionSize] = useState(3);
+    const [compositionSize, setCompositionSize] = useState(4);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [generatedComposition, setGeneratedComposition] = useState<Product[] | null>(null);
+    const [compositionsBySize, setCompositionsBySize] = useState<Record<number, Product[]>>({});
+    
+    const currentComposition = useMemo(() => compositionsBySize[compositionSize] || null, [compositionsBySize, compositionSize]);
+
+    // Clear results and error if the starting point changes
+    useEffect(() => {
+        setCompositionsBySize({});
+        setError(null);
+    }, [startProducts]);
 
     const handleConfirmSelection = (selectedIds: string[]) => {
         const selectedProducts = products.filter(p => selectedIds.includes(p.id));
         setStartProducts(selectedProducts);
         setIsModalOpen(false);
     };
+
+    const handleOrder = () => {
+        if (!currentComposition) return;
+        const shuffled = [...currentComposition];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        setCompositionsBySize(prev => ({ ...prev, [compositionSize]: shuffled }));
+    };
+
+    const getPromptForSize = (size: number): string => {
+        const initialCushions = startProducts.map(p => ({ id: p.id, name: p.name, color: p.mainColor?.name, category: p.category }));
+        const availableCushions = products.map(p => ({
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            color: p.mainColor?.name,
+            colorHex: p.mainColor?.hex,
+        }));
+    
+        let rules = '';
+        switch (size) {
+            case 4:
+                rules = `A composição DEVE ter exatamente 4 almofadas. Regras estritas: 1. Inclua UM par de almofadas estampadas IDÊNTICAS. 2. As outras duas almofadas devem ser DIFERENTES uma da outra e do par estampado. 3. Não pode haver outras repetições. 4. As 4 almofadas NUNCA devem ser todas da mesma categoria.`;
+                break;
+            case 5:
+                rules = `A composição DEVE ter exatamente 5 almofadas e seguir uma estrutura simétrica espelhada (A, B, C, B, A). Regras estritas: 1. Use DOIS pares de almofadas idênticas (par A e par B). 2. A almofada central (C) deve ser ÚNICA e de uma categoria diferente dos pares. 3. O resultado final DEVE estar na ordem A, B, C, B, A.`;
+                break;
+            case 6:
+                rules = `A composição DEVE ter exatamente 6 almofadas. Regras estritas: 1. NUNCA gere seis almofadas diferentes. 2. A composição deve ser formada por pares (ex: A,A,B,B,C,C) ou por trios (ex: A,A,A,B,B,B).`;
+                break;
+            default: // Covers 2, 3
+                rules = `Complete a composição para um total de ${size} almofadas. As almofadas adicionais não podem ser repetidas.`;
+                break;
+        }
+    
+        return `Você é um designer de interiores especialista em combinar almofadas. Sua tarefa é criar uma composição harmoniosa de ${size} almofadas. A composição DEVE incluir as seguintes almofadas iniciais: ${JSON.stringify(initialCushions)}. ${rules} A lista de almofadas disponíveis é: ${JSON.stringify(availableCushions)}. Sua resposta DEVE ser um objeto JSON válido com uma única chave "productIds", que é um array de strings contendo os IDs EXATOS de ${size} almofadas selecionadas, seguindo a ordem e as regras especificadas.`;
+    };
+    
 
     const handleGenerate = async () => {
         if (startProducts.length === 0) {
@@ -108,24 +156,12 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         
         setIsLoading(true);
         setError(null);
-        setGeneratedComposition(null);
+        // Clear previous result for this size to show loading state
+        setCompositionsBySize(prev => ({ ...prev, [compositionSize]: undefined as any }));
         
         try {
             const ai = new GoogleGenAI({ apiKey });
-            const availableCushions = products.map(p => ({
-                id: p.id,
-                name: p.name,
-                category: p.category,
-                color: p.mainColor?.name,
-                colorHex: p.mainColor?.hex,
-            }));
-            const initialCushions = startProducts.map(p => ({
-                id: p.id,
-                name: p.name,
-                color: p.mainColor?.name,
-            }));
-
-            const prompt = `Você é um designer de interiores especialista em combinar almofadas. Sua tarefa é criar uma composição harmoniosa de ${compositionSize} almofadas. A composição DEVE incluir as seguintes almofadas iniciais: ${JSON.stringify(initialCushions)}. O restante deve ser selecionado da lista de almofadas disponíveis para complementar as iniciais, seguindo princípios de harmonia de cores e misturando estilos (lisas, estampadas, etc.). A lista de almofadas disponíveis é: ${JSON.stringify(availableCushions)}. Sua resposta DEVE ser um objeto JSON válido com uma única chave "productIds", que é um array de strings contendo os IDs EXATOS de ${compositionSize} almofadas selecionadas, incluindo as iniciais.`;
+            const prompt = getPromptForSize(compositionSize);
             
             const response = await ai.models.generateContent({
                 model: "gemini-2.5-pro",
@@ -144,7 +180,11 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                 .map((id: string) => products.find(p => p.id === id))
                 .filter((p: Product | undefined): p is Product => p !== undefined);
             
-            setGeneratedComposition(compositionProducts);
+            if (compositionProducts.length !== compositionSize) {
+                 throw new Error(`A IA retornou ${compositionProducts.length} produtos em vez dos ${compositionSize} esperados.`);
+            }
+
+            setCompositionsBySize(prev => ({ ...prev, [compositionSize]: compositionProducts }));
         } catch (e: any) {
             console.error("AI Composition Failed:", e);
             setError("A IA não conseguiu gerar uma composição. Tente novamente ou com outras almofadas.");
@@ -200,27 +240,36 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
 
                     {/* --- Result Area --- */}
                     <div className="flex-grow flex flex-col">
-                        <h2 className={`text-xl font-bold mb-4 ${titleClasses}`}>Resultado</h2>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className={`text-xl font-bold ${titleClasses}`}>Resultado</h2>
+                             {currentComposition && (
+                                <button onClick={handleOrder} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
+                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16m-7 6h7" /></svg>
+                                    Ordenar
+                                </button>
+                            )}
+                        </div>
+
                         <div className={`flex-grow p-4 rounded-2xl border flex items-center justify-center ${cardClasses}`}>
                             {isLoading && <ButtonSpinner />}
                             {error && <p className="text-center text-red-500">{error}</p>}
-                            {generatedComposition && (
+                            {currentComposition && (
                                 <div className="w-full">
                                     <div className="flex justify-center items-center -space-x-8 mb-4 h-40">
-                                        {generatedComposition.map((p, index) => (
-                                            <div key={p.id} className="w-32 h-32 rounded-lg shadow-lg" style={{ zIndex: index, transform: `rotate(${Math.random() * 10 - 5}deg)` }}>
+                                        {currentComposition.map((p, index) => (
+                                            <div key={`${p.id}-${index}`} className="w-32 h-32 rounded-lg shadow-lg" style={{ zIndex: index, transform: `rotate(${Math.random() * 10 - 5}deg)` }}>
                                                 <img src={p.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={p.name} className="w-full h-full object-cover rounded-lg" />
                                             </div>
                                         ))}
                                     </div>
                                     <div className="text-center space-y-1">
-                                         {generatedComposition.map(p => (
-                                             <p key={p.id} className={`text-sm font-semibold ${subtitleClasses}`}>{p.name}</p>
+                                         {currentComposition.map((p, index) => (
+                                             <p key={`${p.id}-${index}`} className={`text-sm font-semibold ${subtitleClasses}`}>{p.name}</p>
                                          ))}
                                     </div>
                                 </div>
                             )}
-                            {!isLoading && !error && !generatedComposition && (
+                            {!isLoading && !error && !currentComposition && (
                                 <p className={`text-center ${subtitleClasses}`}>Sua composição aparecerá aqui.</p>
                             )}
                         </div>
