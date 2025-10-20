@@ -176,8 +176,11 @@ const signInWithGoogleCordova = (): Promise<User> => {
  * Dispatches to the correct Google Sign-In method based on the environment (web vs. Cordova).
  */
 export const signInWithGoogle = async (): Promise<User> => {
-  // Check if running in a Cordova environment
-  if (window.cordova) {
+  // A more robust check for Cordova/WebView environments.
+  // The error `auth/operation-not-supported-in-this-environment` occurs on non-http(s) protocols.
+  const isWebView = !!window.cordova || window.location.protocol === 'file:';
+
+  if (isWebView) {
     return signInWithGoogleCordova();
   } else {
     // Standard web-based sign-in flow
