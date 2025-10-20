@@ -37,4 +37,4 @@ apiKey: "AIzaSyAvP0EoCS5ePCQIb2qNxD2Ek-UOTGcXaO0",
 // 4. Copie o "Client ID" e cole na string abaixo.
 // =================================================================
 
-export const googleCordovaWebClientId = 'PASTE_YOUR_GOOGLE_WEB_CLIENT_ID_HERE';
+export const googleCordovaWebClientId = '463169842239-tu6f4ndah73ouap770q4lmh5uuvnn5r0.apps.googleusercontent.com';
