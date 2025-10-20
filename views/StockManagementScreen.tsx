@@ -1,5 +1,6 @@
 import React, { useContext, useState, useEffect } from 'react';
-import { Product, StoreName, View, Brand, CushionSize } from '../types';
+// FIX: Add DynamicBrand to imports to be used in component props.
+import { Product, StoreName, View, Brand, CushionSize, DynamicBrand } from '../types';
 import { ThemeContext } from '../App';
 import { BRAND_LOGOS } from '../constants';
 
@@ -191,6 +192,8 @@ interface StockManagementScreenProps {
   onMenuClick: () => void;
   canManageStock: boolean;
   hasFetchError: boolean;
+  // FIX: Add the 'brands' property to align with the props passed in App.tsx, resolving the TypeScript error.
+  brands: DynamicBrand[];
 }
 
 const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products, onEditProduct, onDeleteProduct, onAddProduct, onUpdateStock, canManageStock, hasFetchError }) => {

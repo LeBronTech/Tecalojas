@@ -10,6 +10,18 @@ interface CatalogScreenProps {
   brands: DynamicBrand[];
 }
 
+// --- Helper Component (Moved Outside) ---
+const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+    return (
+        <div className={`p-6 rounded-2xl border ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm'} ${className}`}>
+            {children}
+        </div>
+    );
+};
+
+// --- Main Component ---
 const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog, onMenuClick, canManageStock, brands }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -64,12 +76,6 @@ const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog
       setIsUploading(false);
     }
   };
-  
-  const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-    <div className={`p-6 rounded-2xl border ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm'} ${className}`}>
-        {children}
-    </div>
-  );
 
   return (
     <div className="h-full w-full flex flex-col relative overflow-hidden">

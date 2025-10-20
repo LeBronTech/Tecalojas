@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { STORE_IMAGE_URLS } from '../constants';
 
 interface LoginScreenProps {
@@ -17,36 +17,39 @@ const GoogleIcon = () => (
     </svg>
 );
 
+const REMEMBER_EMAIL_KEY = 'pillow-oasis-remember-email';
+
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onOpenSignUp }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberEmail, setRememberEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleAuth = async (authFunction: () => Promise<void>) => {
-    setError(null);
-    setIsLoading(true);
-    try {
-      await authFunction();
-    } catch (err: any) {
-      if (err.code === 'auth/invalid-email') {
-        setError('O formato do e-mail é inválido.');
-      } else if (err.code === 'auth/unauthorized-domain') {
-        setError('Domínio não autorizado. Adicione este domínio ao seu console do Firebase.');
-      } else if (err.code === 'auth/operation-not-allowed' || err.code === 'auth/admin-restricted-operation') {
-        setError('Método de login desativado. Habilite-o no Console do Firebase.');
-      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('E-mail ou senha incorretos.');
-      } else {
-        setError('Ocorreu um erro. Tente novamente.');
-        console.error(err);
-      }
-    } finally {
-      setIsLoading(false);
+  useEffect(() => {
+    const savedEmail = localStorage.getItem(REMEMBER_EMAIL_KEY);
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberEmail(true);
+    }
+  }, []);
+
+  const handleAuthError = (err: any) => {
+    if (err.code === 'auth/invalid-email') {
+      setError('O formato do e-mail é inválido.');
+    } else if (err.code === 'auth/unauthorized-domain') {
+      setError('Domínio não autorizado. Adicione este domínio ao seu console do Firebase.');
+    } else if (err.code === 'auth/operation-not-allowed' || err.code === 'auth/admin-restricted-operation') {
+      setError('Método de login desativado. Habilite-o no Console do Firebase.');
+    } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+      setError('E-mail ou senha incorretos.');
+    } else {
+      setError('Ocorreu um erro. Tente novamente.');
+      console.error(err);
     }
   };
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setError("Por favor, preencha e-mail e senha.");
@@ -57,7 +60,32 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onOpe
         setError('Por favor, insira um e-mail válido.');
         return;
     }
-    handleAuth(() => onLogin(email, password));
+    setError(null);
+    setIsLoading(true);
+    try {
+      await onLogin(email, password);
+      if (rememberEmail) {
+        localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+      } else {
+        localStorage.removeItem(REMEMBER_EMAIL_KEY);
+      }
+    } catch (err: any) {
+      handleAuthError(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleGoogleClick = async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      await onGoogleLogin();
+    } catch (err: any) {
+      handleAuthError(err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
 
@@ -103,6 +131,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onOpe
               className="w-full bg-white text-gray-800 placeholder-gray-400 border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#8e44ad] outline-none"
             />
           </div>
+          <div className="flex items-center justify-between mb-4">
+            <label htmlFor="remember-me" className="flex items-center text-sm text-gray-600 cursor-pointer">
+              <input
+                id="remember-me"
+                type="checkbox"
+                checked={rememberEmail}
+                onChange={(e) => setRememberEmail(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+              />
+              <span className="ml-2">Lembrar e-mail</span>
+            </label>
+          </div>
           {error && <p className="text-xs text-center mb-2 text-red-600 font-bold">{error}</p>}
           <button
             type="submit"
@@ -120,7 +160,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onOpe
             <span className="flex-shrink mx-4 text-gray-500 text-xs">OU</span>
             <div className="flex-grow border-t border-gray-400"></div>
         </div>
-        <button onClick={() => handleAuth(onGoogleLogin)} disabled={isLoading} className="w-full flex items-center justify-center bg-white text-gray-700 font-semibold py-2.5 px-4 rounded-lg border border-gray-300 shadow-sm hover:bg-gray-50 transition disabled:opacity-50">
+        <button onClick={handleGoogleClick} disabled={isLoading} className="w-full flex items-center justify-center bg-white text-gray-700 font-semibold py-2.5 px-4 rounded-lg border border-gray-300 shadow-sm hover:bg-gray-50 transition disabled:opacity-50">
             <GoogleIcon />
             Entrar com Google
         </button>

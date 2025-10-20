@@ -1,4 +1,4 @@
-import React, { useState, useCallback, createContext, useContext, useEffect } from 'react';
+import React, { useState, useCallback, createContext, useContext, useEffect, useMemo } from 'react';
 import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF } from './types';
 // FIX: Import PREDEFINED_COLORS to be used when creating color variations for products.
 import { INITIAL_PRODUCTS, PREDEFINED_COLORS } from './constants';
@@ -171,13 +171,14 @@ interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
   onLogout: () => void;
+  onLoginClick: () => void;
   onPixClick: () => void;
   activeView: View;
   onNavigate: (view: View) => void;
   isLoggedIn: boolean;
 }
 
-const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixClick, activeView, onNavigate, isLoggedIn }) => {
+const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginClick, onPixClick, activeView, onNavigate, isLoggedIn }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   const menuBgColor = theme === 'dark' ? 'bg-[#1A1129]' : 'bg-white';
@@ -241,7 +242,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixCli
               </span>
               <span className="font-semibold">Pagamento PIX</span>
             </button>
-            {isLoggedIn && (
+            {isLoggedIn ? (
                  <button 
                   onClick={onLogout}
                   className={`w-full flex items-center p-3 rounded-lg text-left transition-colors ${itemBgHover}`}
@@ -250,6 +251,18 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onPixCli
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                   </span>
                   <span className="font-semibold">Sair</span>
+                </button>
+            ) : (
+                 <button 
+                  onClick={onLoginClick}
+                  className={`w-full flex items-center p-3 rounded-lg text-left transition-colors ${itemBgHover}`}
+                >
+                  <span className="mr-3">
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                  </span>
+                  <span className="font-semibold">Entrar</span>
                 </button>
             )}
           </nav>
@@ -396,38 +409,38 @@ export default function App() {
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
   }, []);
   
-  const handleNavigate = (newView: View) => {
+  const handleNavigate = useCallback((newView: View) => {
     setView(newView);
-  };
+  }, []);
   
-  const handleLogin = async (email: string, pass: string) => {
+  const handleLogin = useCallback(async (email: string, pass: string) => {
       await api.signIn(email, pass);
       setView(View.STOCK); // Redirect to stock after login
-  };
+  }, []);
   
-  const handleSignUp = async (email: string, pass: string) => {
+  const handleSignUp = useCallback(async (email: string, pass: string) => {
       await api.signUp(email, pass);
       setIsSignUpModalOpen(false);
       setView(View.STOCK); // Redirect to stock after sign up
-  };
+  }, []);
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = useCallback(async () => {
       await api.signInWithGoogle();
       setView(View.STOCK); // Redirect to stock after login
-  };
+  }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     api.signOut();
     setCurrentUser(null);
     setIsMenuOpen(false);
     setView(View.SHOWCASE); // Go back to showcase on logout
-  };
+  }, []);
 
-  const handleSaveApiKey = (key: string) => {
+  const handleSaveApiKey = useCallback((key: string) => {
     setApiKey(key);
     localStorage.setItem(API_KEY_STORAGE_KEY, key);
     setIsApiKeyModalOpen(false);
-  };
+  }, []);
 
     const handleSaveProduct = useCallback(async (productToSave: Product, options?: { closeModal?: boolean }): Promise<Product> => {
         try {
@@ -530,7 +543,7 @@ export default function App() {
     }, [customColors]);
 
 
-  const handleCreateProductsFromWizard = async (
+  const handleCreateProductsFromWizard = useCallback(async (
     productsToCreate: Omit<Product, 'id'>[], 
     productToConfigure: Omit<Product, 'id'>
   ) => {
@@ -557,9 +570,9 @@ export default function App() {
           console.error("Failed to create products from wizard:", error);
           window.alert(`Falha ao criar produtos: ${error instanceof Error ? error.message : String(error)}`);
       }
-  };
+  }, []);
 
-  const handleAddNewBrand = async (brandName: string, logoFile?: File, logoUrl?: string) => {
+  const handleAddNewBrand = useCallback(async (brandName: string, logoFile?: File, logoUrl?: string) => {
     if (!brandName.trim()) {
         throw new Error("O nome da marca não pode ser vazio.");
     }
@@ -573,15 +586,15 @@ export default function App() {
         throw new Error("É necessário fornecer uma URL ou um arquivo para o logo.");
     }
     await api.addBrand({ name: brandName.trim(), logoUrl: finalLogoUrl });
-  };
+  }, []);
 
-  const handleUploadCatalog = async (brandName: string, pdfFile: File) => {
+  const handleUploadCatalog = useCallback(async (brandName: string, pdfFile: File) => {
       if (!brandName || !pdfFile) {
           throw new Error("Marca e arquivo PDF são obrigatórios.");
       }
       const pdfUrl = await api.uploadFile(`catalogs/${brandName}_${Date.now()}_${pdfFile.name}`, pdfFile);
       await api.addCatalog({ brandName, pdfUrl, fileName: pdfFile.name });
-  };
+  }, []);
 
   const handleSwitchToProduct = useCallback((product: Product) => {
     setEditingProduct(product);
@@ -643,21 +656,28 @@ export default function App() {
     }
   };
 
+  const handleLoginRedirect = useCallback(() => {
+    handleNavigate(View.STOCK);
+    setIsMenuOpen(false);
+  }, [handleNavigate]);
+
   const uniqueCategories = [...new Set(products.map(p => p.category))];
   
   const canManageStock = currentUser?.role === 'admin';
   const isLoggedIn = !!currentUser;
+  
+  const handleMenuClick = useCallback(() => setIsMenuOpen(true), []);
+
+  const mainScreenProps = useMemo(() => ({
+    onMenuClick: handleMenuClick,
+  }), [handleMenuClick]);
 
   const renderView = () => {
-    const mainScreenProps = {
-      onMenuClick: () => setIsMenuOpen(true),
-    };
-    
     if (productsLoading || authLoading) {
       return <div className="flex-grow flex items-center justify-center"><p className={theme === 'dark' ? 'text-white' : 'text-gray-800'}>Carregando...</p></div>
     }
 
-    const isStockViewAttempt = view === View.STOCK;
+    const isStockViewAttempt = view === View.STOCK || view === View.SETTINGS || view === View.CATALOG;
     const needsLogin = isStockViewAttempt && !currentUser;
 
     if (needsLogin) {
@@ -732,13 +752,14 @@ export default function App() {
         {!isConfigValid && <ConfigurationRequiredModal />}
         <div className={`min-h-screen ${bgClass} font-sans ${!isConfigValid ? 'blur-sm pointer-events-none' : ''}`}>
             <div className={`w-full max-w-6xl mx-auto h-screen ${mainContainerBgClass} md:rounded-[40px] md:shadow-2xl flex flex-col relative md:my-4 md:h-[calc(100vh-2rem)] max-h-[1200px]`}>
-                <Header onMenuClick={() => setIsMenuOpen(true)} />
+                <Header onMenuClick={handleMenuClick} />
                 {renderView()}
 
                 <SideMenu
                     isOpen={isMenuOpen}
                     onClose={() => setIsMenuOpen(false)}
                     onLogout={handleLogout}
+                    onLoginClick={handleLoginRedirect}
                     onPixClick={() => setIsPixModalOpen(true)}
                     activeView={view}
                     onNavigate={handleNavigate}

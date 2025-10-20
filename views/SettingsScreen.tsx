@@ -11,6 +11,39 @@ interface SettingsScreenProps {
   brands: DynamicBrand[];
 }
 
+// --- Helper Components (Moved Outside) ---
+
+const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+    return (
+        <div className={`p-6 rounded-2xl border ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm'} ${className}`}>
+            {children}
+        </div>
+    );
+};
+  
+const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+    return (
+        <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{children}</h2>
+    );
+};
+  
+const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+    return (
+        <input 
+            {...props}
+            className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-50 text-gray-900 border-gray-200'}`}
+        />
+    );
+};
+
+// --- Main Component ---
+
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewBrand, onMenuClick, canManageStock, brands }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -56,23 +89,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
         setIsSavingBrand(false);
     }
   };
-
-  const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-    <div className={`p-6 rounded-2xl border ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm'} ${className}`}>
-        {children}
-    </div>
-  );
-  
-  const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{children}</h2>
-  );
-  
-  const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
-    <input 
-      {...props}
-      className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-50 text-gray-900 border-gray-200'}`}
-    />
-  );
 
   return (
     <>
