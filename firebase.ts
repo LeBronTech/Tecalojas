@@ -88,21 +88,33 @@ export const signIn = async (email: string, password: string): Promise<User> => 
   return { uid, email, role: profile.role };
 };
 
-// --- GOOGLE SIGN IN REWORK FOR KODULAR ---
+// --- GOOGLE SIGN IN REWORK FOR KODULAR/CORDOVA ---
 
 let googleSignInResolver: ((user: User) => void) | null = null;
 let googleSignInRejecter: ((error: any) => void) | null = null;
+let googleSignInTimeout: number | null = null;
 
-// This function will be called by the native Kodular app to complete the sign-in flow
+const cleanupGoogleSignIn = () => {
+    if (googleSignInTimeout) {
+        window.clearTimeout(googleSignInTimeout);
+        googleSignInTimeout = null;
+    }
+    googleSignInResolver = null;
+    googleSignInRejecter = null;
+};
+
+// This function will be called by the native Kodular/Cordova app to complete the sign-in flow
 window.completeGoogleSignIn = async (idToken: string | null, errorMsg: string | null) => {
     const resolver = googleSignInResolver;
     const rejecter = googleSignInRejecter;
     
-    // Clean up to prevent memory leaks and accidental calls
-    googleSignInResolver = null;
-    googleSignInRejecter = null;
+    // Important: Clean up immediately to prevent memory leaks and accidental calls
+    cleanupGoogleSignIn();
 
     if (errorMsg) {
+        // The native app reported an error.
+        // If the error is 'disallowed_useragent', it confirms the native configuration issue.
+        console.error("Google Sign-In Error from Native App:", errorMsg);
         rejecter?.(new Error(errorMsg));
         return;
     }
@@ -113,39 +125,87 @@ window.completeGoogleSignIn = async (idToken: string | null, errorMsg: string | 
             const userCredential = await auth.signInWithCredential(credential);
             
             if (!userCredential.user) {
-              throw new Error("Google sign in failed after receiving token.");
+              throw new Error("Falha no login com Google após receber o token.");
             }
             const user = userCredential.user;
             const profile = await getUserProfile(user.uid);
             resolver?.({ uid: user.uid, email: user.email!, role: profile.role });
         } catch (error) {
+            console.error("Firebase signInWithCredential failed:", error);
             rejecter?.(error);
         }
     } else {
-        rejecter?.(new Error("Login com Google cancelado ou falhou no app."));
+        // This case handles user cancellation or other failures where no token is returned.
+        rejecter?.(new Error("Login com Google cancelado ou falhou (sem token)."));
     }
 };
 
 
 /**
- * Handles Google Sign-In for Cordova/Kodular environments using the WebViewStringChange method.
+ * Handles Google Sign-In for Cordova/Kodular environments.
  * It sends a command to the native app, which then performs the sign-in and calls back `window.completeGoogleSignIn`.
  */
 const signInWithGoogleCordova = (): Promise<User> => {
   return new Promise((resolve, reject) => {
+    // Ensure no previous sign-in process is still lingering
+    if (googleSignInResolver || googleSignInRejecter) {
+        reject(new Error("Um processo de login com Google já está em andamento."));
+        return;
+    }
+
     // Store resolve/reject to be used by the global callback
     googleSignInResolver = resolve;
     googleSignInRejecter = reject;
 
+    // Set a timeout in case the native app doesn't respond
+    googleSignInTimeout = window.setTimeout(() => {
+        if (googleSignInRejecter) {
+            googleSignInRejecter(new Error("Tempo de resposta do app esgotado. Verifique se o app está configurado para o login com Google."));
+            cleanupGoogleSignIn();
+        }
+    }, 30000); // 30 seconds timeout
+
     if (window.AppInventor && typeof window.AppInventor.setWebViewString === 'function') {
+        // ====================================================================================
+        // 🔥🔥🔥 INSTRUÇÃO IMPORTANTE PARA O DESENVOLVEDOR DO APP KODULAR/CORDOVA 🔥🔥🔥
+        // ====================================================================================
+        // O erro "403: disallowed_useragent" que você está vendo é uma política de segurança
+        // do Google. Ele acontece porque o Google não permite mais que o login seja feito
+        // diretamente dentro de um WebView simples por razões de segurança (phishing, etc).
+        //
+        // A SOLUÇÃO é garantir que o seu aplicativo nativo (Kodular) abra o fluxo de login
+        // do Google em um "Navegador Seguro" (como Chrome Custom Tabs no Android).
+        //
+        // O que verificar no seu projeto Kodular:
+        // 1. Componente Google Login: Certifique-se de que o componente "Google Login" do Kodular
+        //    esteja configurado para usar um navegador externo ou uma "Custom Tab", e não
+        //    uma WebView interna para a autenticação. A maioria das plataformas de app builder
+        //    já faz isso, mas vale a pena confirmar.
+        // 2. Firebase Console & Google Cloud Console:
+        //    a) Verifique se o "Web client ID" (colocado em `firebaseConfig.ts`)
+        //       está correto.
+        //    b) No Google Cloud Console, para o seu "Android client ID", verifique se o
+        //       NOME DO PACOTE e a impressão digital SHA-1 do seu app correspondem
+        //       exatamente aos do app que você está compilando no Kodular.
+        // 3. Blocos Kodular: Seus blocos devem seguir este fluxo:
+        //    a) Escutar o evento "WebViewStringChange".
+        //    b) Quando a string for 'appkodular://iniciar-login-google', chamar a função de
+        //       login do componente "Google Login".
+        //    c) No evento "Login bem-sucedido" do Google, pegar o `idToken`.
+        //    d) Chamar o WebView para executar o JavaScript:
+        //       `window.completeGoogleSignIn('${idToken}', null);`
+        //    e) No evento "Falha no Login", pegar a mensagem de erro e chamar:
+        //       `window.completeGoogleSignIn(null, '${mensagemDeErro}');`
+        //
+        // Este código web está correto, o problema reside na integração com a parte nativa.
+        // ====================================================================================
+        
         // Send command to Kodular to start Google Login
         window.AppInventor.setWebViewString('appkodular://iniciar-login-google');
     } else {
         // Fallback or error if the expected interface isn't there
         reject(new Error("Interface com o App (AppInventor) não encontrada."));
-        // Clean up
-        googleSignInResolver = null;
-        googleSignInRejecter = null;
+        cleanupGoogleSignIn();
     }
   });
 };
