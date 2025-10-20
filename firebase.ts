@@ -15,6 +15,7 @@ declare global {
       setWebViewString: (message: string) => void;
     };
     completeGoogleSignIn?: (idToken: string | null, errorMsg: string | null) => void;
+    handleLoginToken?: (idToken: string) => void;
   }
 }
 
@@ -155,6 +156,20 @@ window.completeGoogleSignIn = async (idToken: string | null, errorMsg: string | 
     } else {
         // This case handles user cancellation or other failures where no token is returned.
         rejecter?.(new Error("Login com Google cancelado ou falhou (sem token)."));
+    }
+};
+
+// This function will be called by the native Kodular app to complete any login flow
+// that provides an ID token. It assumes the token is a Google ID token, as that's
+// the only type the client-side SDK can consume directly via signInWithCredential.
+window.handleLoginToken = (idToken: string) => {
+    console.log("`handleLoginToken` called from native app.");
+    // We assume the token is a Google ID token and call the existing Google sign-in completion logic.
+    // If an error occurs here, it will be caught inside completeGoogleSignIn and rejected.
+    if (window.completeGoogleSignIn) {
+        window.completeGoogleSignIn(idToken, null);
+    } else {
+        console.error("`completeGoogleSignIn` function not found on window object.");
     }
 };
 
