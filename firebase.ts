@@ -1,7 +1,30 @@
-import firebase from "firebase/compat/app";
-import "firebase/compat/auth";
-import "firebase/compat/firestore";
-import "firebase/compat/storage";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { 
+    initializeAuth,
+    browserLocalPersistence, 
+    inMemoryPersistence, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    GoogleAuthProvider, 
+    signInWithPopup,
+    signOut as firebaseSignOut,
+    onAuthStateChanged as firebaseOnAuthStateChanged,
+    signInWithCredential,
+    User as FirebaseUser
+} from "firebase/auth";
+import { 
+    getFirestore, 
+    collection, 
+    doc, 
+    getDoc, 
+    setDoc, 
+    onSnapshot, 
+    addDoc, 
+    updateDoc, 
+    deleteDoc,
+    FirestoreError
+} from "firebase/firestore";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 import { User, Product, DynamicBrand, CatalogPDF } from './types';
 import { firebaseConfig, googleCordovaWebClientId } from './firebaseConfig';
@@ -19,47 +42,27 @@ declare global {
   }
 }
 
-// Define types for Firebase v8
-type FirebaseUser = firebase.User;
-type FirestoreError = firebase.firestore.FirestoreError;
-
-
 // Initialize Firebase
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-}
-const auth = firebase.auth();
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// FIX: Set auth persistence to 'local' for Cordova/WebView environments.
-// Per Firebase documentation, 'local' persistence is recommended for Cordova to ensure
-// the user's login state survives page reloads or app restarts, which is a likely
-// cause of the blank screen issue after login. The original code used 'none',
-// which does not persist the session across reloads. A fallback to 'none' is included
-// for older environments where local storage might not be available.
-auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-  .catch((error) => {
-    console.error("Firebase: Could not set persistence to LOCAL, falling back to NONE", error);
-    // If LOCAL fails (e.g. in very old webviews), use in-memory persistence for the session.
-    return auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
-  })
-  .catch((fallbackError) => {
-    console.error("Firebase: Could not even set persistence to NONE", fallbackError);
-  });
+// REFACTORED: Use initializeAuth for explicit initialization and to handle persistence.
+const auth = initializeAuth(app, {
+  persistence: [browserLocalPersistence, inMemoryPersistence]
+});
+const db = getFirestore(app);
+const storage = getStorage(app);
 
 
-const db = firebase.firestore();
-const storage = firebase.storage();
-
-const productsCollection = db.collection("products");
-const brandsCollection = db.collection("brands");
-const catalogsCollection = db.collection("catalogs");
-const provider = new firebase.auth.GoogleAuthProvider();
+const productsCollection = collection(db, "products");
+const brandsCollection = collection(db, "brands");
+const catalogsCollection = collection(db, "catalogs");
+const provider = new GoogleAuthProvider();
 
 // --- AUTHENTICATION ---
 const getUserProfile = async (uid: string): Promise<Pick<User, 'role'>> => {
-    const userDocRef = db.collection('users').doc(uid);
-    const userDocSnap = await userDocRef.get();
-    if (userDocSnap.exists) {
+    const userDocRef = doc(db, 'users', uid);
+    const userDocSnap = await getDoc(userDocRef);
+    if (userDocSnap.exists()) {
         const userData = userDocSnap.data();
         if (userData) {
             // Check for a string role field (e.g., role: 'admin') - handles common typo 'rule'
@@ -82,7 +85,7 @@ const getUserProfile = async (uid: string): Promise<Pick<User, 'role'>> => {
 
 
 export const signUp = async (email: string, password: string): Promise<User> => {
-  const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   if (!userCredential.user) {
     throw new Error("User creation failed.");
   }
@@ -91,14 +94,14 @@ export const signUp = async (email: string, password: string): Promise<User> => 
   // On sign-up, create a corresponding user document in Firestore.
   // This ensures that every registered user has a profile where their role can be managed.
   // By default, all new users are assigned the 'user' role.
-  const userDocRef = db.collection('users').doc(uid);
-  await userDocRef.set({ role: 'user', email: email });
+  const userDocRef = doc(db, 'users', uid);
+  await setDoc(userDocRef, { role: 'user', email: email });
 
   return { uid, email, role: 'user' };
 };
 
 export const signIn = async (email: string, password: string): Promise<User> => {
-  const userCredential = await auth.signInWithEmailAndPassword(email, password);
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
   if (!userCredential.user) {
     throw new Error("Sign in failed.");
   }
@@ -140,8 +143,8 @@ window.completeGoogleSignIn = async (idToken: string | null, errorMsg: string | 
 
     if (idToken) {
         try {
-            const credential = firebase.auth.GoogleAuthProvider.credential(idToken);
-            const userCredential = await auth.signInWithCredential(credential);
+            const credential = GoogleAuthProvider.credential(idToken);
+            const userCredential = await signInWithCredential(auth, credential);
             
             if (!userCredential.user) {
               throw new Error("Falha no login com Google após receber o token.");
@@ -217,7 +220,7 @@ export const signInWithGoogle = async (): Promise<User> => {
     return signInWithGoogleCordova();
   } else {
     // Standard web-based sign-in flow
-    const result = await auth.signInWithPopup(provider);
+    const result = await signInWithPopup(auth, provider);
     if (!result.user) {
         throw new Error("Google sign in failed.");
     }
@@ -233,11 +236,11 @@ export const signOut = (): Promise<void> => {
   if (!!window.cordova || window.location.protocol === 'file:') {
       window.location.href = 'appkodular://iniciar-logout-google';
   }
-  return auth.signOut();
+  return firebaseSignOut(auth);
 };
 
 export const onAuthStateChanged = (callback: (user: User | null) => void) => {
-  return auth.onAuthStateChanged(async (firebaseUser: FirebaseUser | null) => {
+  return firebaseOnAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
     if (firebaseUser) {
       // Since anonymous sign-in is removed, we assume any user is a real user.
       const profile = await getUserProfile(firebaseUser.uid);
@@ -255,7 +258,8 @@ export const onProductsUpdate = (
   onSuccess: (products: Product[]) => void,
   onError: (error: FirestoreError) => void
 ) => {
-  return productsCollection.onSnapshot(
+  return onSnapshot(
+    productsCollection,
     (snapshot) => {
       const products = snapshot.docs.map(
         (doc) => {
@@ -278,24 +282,23 @@ export const onProductsUpdate = (
 };
 
 export const addProduct = (productData: Omit<Product, 'id'>): Promise<any> => {
-    return productsCollection.add(productData);
+    return addDoc(productsCollection, productData as { [key: string]: any });
 };
 
 export const updateProduct = (productId: string, productData: Omit<Product, 'id'>): Promise<void> => {
-    const productDoc = db.collection("products").doc(productId);
-    return productDoc.update(productData);
+    const productDoc = doc(db, "products", productId);
+    return updateDoc(productDoc, productData as { [key: string]: any });
 };
 
 export const deleteProduct = (productId: string): Promise<void> => {
-    const productDoc = db.collection("products").doc(productId);
-    return productDoc.delete();
+    const productDoc = doc(db, "products", productId);
+    return deleteDoc(productDoc);
 };
 
 // --- STORAGE ---
 export const uploadFile = (path: string, file: File, onProgress?: (progress: number) => void): { promise: Promise<string>, cancel: () => void } => {
-    const storageRef = storage.ref();
-    const fileRef = storageRef.child(path);
-    const uploadTask = fileRef.put(file);
+    const fileRef = ref(storage, path);
+    const uploadTask = uploadBytesResumable(fileRef, file);
 
     const promise = new Promise<string>((resolve, reject) => {
         uploadTask.on(
@@ -312,7 +315,7 @@ export const uploadFile = (path: string, file: File, onProgress?: (progress: num
             },
             async () => { // "complete" observer
                 try {
-                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
                     resolve(downloadURL);
                 } catch (error) {
                     reject(error);
@@ -334,7 +337,8 @@ export const onBrandsUpdate = (
     onSuccess: (brands: DynamicBrand[]) => void,
     onError: (error: FirestoreError) => void
 ) => {
-    return brandsCollection.onSnapshot(
+    return onSnapshot(
+      brandsCollection,
       (snapshot) => {
         const brands = snapshot.docs.map(
           (doc) => ({ id: doc.id, ...doc.data() } as DynamicBrand)
@@ -345,7 +349,7 @@ export const onBrandsUpdate = (
     );
 };
 export const addBrand = (brandData: Omit<DynamicBrand, 'id'>) => {
-    return brandsCollection.add(brandData);
+    return addDoc(brandsCollection, brandData as { [key: string]: any });
 };
 
 // --- FIRESTORE (CATALOGS) ---
@@ -353,7 +357,8 @@ export const onCatalogsUpdate = (
     onSuccess: (catalogs: CatalogPDF[]) => void,
     onError: (error: FirestoreError) => void
 ) => {
-    return catalogsCollection.onSnapshot(
+    return onSnapshot(
+        catalogsCollection,
         (snapshot) => {
             const catalogs = snapshot.docs.map(
                 (doc) => ({ id: doc.id, ...doc.data() } as CatalogPDF)
@@ -364,5 +369,5 @@ export const onCatalogsUpdate = (
     );
 };
 export const addCatalog = (catalogData: Omit<CatalogPDF, 'id'>) => {
-    return catalogsCollection.add(catalogData);
+    return addDoc(catalogsCollection, catalogData as { [key: string]: any });
 };
