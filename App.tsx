@@ -1,5 +1,5 @@
 import React, { useState, useCallback, createContext, useContext, useEffect, useMemo } from 'react';
-import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF } from './types';
+import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition } from './types';
 // FIX: Import PREDEFINED_COLORS to be used when creating color variations for products.
 import { INITIAL_PRODUCTS, PREDEFINED_COLORS } from './constants';
 import LoginScreen from './views/LoginScreen';
@@ -8,6 +8,7 @@ import StockManagementScreen from './views/StockManagementScreen';
 import SettingsScreen from './views/SettingsScreen';
 import CatalogScreen from './views/CatalogScreen';
 import CompositionGeneratorScreen from './views/CompositionGeneratorScreen';
+import CompositionsScreen from './views/CompositionsScreen';
 import AddEditProductModal from './components/AddEditProductModal';
 import SignUpModal from './components/SignUpModal';
 import Header from './components/Header';
@@ -37,6 +38,7 @@ declare global {
 const THEME_STORAGE_KEY = 'pillow-oasis-theme';
 const API_KEY_STORAGE_KEY = 'pillow-oasis-api-key';
 const CUSTOM_COLORS_STORAGE_KEY = 'pillow-oasis-custom-colors';
+const SAVED_COMPOSITIONS_STORAGE_KEY = 'pillow-oasis-saved-compositions';
 
 // --- Theme Context ---
 interface ThemeContextType {
@@ -166,6 +168,12 @@ const CatalogIcon = () => (
     </svg>
 );
 
+const CompositionIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+    </svg>
+);
+
 
 // --- Side Menu Component ---
 interface SideMenuProps {
@@ -214,6 +222,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginC
           <h2 className="text-2xl font-bold text-fuchsia-500 mb-8">Menu</h2>
           <nav className="flex flex-col space-y-2">
             <NavItem label="Vitrine" view={View.SHOWCASE} icon={<HomeIcon />} />
+            <NavItem label="Composições" view={View.COMPOSITIONS} icon={<CompositionIcon />} />
             <NavItem label="Estoque" view={View.STOCK} icon={<InventoryIcon />} />
             <NavItem label="Catálogo" view={View.CATALOG} icon={<CatalogIcon />} />
             <NavItem label="Configurações" view={View.SETTINGS} icon={<SettingsIcon />} />
@@ -296,6 +305,7 @@ export default function App() {
   const [customColors, setCustomColors] = useState<{ name: string; hex: string }[]>([]);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
 
 
   // Effect for loading custom colors from localStorage on initial load
@@ -305,10 +315,24 @@ export default function App() {
       if (storedColors) {
         setCustomColors(JSON.parse(storedColors));
       }
+      const storedCompositions = localStorage.getItem(SAVED_COMPOSITIONS_STORAGE_KEY);
+      if (storedCompositions) {
+        setSavedCompositions(JSON.parse(storedCompositions));
+      }
     } catch (error) {
-      console.error("Failed to load custom colors from localStorage:", error);
+      console.error("Failed to load from localStorage:", error);
     }
   }, []);
+  
+  // Effect for saving compositions to localStorage
+  useEffect(() => {
+    try {
+        localStorage.setItem(SAVED_COMPOSITIONS_STORAGE_KEY, JSON.stringify(savedCompositions));
+    } catch (error) {
+        console.error("Failed to save compositions to localStorage:", error);
+    }
+  }, [savedCompositions]);
+
 
   const addCustomColor = useCallback((color: { name: string; hex: string }) => {
     setCustomColors(prev => {
@@ -710,6 +734,7 @@ export default function App() {
                     apiKey={apiKey}
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
                     onNavigate={handleNavigate}
+                    savedCompositions={savedCompositions}
                     {...mainScreenProps} 
                 />;
       case View.STOCK:
@@ -748,7 +773,15 @@ export default function App() {
                     onNavigate={handleNavigate}
                     apiKey={apiKey}
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
+                    savedCompositions={savedCompositions}
+                    setSavedCompositions={setSavedCompositions}
                 />;
+      case View.COMPOSITIONS:
+        return <CompositionsScreen
+                    savedCompositions={savedCompositions}
+                    setSavedCompositions={setSavedCompositions}
+                    onNavigate={handleNavigate}
+                />
       default:
         return <ShowcaseScreen 
                     products={products} 
@@ -759,6 +792,7 @@ export default function App() {
                     apiKey={apiKey}
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
                     onNavigate={handleNavigate}
+                    savedCompositions={savedCompositions}
                     {...mainScreenProps} 
                 />;
     }

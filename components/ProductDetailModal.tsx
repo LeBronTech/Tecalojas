@@ -1,8 +1,9 @@
 import React, { useState, useContext, useEffect, useMemo, useRef } from 'react';
-import { Product, Variation, WaterResistanceLevel } from '../types';
+import { Product, Variation, WaterResistanceLevel, SavedComposition } from '../types';
 import { ThemeContext } from '../App';
 import { WATER_RESISTANCE_INFO, BRAND_LOGOS } from '../constants';
 import { GoogleGenAI, Modality } from '@google/genai';
+import CompositionViewerModal from './CompositionViewerModal';
 
 interface ProductDetailModalProps {
     product: Product;
@@ -13,6 +14,7 @@ interface ProductDetailModalProps {
     onSwitchProduct: (product: Product) => void;
     apiKey: string | null;
     onRequestApiKey: () => void;
+    savedCompositions: SavedComposition[];
 }
 
 const ButtonSpinner = () => (
@@ -81,7 +83,7 @@ const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> =
 };
 
 
-const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct, apiKey, onRequestApiKey }) => {
+const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct, apiKey, onRequestApiKey, savedCompositions }) => {
     const { theme } = useContext(ThemeContext);
     const [variationIndex, setVariationIndex] = useState(0);
     const [displayImageUrl, setDisplayImageUrl] = useState(product.baseImageUrl);
@@ -91,6 +93,8 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     const [isGenerating, setIsGenerating] = useState<string | null>(null);
     const [genError, setGenError] = useState<string | null>(null);
     const colorButtonRef = useRef<HTMLButtonElement>(null);
+    const [isCompositionViewerOpen, setIsCompositionViewerOpen] = useState(false);
+    const [compositionViewerIndex, setCompositionViewerIndex] = useState(0);
 
 
     useEffect(() => {
@@ -109,6 +113,10 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         if (!product.variationGroupId) return [];
         return products.filter(p => p.variationGroupId === product.variationGroupId && p.id !== product.id);
     }, [products, product]);
+
+    const compositionsWithThisProduct = useMemo(() => {
+        return savedCompositions.filter(comp => comp.products.some(p => p.id === product.id));
+    }, [savedCompositions, product]);
     
     const galleryImages = useMemo(() => [
         { url: product.baseImageUrl, label: 'Principal', type: 'principal' },
@@ -215,6 +223,11 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         } finally {
             setIsGenerating(null);
         }
+    };
+
+    const openCompositionViewer = (index: number) => {
+        setCompositionViewerIndex(index);
+        setIsCompositionViewerOpen(true);
     };
     
     const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
@@ -392,6 +405,34 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                         </div>
                     )}
 
+                    {compositionsWithThisProduct.length > 0 && (
+                        <div className="mt-6">
+                            <h3 className={`font-bold mb-2 ${titleClasses}`}>Composições com esta almofada</h3>
+                             <div className="flex items-center space-x-3 overflow-x-auto pb-2 -ml-2 pl-2">
+                                {compositionsWithThisProduct.map((comp, index) => (
+                                    <button 
+                                        key={comp.id}
+                                        onClick={() => openCompositionViewer(index)}
+                                        className={`relative w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all border-transparent hover:border-fuchsia-500 text-left`}
+                                        title={comp.name}
+                                    >
+                                        {comp.imageUrl ? (
+                                            <img src={comp.imageUrl} alt={comp.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full grid grid-cols-2 grid-rows-2">
+                                                {comp.products.slice(0, 4).map(p => (
+                                                     <img key={p.id} src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover" />
+                                                ))}
+                                            </div>
+                                        )}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+                                        <p className="absolute bottom-1 left-2 right-2 text-white text-xs font-bold truncate">{comp.name}</p>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
 
                     {/* Variations Carousel */}
                     <div className="mt-6">
@@ -449,6 +490,13 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
             colors={furnitureColors[popover.type]}
             anchorEl={colorButtonRef.current}
         />
+        {isCompositionViewerOpen && (
+            <CompositionViewerModal
+                compositions={compositionsWithThisProduct}
+                startIndex={compositionViewerIndex}
+                onClose={() => setIsCompositionViewerOpen(false)}
+            />
+        )}
         </>
     );
 };

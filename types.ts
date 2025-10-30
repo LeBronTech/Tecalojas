@@ -74,12 +74,22 @@ export interface Product {
   colors: { name: string; hex: string }[];
 }
 
+export interface SavedComposition {
+  id: string; // Compund key: size + sorted product IDs
+  name: string;
+  products: Product[];
+  imageUrl?: string;
+  isGenerating?: boolean;
+  size: number;
+}
+
 export enum View {
   SHOWCASE,
   STOCK,
   SETTINGS,
   CATALOG,
   COMPOSITION_GENERATOR,
+  COMPOSITIONS,
 }
 
 export type Theme = 'light' | 'dark';
