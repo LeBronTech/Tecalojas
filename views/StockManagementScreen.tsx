@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useMemo } from 'react';
+import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
 // FIX: Add DynamicBrand to imports to be used in component props.
 import { Product, StoreName, View, Brand, CushionSize, DynamicBrand } from '../types';
 import { ThemeContext } from '../App';
@@ -206,6 +206,31 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
   const [isFilterHeaderOpen, setIsFilterHeaderOpen] = useState(true);
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const lastScrollY = useRef(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+        const currentScrollY = scrollContainerRef.current.scrollTop;
+
+        if (currentScrollY > 100) { // Threshold to start hiding
+            if (currentScrollY > lastScrollY.current) {
+                // Scrolling Down
+                if (isHeaderVisible) setIsHeaderVisible(false);
+                if (isFilterHeaderOpen) setIsFilterHeaderOpen(false); // Collapse filters
+            } else {
+                // Scrolling Up
+                if (!isHeaderVisible) setIsHeaderVisible(true);
+            }
+        } else {
+            // Always show header when near the top
+            if (!isHeaderVisible) setIsHeaderVisible(true);
+        }
+        
+        lastScrollY.current = currentScrollY <= 0 ? 0 : currentScrollY;
+    }
+  };
   
   useEffect(() => {
     if (hasFetchError) {
@@ -275,8 +300,8 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
            )}
        </div>
 
-        <div className="flex-grow overflow-y-auto no-scrollbar">
-            <div className={`sticky top-0 z-10 pt-20 pb-4 ${isDark ? 'bg-[#1A1129]/80 backdrop-blur-md' : 'bg-gray-50/80 backdrop-blur-md'}`}>
+        <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-grow overflow-y-auto no-scrollbar">
+            <div className={`sticky top-0 z-10 pt-20 pb-4 transition-transform duration-300 ease-in-out ${isDark ? 'bg-[#1A1129]/80 backdrop-blur-md' : 'bg-gray-50/80 backdrop-blur-md'} ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
                 <div className="pb-4 px-6 text-center">
                     <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gerenciamento de Estoque</h1>
                     <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
