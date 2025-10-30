@@ -258,11 +258,18 @@ export const onProductsUpdate = (
   return productsCollection.onSnapshot(
     (snapshot) => {
       const products = snapshot.docs.map(
-        (doc) =>
-          ({
+        (doc) => {
+          const data = doc.data();
+          // This creates a more robust product object by providing default empty arrays
+          // for properties that might be missing from older Firestore documents,
+          // preventing "Cannot read properties of undefined (reading 'map')" errors.
+          return {
             id: doc.id,
-            ...doc.data(),
-          } as Product)
+            ...data,
+            variations: data.variations || [],
+            colors: data.colors && Array.isArray(data.colors) && data.colors.length > 0 ? data.colors : [{ name: 'Indefinida', hex: '#808080' }],
+          } as Product;
+        }
       );
       onSuccess(products);
     },
