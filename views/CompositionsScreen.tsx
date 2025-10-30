@@ -1,15 +1,23 @@
 import React, { useState, useContext } from 'react';
 import { ThemeContext } from '../App';
-import { SavedComposition, View } from '../types';
+import { SavedComposition, View, Product } from '../types';
 import CompositionViewerModal from '../components/CompositionViewerModal';
 
 interface CompositionsScreenProps {
   savedCompositions: SavedComposition[];
   setSavedCompositions: React.Dispatch<React.SetStateAction<SavedComposition[]>>;
   onNavigate: (view: View) => void;
+  // New props for AI generation and product details
+  apiKey: string | null;
+  onRequestApiKey: () => void;
+  products: Product[];
+  onEditProduct: (product: Product) => void;
+  onSaveComposition: (composition: Omit<SavedComposition, 'id'>) => void;
 }
 
-const CompositionsScreen: React.FC<CompositionsScreenProps> = ({ savedCompositions, setSavedCompositions, onNavigate }) => {
+const CompositionsScreen: React.FC<CompositionsScreenProps> = ({ 
+  savedCompositions, setSavedCompositions, onNavigate, apiKey, onRequestApiKey, products, onEditProduct, onSaveComposition 
+}) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const [viewerState, setViewerState] = useState<{ open: boolean; startIndex: number }>({ open: false, startIndex: 0 });
@@ -87,6 +95,10 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({ savedCompositio
             compositions={savedCompositions}
             startIndex={viewerState.startIndex}
             onClose={() => setViewerState({ open: false, startIndex: 0 })}
+            apiKey={apiKey}
+            onRequestApiKey={onRequestApiKey}
+            onViewProduct={onEditProduct}
+            onSaveComposition={onSaveComposition}
         />
       )}
     </>

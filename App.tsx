@@ -342,10 +342,6 @@ export default function App() {
 
         if (existingIndex > -1) {
             const updated = [...prev];
-            // Preserve the old image if a new one isn't being generated and isn't passed
-            if (!newComposition.imageUrl && !newComposition.isGenerating) {
-                newComposition.imageUrl = prev[existingIndex].imageUrl;
-            }
             updated[existingIndex] = newComposition;
             return updated;
         } else {
@@ -802,6 +798,11 @@ export default function App() {
                     savedCompositions={savedCompositions}
                     setSavedCompositions={setSavedCompositions}
                     onNavigate={handleNavigate}
+                    apiKey={apiKey}
+                    onRequestApiKey={() => setIsApiKeyModalOpen(true)}
+                    products={products}
+                    onEditProduct={setEditingProduct}
+                    onSaveComposition={handleSaveComposition}
                 />
       default:
         return <ShowcaseScreen 

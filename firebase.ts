@@ -1,8 +1,16 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
+
+// Explicitly import modules for their side-effects to ensure components are registered.
+// This is a robust way to prevent "Component ... has not been registered yet" errors
+// that can occur due to race conditions in module loading.
+import "firebase/auth";
+import "firebase/firestore";
+import "firebase/storage";
+
 import { 
-    initializeAuth,
+    getAuth,
+    setPersistence,
     browserLocalPersistence, 
-    inMemoryPersistence, 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
     GoogleAuthProvider, 
@@ -45,10 +53,12 @@ declare global {
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// REFACTORED: Use initializeAuth for explicit initialization and to handle persistence.
-const auth = initializeAuth(app, {
-  persistence: [browserLocalPersistence, inMemoryPersistence]
-});
+const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence)
+  .catch((error) => {
+    console.error("Firebase: Error setting auth persistence", error);
+  });
+
 const db = getFirestore(app);
 const storage = getStorage(app);
 

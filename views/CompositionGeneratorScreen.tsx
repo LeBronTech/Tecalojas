@@ -175,7 +175,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         setError(null);
         try {
             const canvas = canvasRef.current;
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext('2d', { alpha: false });
             if (!ctx) throw new Error("Canvas context is unavailable.");
     
             const PADDING = 60;
@@ -183,61 +183,84 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             const IMG_SPACING = 20;
             const TEXT_HEIGHT = 40;
             const hasAiImage = !!generatedImageUrl;
-    
-            const totalImageWidth = currentComposition.length * IMG_SIZE + (currentComposition.length - 1) * IMG_SPACING;
-            const aiImageHeight = hasAiImage ? (totalImageWidth * 1) / 1 : 0; // Assuming 1:1 aspect ratio for AI image
-    
-            canvas.width = totalImageWidth + 2 * PADDING;
-            canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING + (hasAiImage ? aiImageHeight + PADDING : 0);
-    
-            ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
+
             const productImages = await Promise.all(
-                currentComposition.map(p => new Promise<HTMLImageElement>((resolve) => {
+                currentComposition.map(p => new Promise<HTMLImageElement>((resolve, reject) => {
                     const img = new Image();
                     img.crossOrigin = 'Anonymous';
                     img.src = p.baseImageUrl;
                     img.onload = () => resolve(img);
-                    img.onerror = () => {
-                        const placeholder = new Image();
-                        placeholder.src = 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png';
-                        placeholder.onload = () => resolve(placeholder);
-                    };
+                    img.onerror = () => reject(new Error(`Failed to load image for ${p.name}`));
                 }))
             );
     
-            let currentX = PADDING;
-            ctx.font = '24px sans-serif';
-            ctx.fillStyle = isDark ? '#FFFFFF' : '#000000';
-            ctx.textAlign = 'center';
+            const totalImageWidth = currentComposition.length * IMG_SIZE + (currentComposition.length - 1) * IMG_SPACING;
 
-            productImages.forEach((img, index) => {
-                ctx.drawImage(img, currentX, PADDING, IMG_SIZE, IMG_SIZE);
-                const productName = currentComposition[index].name;
-                ctx.fillText(productName, currentX + IMG_SIZE / 2, PADDING + IMG_SIZE + 30, IMG_SIZE - 10);
-                currentX += IMG_SIZE + IMG_SPACING;
-            });
-    
+            const drawTopPart = () => {
+                 let currentX = PADDING;
+                 ctx.font = 'bold 24px sans-serif';
+                 ctx.fillStyle = isDark ? '#E9D5FF' : '#4A044E';
+                 ctx.textAlign = 'center';
+
+                 productImages.forEach((img, index) => {
+                    const aspectRatio = img.width / img.height;
+                    let drawWidth = IMG_SIZE;
+                    let drawHeight = IMG_SIZE;
+                    if (aspectRatio > 1) { // Landscape
+                        drawHeight = IMG_SIZE / aspectRatio;
+                    } else { // Portrait or square
+                        drawWidth = IMG_SIZE * aspectRatio;
+                    }
+                    const xOffset = currentX + (IMG_SIZE - drawWidth) / 2;
+                    const yOffset = PADDING + (IMG_SIZE - drawHeight) / 2;
+                    ctx.drawImage(img, xOffset, yOffset, drawWidth, drawHeight);
+
+                     const productName = currentComposition[index].name;
+                     ctx.fillText(productName, currentX + IMG_SIZE / 2, PADDING + IMG_SIZE + 30, IMG_SIZE - 10);
+                     currentX += IMG_SIZE + IMG_SPACING;
+                 });
+            }
+
+            const shareCanvas = () => {
+                canvas.toBlob(async (blob) => {
+                    if (blob && navigator.share) {
+                        const file = new File([blob], 'composicao.png', { type: 'image/png' });
+                        await navigator.share({ title: 'Minha Composição de Almofadas', files: [file] });
+                    } else {
+                        throw new Error("Não foi possível criar a imagem para compartilhamento ou o navegador não suporta a função.");
+                    }
+                }, 'image/png', 0.95);
+            };
+
             if (hasAiImage) {
-                const aiImage = await new Promise<HTMLImageElement>((resolve) => {
+                const aiImage = await new Promise<HTMLImageElement>((resolve, reject) => {
                     const img = new Image();
                     img.crossOrigin = 'Anonymous';
                     img.src = generatedImageUrl!;
                     img.onload = () => resolve(img);
+                    img.onerror = () => reject(new Error("Failed to load AI image"));
                 });
-                const topSectionHeight = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING;
+                
+                const aiImageHeight = (totalImageWidth * aiImage.height) / aiImage.width;
+                canvas.width = totalImageWidth + 2 * PADDING;
+                canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING + aiImageHeight + PADDING;
+
+                ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                drawTopPart();
+                const topSectionHeight = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING; // Y start for AI image
                 ctx.drawImage(aiImage, PADDING, topSectionHeight, totalImageWidth, aiImageHeight);
+                shareCanvas();
+
+            } else {
+                canvas.width = totalImageWidth + 2 * PADDING;
+                canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING;
+                ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                drawTopPart();
+                shareCanvas();
             }
-    
-            canvas.toBlob(async (blob) => {
-                if (blob && navigator.share) {
-                    const file = new File([blob], 'composicao.png', { type: 'image/png' });
-                    await navigator.share({ title: 'Minha Composição de Almofadas', files: [file] });
-                } else {
-                    throw new Error("Não foi possível criar a imagem para compartilhamento ou o navegador não suporta a função.");
-                }
-            }, 'image/png');
     
         } catch (err: any) {
             console.error("Share failed:", err);
@@ -303,9 +326,9 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                              {/* Step 3: Generate */}
                             {selectedProducts.length > 0 && (
                                 <div className="border-t pt-6 mt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>3. Visualizar Arranjo</h3>
-                                    <p className={`text-sm mb-3 ${subtitleClasses}`}>Tudo pronto! Clique abaixo para ver o arranjo com as almofadas que você selecionou.</p>
-                                    <button onClick={handleVisualize} className="w-full bg-cyan-600 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">Visualizar Arranjo</button>
+                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>3. Visualizar Composição</h3>
+                                    <p className={`text-sm mb-3 ${subtitleClasses}`}>Tudo pronto! Clique abaixo para ver a composição com as almofadas que você selecionou.</p>
+                                    <button onClick={handleVisualize} className="w-full bg-cyan-600 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">Visualizar Composição</button>
                                 </div>
                             )}
                         </div>
