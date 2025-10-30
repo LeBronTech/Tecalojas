@@ -63,6 +63,23 @@ const FurnitureColorPopover: React.FC<FurnitureColorPopoverProps> = ({ isOpen, o
     );
 };
 
+const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> = ({ colors, size = 5 }) => {
+    const gradient = useMemo(() => {
+        if (!colors || colors.length === 0) return 'transparent';
+        if (colors.length === 1) return colors[0].hex;
+        const step = 100 / colors.length;
+        const stops = colors.map((color, i) => `${color.hex} ${i * step}% ${(i + 1) * step}%`).join(', ');
+        return `conic-gradient(${stops})`;
+    }, [colors]);
+
+    return (
+        <div
+            className={`w-${size} h-${size} rounded-full border border-black/20`}
+            style={{ background: gradient }}
+        />
+    );
+};
+
 
 const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct, apiKey, onRequestApiKey }) => {
     const { theme } = useContext(ThemeContext);
@@ -365,9 +382,10 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                             <div className="w-full h-full"><ImagePlaceholder /></div>
                                         )}
                                         <div 
-                                            className="absolute bottom-1 right-1 w-5 h-5 rounded-full border border-black/20"
-                                            style={{backgroundColor: p.mainColor?.hex}}
-                                        ></div>
+                                            className="absolute bottom-1 right-1"
+                                        >
+                                           <MultiColorCircle colors={p.colors} />
+                                        </div>
                                     </button>
                                 ))}
                             </div>

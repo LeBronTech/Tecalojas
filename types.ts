@@ -70,7 +70,8 @@ export interface Product {
     varanda?: string;
     piscina?: string;
   };
-  mainColor?: { name: string; hex: string };
+  isMultiColor?: boolean;
+  colors: { name: string; hex: string }[];
 }
 
 export enum View {

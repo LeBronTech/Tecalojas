@@ -1,7 +1,8 @@
 import React, { useState, useContext, useMemo, useEffect } from 'react';
 import { Product, View, CushionSize } from '../types';
 import { ThemeContext } from '../App';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Modality } from '@google/genai';
+import ProductDetailModal from '../components/ProductDetailModal';
 
 interface CompositionGeneratorScreenProps {
     products: Product[];
@@ -82,19 +83,20 @@ const ProductSelectModal: React.FC<ProductSelectModalProps> = ({ products, onClo
 interface SaveCompositionModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (name: string) => void;
+    onConfirm: (name: string, generateAiImage: boolean) => void;
 }
 const SaveCompositionModal: React.FC<SaveCompositionModalProps> = ({ isOpen, onClose, onConfirm }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [name, setName] = useState('');
+    const [generateAiImage, setGenerateAiImage] = useState(false);
 
     if (!isOpen) return null;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (name.trim()) {
-            onConfirm(name.trim());
+            onConfirm(name.trim(), generateAiImage);
         }
     };
 
@@ -110,6 +112,12 @@ const SaveCompositionModal: React.FC<SaveCompositionModalProps> = ({ isOpen, onC
                     required
                     className={`w-full border-2 rounded-lg px-4 py-3 mb-4 ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-100 text-gray-900 border-gray-300'}`}
                 />
+                 <div className="mb-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={generateAiImage} onChange={(e) => setGenerateAiImage(e.target.checked)} className="h-5 w-5 rounded text-fuchsia-600 focus:ring-fuchsia-500" />
+                        <span className={`font-semibold text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Gerar imagem com IA</span>
+                    </label>
+                </div>
                 <div className="flex justify-end gap-4">
                     <button type="button" onClick={onClose} className={`font-bold py-2 px-6 rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>Cancelar</button>
                     <button type="submit" className="bg-fuchsia-600 text-white font-bold py-2 px-6 rounded-lg">Salvar</button>
@@ -121,6 +129,28 @@ const SaveCompositionModal: React.FC<SaveCompositionModalProps> = ({ isOpen, onC
 
 
 const SIZES_TO_CHECK = [CushionSize.SQUARE_40, CushionSize.SQUARE_60, CushionSize.LUMBAR];
+
+const getBase64FromImageUrl = async (imageUrl: string): Promise<{ data: string; mimeType: string }> => {
+    if (imageUrl.startsWith('data:')) {
+        const parts = imageUrl.split(',');
+        const mimeTypePart = parts[0].match(/:(.*?);/);
+        if (!mimeTypePart || !parts[1]) {
+            throw new Error('URL de dados da imagem base inválida.');
+        }
+        return { mimeType: mimeTypePart[1], data: parts[1] };
+    } else {
+        const response = await fetch(imageUrl);
+        if (!response.ok) throw new Error('Falha ao buscar a imagem pela URL.');
+        const blob = await response.blob();
+        const base64Data = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+        return { mimeType: blob.type, data: base64Data };
+    }
+};
 
 
 const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({ products, onNavigate, apiKey, onRequestApiKey }) => {
@@ -137,7 +167,8 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     const [sizeWarnings, setSizeWarnings] = useState<string[]>([]);
     const [compositionsBySize, setCompositionsBySize] = useState<Record<number, Product[]>>({});
     const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
-    const [savedCompositions, setSavedCompositions] = useState<{ name: string; products: Product[] }[]>([]);
+    const [savedCompositions, setSavedCompositions] = useState<{ name: string; products: Product[]; imageUrl?: string; isGenerating?: boolean; }[]>([]);
+    const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
     
     const currentComposition = useMemo(() => compositionsBySize[compositionSize] || null, [compositionsBySize, compositionSize]);
 
@@ -168,10 +199,44 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         setIsSaveModalOpen(true);
     };
 
-    const confirmSave = (name: string) => {
+    const confirmSave = async (name: string, generateAiImage: boolean) => {
         if (!currentComposition) return;
-        setSavedCompositions(prev => [...prev, { name, products: currentComposition }]);
         setIsSaveModalOpen(false);
+        const newComposition = { name, products: currentComposition, isGenerating: generateAiImage, imageUrl: undefined };
+        setSavedCompositions(prev => [...prev, newComposition]);
+        
+        if (generateAiImage) {
+            if (!apiKey) {
+                onRequestApiKey();
+                setSavedCompositions(prev => prev.filter(c => c.name !== name)); // remove if no key
+                return;
+            }
+            try {
+                const imageParts = await Promise.all(
+                    currentComposition.map(p => getBase64FromImageUrl(p.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png').then(img => ({inlineData: img})))
+                );
+                const ai = new GoogleGenAI({ apiKey });
+                const textPart = { text: `Arrume estas ${currentComposition.length} almofadas de forma natural e esteticamente agradável em um sofá moderno de cor neutra, em uma sala de estar elegante e bem iluminada. A composição deve parecer realista e atraente para um catálogo de produtos.` };
+                
+                const response = await ai.models.generateContent({
+                    model: 'gemini-2.5-flash-image',
+                    contents: { parts: [...imageParts, textPart] },
+                    config: { responseModalities: [Modality.IMAGE] }
+                });
+                
+                const generatedImagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+                if (generatedImagePart?.inlineData) {
+                    const newImageUrl = `data:${generatedImagePart.inlineData.mimeType};base64,${generatedImagePart.inlineData.data}`;
+                    setSavedCompositions(prev => prev.map(c => c.name === name ? { ...c, imageUrl: newImageUrl, isGenerating: false } : c));
+                } else {
+                    throw new Error("A IA não retornou uma imagem.");
+                }
+            } catch (e) {
+                console.error("Failed to generate composition image:", e);
+                setError("Falha ao gerar a imagem da composição.");
+                setSavedCompositions(prev => prev.map(c => c.name === name ? { ...c, isGenerating: false } : c));
+            }
+        }
     };
 
     const handleShare = async () => {
@@ -227,8 +292,8 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     };
 
     const getPromptForSize = (size: number): string => {
-        const initialCushions = startProducts.map(p => ({ id: p.id, name: p.name, color: p.mainColor?.name, category: p.category }));
-        const availableCushions = products.map(p => ({ id: p.id, name: p.name, category: p.category, color: p.mainColor?.name, colorHex: p.mainColor?.hex }));
+        const initialCushions = startProducts.map(p => ({ id: p.id, name: p.name, color: p.colors?.[0]?.name, category: p.category }));
+        const availableCushions = products.map(p => ({ id: p.id, name: p.name, category: p.category, color: p.colors?.[0]?.name, colorHex: p.colors?.[0]?.hex }));
         let rules = '';
         switch (size) {
             case 4: rules = `A composição DEVE ter exatamente 4 almofadas. Regras estritas: 1. Inclua UM par de almofadas estampadas IDÊNTICAS. 2. As outras duas almofadas devem ser DIFERENTES uma da outra e do par estampado. 3. Não pode haver outras repetições. 4. As 4 almofadas NUNCA devem ser todas da mesma categoria.`; break;
@@ -337,7 +402,11 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                         </div>
                                     )}
                                     <div className="flex justify-center items-center -space-x-8 mb-4 h-40">
-                                        {currentComposition.map((p, index) => (<div key={`${p.id}-${index}`} className="w-32 h-32 rounded-lg shadow-lg" style={{ zIndex: index, transform: `rotate(${Math.random() * 10 - 5}deg)` }}><img src={p.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={p.name} className="w-full h-full object-cover rounded-lg" /></div>))}
+                                        {currentComposition.map((p, index) => (
+                                            <button key={`${p.id}-${index}`} onClick={() => setViewingProduct(p)} className="w-32 h-32 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-500" style={{ zIndex: index, transform: `rotate(${Math.random() * 10 - 5}deg)` }}>
+                                                <img src={p.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={p.name} className="w-full h-full object-cover rounded-lg" />
+                                            </button>
+                                        ))}
                                     </div>
                                     <div className="space-y-1 mb-6">{currentComposition.map((p, index) => (<p key={`${p.id}-${index}`} className={`text-sm font-semibold ${subtitleClasses}`}>{p.name}</p>))}</div>
                                     <div className="flex items-center justify-center gap-2 flex-wrap">
@@ -359,7 +428,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                     <button key={index} onClick={() => { setCompositionsBySize({ [comp.products.length]: comp.products }); setCompositionSize(comp.products.length); }} className={`p-3 rounded-xl text-left border transition-colors ${isDark ? 'bg-black/20 border-white/10 hover:bg-black/30' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
                                         <p className={`font-bold mb-2 ${titleClasses}`}>{comp.name}</p>
                                         <div className="flex items-center -space-x-4">
-                                            {comp.products.map(p => (<img key={p.id} src={p.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={p.name} className="w-12 h-12 object-cover rounded-full border-2 border-white/50" />))}
+                                             {comp.isGenerating ? <div className="w-12 h-12 flex items-center justify-center"><ButtonSpinner /></div> : comp.imageUrl ? <img src={comp.imageUrl} alt={comp.name} className="w-24 h-24 object-cover rounded-md" /> : comp.products.map(p => (<img key={p.id} src={p.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={p.name} className="w-12 h-12 object-cover rounded-full border-2 border-white/50" />))}
                                         </div>
                                     </button>
                                 ))}
@@ -371,6 +440,18 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             </div>
             {isModalOpen && (<ProductSelectModal products={products} onClose={() => setIsModalOpen(false)} onConfirm={handleConfirmSelection} initialSelectedIds={startProducts.map(p => p.id)} />)}
             <SaveCompositionModal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} onConfirm={confirmSave} />
+            {viewingProduct && (
+                <ProductDetailModal
+                    product={viewingProduct}
+                    products={products}
+                    onClose={() => setViewingProduct(null)}
+                    canManageStock={false}
+                    onEditProduct={() => {}}
+                    onSwitchProduct={setViewingProduct}
+                    apiKey={apiKey}
+                    onRequestApiKey={onRequestApiKey}
+                />
+            )}
         </>
     );
 };

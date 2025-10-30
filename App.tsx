@@ -445,8 +445,8 @@ export default function App() {
 
     const handleSaveProduct = useCallback(async (productToSave: Product, options?: { closeModal?: boolean }): Promise<Product> => {
         try {
-            if (!productToSave.category?.trim() || !productToSave.fabricType?.trim() || !productToSave.mainColor?.name?.trim() || !productToSave.name?.trim()) {
-                throw new Error("Nome, categoria, tipo de tecido e cor principal são obrigatórios.");
+            if (!productToSave.category?.trim() || !productToSave.fabricType?.trim() || !productToSave.colors || productToSave.colors.length === 0 || !productToSave.name?.trim()) {
+                throw new Error("Nome, categoria, tipo de tecido e cor são obrigatórios.");
             }
     
             const existingProductWithSameName = products.find(p => 
@@ -486,26 +486,23 @@ export default function App() {
 
     const handleCreateColorVariations = useCallback(async (parentProduct: Product, newColors: {name: string, hex: string}[]) => {
         try {
-            const allColors = [...PREDEFINED_COLORS, ...customColors];
-            
             const productsToCreate = newColors.map(color => {
                 let baseName = parentProduct.name;
-                const allColorNames = allColors.map(c => c.name).sort((a, b) => b.length - a.length); 
-                
-                for (const colorName of allColorNames) {
-                    const regex = new RegExp(`\\b${colorName}\\b`, 'i');
-                    if (regex.test(baseName)) {
-                        baseName = baseName.replace(regex, '').trim();
-                        break;
-                    }
+                const parentColorName = parentProduct.colors[0]?.name;
+
+                if (parentColorName) {
+                    const regex = new RegExp(`\\b${parentColorName}\\b|\\(${parentColorName}\\)`, 'i');
+                    baseName = baseName.replace(regex, '').trim();
                 }
+
                 baseName = baseName.replace(/\s\s+/g, ' ').trim();
-                const newName = `${color.name} ${baseName}`.trim();
+                const capitalizedColorName = color.name.charAt(0).toUpperCase() + color.name.slice(1);
+                const newName = `${baseName} (${capitalizedColorName})`.trim();
 
                 const newProductData: Omit<Product, 'id'> = {
                     ...parentProduct,
                     name: newName,
-                    mainColor: color,
+                    colors: [color],
                     baseImageUrl: '',
                     unitsSold: 0,
                     backgroundImages: {},
@@ -541,7 +538,9 @@ export default function App() {
           const creationPromises = productsToCreate.map(p => api.addProduct(p));
           const createdDocs = await Promise.all(creationPromises);
   
-          const configuredProductDoc = createdDocs.find((doc, index) => productsToCreate[index].mainColor?.name === productToConfigure.mainColor?.name);
+          const configuredProductDoc = createdDocs.find((doc, index) => 
+              productsToCreate[index].colors[0]?.name === productToConfigure.colors[0]?.name
+          );
   
           if (!configuredProductDoc) {
               throw new Error("Could not find the created product to configure.");

@@ -233,8 +233,7 @@ interface AddEditProductModalProps {
 
 const defaultFabricInfo = BRAND_FABRIC_MAP[Brand.MARCA_PROPRIA];
 const defaultFabricType = Object.keys(defaultFabricInfo)[0];
-const initialFormState: Product = {
-  id: '',
+const initialFormState: Omit<Product, 'id'> = {
   name: '',
   baseImageUrl: '',
   unitsSold: 0,
@@ -245,7 +244,8 @@ const initialFormState: Product = {
   waterResistance: WaterResistanceLevel.NONE,
   variations: [],
   backgroundImages: {},
-  mainColor: { name: 'Branco', hex: '#FFFFFF' },
+  colors: [{ name: 'Branco', hex: '#FFFFFF' }],
+  isMultiColor: false,
   variationGroupId: undefined,
 };
 
@@ -337,37 +337,49 @@ const pluralizeCategory = (category: string): string => {
     return capitalized + 's';
 };
 
-const standardizeProductName = (name: string, colors: {name: string, hex: string}[]): string => {
+const standardizeProductName = (name: string, productColors: {name: string, hex: string}[], allPossibleColors: {name: string, hex: string}[]): string => {
     let productName = name.trim();
-    let matchedColor = null;
-
-    const sortedColors = [...colors].sort((a, b) => b.name.length - a.name.length);
-
-    for (const color of sortedColors) {
-        const regex = new RegExp(`\\b${color.name}\\b`, 'i');
-        if (regex.test(productName)) {
-            matchedColor = color;
-            productName = productName.replace(regex, '').trim();
-            break;
-        }
+    
+    // First, strip out ANY existing color from the name to get a clean base name
+    const sortedAllColors = [...allPossibleColors].sort((a, b) => b.name.length - a.name.length);
+    for (const color of sortedAllColors) {
+        const regex = new RegExp(`\\b${color.name}\\b|\\(${color.name}\\)`, 'ig');
+        productName = productName.replace(regex, '').trim();
     }
+    
+    productName = productName.replace(/\s\s+/g, ' ').trim();
+    let baseName = productName.charAt(0).toUpperCase() + productName.slice(1);
+    baseName = baseName.replace(/[()]/g, '').trim();
 
-    if (matchedColor) {
-        let baseName = productName.replace(/\s\s+/g, ' ').trim();
-        baseName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
-        const colorName = matchedColor.name.charAt(0).toUpperCase() + matchedColor.name.slice(1);
-        
-        // Remove parentheses if they exist in the base name
-        baseName = baseName.replace(/[()]/g, '').trim();
-
+    if (productColors && productColors.length > 0) {
+        const colorName = productColors[0].name.charAt(0).toUpperCase() + productColors[0].name.slice(1);
         return `${baseName} (${colorName})`;
     }
-
-    return name.trim();
+    
+    return baseName;
 };
 
+const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> = ({ colors, size = 4 }) => {
+    const className = `w-${size} h-${size}`;
+    const gradient = useMemo(() => {
+        if (!colors || colors.length === 0) return 'transparent';
+        if (colors.length === 1) return colors[0].hex;
+        const step = 100 / colors.length;
+        const stops = colors.map((color, i) => `${color.hex} ${i * step}% ${(i + 1) * step}%`).join(', ');
+        return `conic-gradient(${stops})`;
+    }, [colors]);
+
+    return (
+        <div
+            className={`${className} rounded-full border border-black/20 flex-shrink-0`}
+            style={{ background: gradient }}
+        />
+    );
+};
+
+
 const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, apiKey, onRequestApiKey, customColors, onAddCustomColor, brands }) => {
-  const [formData, setFormData] = useState<Product>(initialFormState);
+  const [formData, setFormData] = useState<Product>(() => ({ ...initialFormState, ...product }));
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [aiGenerating, setAiGenerating] = useState<Record<string, boolean>>({});
@@ -412,25 +424,21 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   }, [products, formData.category, formData.fabricType, formData.brand]);
 
   const currentBaseName = useMemo(() => {
-    if (!formData.name || !formData.mainColor?.name) return formData.name.trim();
-    // Create a regex to find the color name as a whole word to avoid partial matches
-    const colorName = formData.mainColor.name;
-    const regex = new RegExp(`\\b${colorName}\\b`, 'i');
+    if (!formData.name || !formData.colors || formData.colors.length === 0) return formData.name.trim();
+    const colorName = formData.colors[0].name;
+    const regex = new RegExp(`\\b${colorName}\\b|\\(${colorName}\\)`, 'i');
     return formData.name.replace(regex, '').trim().replace(/\s\s+/g, ' ');
-  }, [formData.name, formData.mainColor]);
+  }, [formData.name, formData.colors]);
 
   const usedColorNamesInFamily = useMemo(() => {
     if (!currentBaseName) return [];
     return familyProducts
         .filter(p => {
-            if (p.id === formData.id || !p.mainColor?.name) return false;
-            // Infer base name for other products in the family
-            const regex = new RegExp(`\\b${p.mainColor.name}\\b`, 'i');
-            const pBaseName = p.name.replace(regex, '').trim().replace(/\s\s+/g, ' ');
-            // Disable color if the base names match
+            if (p.id === formData.id || !p.colors || p.colors.length === 0) return false;
+            const pBaseName = p.name.replace(new RegExp(`\\b${p.colors[0].name}\\b|\\(${p.colors[0].name}\\)`, 'ig'), '').trim().replace(/\s\s+/g, ' ');
             return pBaseName.toLowerCase() === currentBaseName.toLowerCase();
         })
-        .map(p => p.mainColor!.name);
+        .flatMap(p => p.colors.map(c => c.name));
   }, [familyProducts, formData.id, currentBaseName]);
 
 
@@ -439,7 +447,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         ...initialFormState, 
         ...product, 
         backgroundImages: product.backgroundImages || {},
-        mainColor: product.mainColor || initialFormState.mainColor,
+        colors: product.colors && product.colors.length > 0 ? product.colors : initialFormState.colors,
     });
     if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollTop = 0;
@@ -457,7 +465,13 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
     setFormData(prev => {
         let newState = { ...prev, [name]: parsedValue };
-        if (name === 'brand') {
+        if (name === 'isMultiColor') {
+            const isMulti = parsedValue as boolean;
+            if (!isMulti && newState.colors && newState.colors.length > 1) {
+                newState.colors = [newState.colors[0]];
+            }
+        }
+        else if (name === 'brand') {
             const newBrand = parsedValue as string;
             const fabricInfo = BRAND_FABRIC_MAP[newBrand];
             if (fabricInfo) {
@@ -690,9 +704,26 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     finally { setBgGenerating(prev => ({ ...prev, [contextKey]: false })); }
   };
 
-  const handleSelectColor = (color: { name: string; hex: string }) => {
-    setFormData(prev => ({ ...prev, mainColor: color }));
-  };
+    const handleColorSelect = (color: { name: string; hex: string }) => {
+        setFormData(prev => ({ ...prev, colors: [color] }));
+    };
+
+    const handleColorToggle = (color: { name: string; hex: string }) => {
+        setFormData(prev => {
+            const currentColors = prev.colors || [];
+            const isSelected = currentColors.some(c => c.name === color.name);
+
+            if (isSelected) {
+                const newColors = currentColors.filter(c => c.name !== color.name);
+                return { ...prev, colors: newColors };
+            } else {
+                if (currentColors.length < 3) {
+                    return { ...prev, colors: [...currentColors, color] };
+                }
+                return prev; // Limit reached
+            }
+        });
+    };
 
   const findMatchingFabricType = (aiFabric: string, brand: string): string | null => {
       const fabricMap = BRAND_FABRIC_MAP[brand];
@@ -761,9 +792,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     try {
         const productToSave = { ...formData };
 
-        // Standardize category and name before validation and saving
         productToSave.category = pluralizeCategory(productToSave.category);
-        productToSave.name = standardizeProductName(productToSave.name, allColors);
+        if (!productToSave.isMultiColor) {
+            productToSave.name = standardizeProductName(productToSave.name, productToSave.colors, allColors);
+        }
 
         const existingProductWithSameName = products.find(p => 
             p.name.toLowerCase() === productToSave.name.toLowerCase() && p.id !== productToSave.id
@@ -930,11 +962,27 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         </div>
                     </div>
                     <div>
-                        <h3 className={`text-lg font-bold mb-2 ${titleClasses}`}>Cor Principal</h3>
+                        <h3 className={`text-lg font-bold mb-2 ${titleClasses}`}>Cor do Produto</h3>
+                         <div className="flex items-center mb-3">
+                            <input 
+                                type="checkbox" 
+                                id="isMultiColor"
+                                name="isMultiColor" 
+                                checked={!!formData.isMultiColor}
+                                onChange={handleChange}
+                                className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300 rounded"
+                            />
+                            <label htmlFor="isMultiColor" className={`ml-2 text-sm font-medium ${labelClasses}`}>
+                                É multi cor (até 3 cores)
+                            </label>
+                        </div>
                         <ColorSelector
                             allColors={allColors}
-                            selectedColor={formData.mainColor}
-                            onSelectColor={handleSelectColor}
+                            multiSelect={!!formData.isMultiColor}
+                            selectedColors={formData.colors || []}
+                            onToggleColor={handleColorToggle}
+                            selectedColor={!formData.isMultiColor ? formData.colors?.[0] : undefined}
+                            onSelectColor={handleColorSelect}
                             disabledColors={usedColorNamesInFamily}
                             onAddCustomColor={onAddCustomColor}
                         />
@@ -1010,8 +1058,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                             <div className="flex-grow min-w-0">
                                                 <p className={`text-sm font-bold truncate ${titleClasses}`}>{p.name}</p>
                                                 <div className="flex items-center gap-2">
-                                                    <div style={{backgroundColor: p.mainColor?.hex}} className="w-4 h-4 rounded-full border border-black/20 flex-shrink-0"></div>
-                                                    <span className={`text-xs font-medium truncate ${subtitleClasses}`}>{p.mainColor?.name}</span>
+                                                    <MultiColorCircle colors={p.colors} />
+                                                    <span className={`text-xs font-medium truncate ${subtitleClasses}`}>{p.colors.map(c => c.name).join(', ')}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -1044,7 +1092,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                 multiSelect
                                 selectedColors={selectedNewColors}
                                 onToggleColor={handleToggleNewColor}
-                                disabledColors={[...usedColorNamesInFamily, formData.mainColor?.name].filter((name): name is string => !!name)}
+                                disabledColors={[...usedColorNamesInFamily, ...(formData.colors?.map(c => c.name) || [])].filter((name): name is string => !!name)}
                                 onAddCustomColor={onAddCustomColor}
                             />
                             <button 

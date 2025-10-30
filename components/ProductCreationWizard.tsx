@@ -385,12 +385,11 @@ const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ products,
         if (!baseName.trim()) return [];
         return existingFamilyProducts
             .filter(p => {
-                if (!p.mainColor?.name) return false;
-                const regex = new RegExp(`\\b${p.mainColor.name}\\b`, 'i');
-                const pBaseName = p.name.replace(regex, '').trim().replace(/\s\s+/g, ' ');
+                if (!p.colors || p.colors.length === 0) return false;
+                const pBaseName = p.name.replace(new RegExp(`\\b${p.colors[0].name}\\b|\\(${p.colors[0].name}\\)`, 'ig'), '').trim().replace(/\s\s+/g, ' ');
                 return pBaseName.toLowerCase() === baseName.trim().toLowerCase();
             })
-            .map(p => p.mainColor!.name);
+            .flatMap(p => p.colors!.map(c => c.name));
     }, [existingFamilyProducts, baseName]);
 
     const handleImageSelect = async (imageUrl: string) => {
@@ -452,7 +451,7 @@ const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ products,
         }
     };
 
-    const createProductPayloads = (data: WizardData) => {
+    const createProductPayloads = (data: WizardData): Omit<Product, 'id'>[] => {
         const groupId = `var_${Date.now()}`;
         const pluralizedCategory = pluralizeCategory(data.category);
         const capitalizedBaseName = data.baseName.charAt(0).toUpperCase() + data.baseName.slice(1);
@@ -467,7 +466,8 @@ const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ products,
                 brand: data.brand,
                 fabricType: data.fabricType,
                 category: pluralizedCategory,
-                mainColor: color,
+                colors: [color],
+                isMultiColor: false,
                 baseImageUrl: '',
                 unitsSold: 0,
                 description: fabricDescription,
@@ -535,7 +535,7 @@ const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ products,
         if (!wizardData) return;
         
         const productsToCreate = createProductPayloads(wizardData);
-        const productToConfigure = productsToCreate.find(p => p.mainColor.name === colorToConfigure.name);
+        const productToConfigure = productsToCreate.find(p => p.colors[0]?.name === colorToConfigure.name);
         
         if (productToConfigure) {
             if (wizardData.baseImageUrl) productToConfigure.baseImageUrl = wizardData.baseImageUrl;
@@ -673,7 +673,7 @@ const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ products,
             <div className={`border rounded-3xl shadow-2xl w-full max-w-lg p-6 relative flex flex-col ${modalBgClasses}`} onClick={e => e.stopPropagation()} style={{ height: '90vh', maxHeight: '700px' }}>
                 {step === 1 ? renderStep1() : renderStep2()}
                 {isImagePickerOpen && <ImagePickerModal onSelect={handleImageSelect} onClose={() => setIsImagePickerOpen(false)} onTakePhoto={handleTakePhoto} />}
-                {isCameraOpen && <CameraView onCapture={handleImageSelect} onClose={() => setIsCameraOpen(false)} />}
+                {isCameraOpen && <CameraView onCapture={handleImageSelect} onClose={() => setIsImagePickerOpen(false)} />}
             </div>
         </div>
     );

@@ -87,12 +87,17 @@ const ColorSelector: React.FC<ColorSelectorProps> = ({ allColors, disabledColors
         </div>
         <div className="border-t pt-3 mt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
             <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Adicionar nova cor</label>
-            <div className="flex gap-2 items-center">
-                <input type="text" placeholder="Nome da nova cor" value={newColor.name} onChange={e => setNewColor(c => ({...c, name: e.target.value}))} className={`flex-grow text-sm p-2 rounded ${inputClasses}`} />
-                <input type="color" value={newColor.hex} onChange={e => setNewColor(c => ({...c, hex: e.target.value}))} className="w-10 h-10 p-1 rounded bg-transparent border-0 cursor-pointer" />
-                <button type="button" onClick={handleAddNewColor} title="Adicionar e Salvar Nova Cor" className="bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white font-bold p-2 rounded-lg hover:opacity-80 transition-opacity flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                </button>
+            <div className="flex flex-wrap gap-2 items-center justify-between">
+                <div className="flex gap-2 items-center flex-grow">
+                    <input type="text" placeholder="Nome da nova cor" value={newColor.name} onChange={e => setNewColor(c => ({...c, name: e.target.value}))} className={`flex-grow min-w-[120px] text-sm p-2 rounded ${inputClasses}`} />
+                    <input type="color" value={newColor.hex} onChange={e => setNewColor(c => ({...c, hex: e.target.value}))} className="w-10 h-10 p-1 rounded bg-transparent border-0 cursor-pointer" />
+                </div>
+                <div className="flex flex-col items-center">
+                    <button type="button" onClick={handleAddNewColor} title="Adicionar e Salvar Nova Cor" className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold p-2 rounded-lg hover:opacity-80 transition-opacity flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                    </button>
+                    <span className={`text-xs mt-1 ${colorNameClasses}`}>Add Cor</span>
+                </div>
             </div>
         </div>
     </div>
