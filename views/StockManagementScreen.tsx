@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useMemo } from 'react';
+import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
 // FIX: Add DynamicBrand to imports to be used in component props.
 import { Product, StoreName, View, Brand, CushionSize, DynamicBrand } from '../types';
 import { ThemeContext } from '../App';
@@ -18,21 +18,21 @@ const StockControl: React.FC<{
     const stockTextClasses = isDark ? "text-cyan-300" : "text-blue-600";
     
     return (
-         <div className="flex items-center space-x-1.5">
-            <span className={`font-semibold text-xs w-10 text-right ${isDark ? 'text-purple-300/80' : 'text-gray-500'}`}>{store}:</span>
+         <div className="flex items-center space-x-3">
+            <span className={`font-semibold text-sm w-20 text-right ${isDark ? 'text-purple-300/80' : 'text-gray-500'}`}>{store}:</span>
             <button
                 onClick={(e) => { e.stopPropagation(); onUpdate(-1); }}
                 disabled={disabled || stock <= 0}
-                className={`w-8 h-8 rounded-lg font-bold text-2xl flex items-center justify-center transition-colors ${disabled || stock <= 0 ? disabledButtonClasses : buttonClasses}`}
+                className={`w-12 h-12 rounded-lg font-bold text-4xl flex items-center justify-center transition-colors ${disabled || stock <= 0 ? disabledButtonClasses : buttonClasses}`}
                 aria-label={`Diminuir estoque de ${store}`}
             >
                 -
             </button>
-            <span className={`font-bold w-8 text-center text-lg ${stockTextClasses}`}>{stock}</span>
+            <span className={`font-bold w-10 text-center text-xl ${stockTextClasses}`}>{stock}</span>
             <button
                 onClick={(e) => { e.stopPropagation(); onUpdate(1); }}
                 disabled={disabled}
-                className={`w-8 h-8 rounded-lg font-bold text-2xl flex items-center justify-center transition-colors ${disabled ? disabledButtonClasses : buttonClasses}`}
+                className={`w-12 h-12 rounded-lg font-bold text-4xl flex items-center justify-center transition-colors ${disabled ? disabledButtonClasses : buttonClasses}`}
                 aria-label={`Aumentar estoque de ${store}`}
             >
                 +
@@ -82,14 +82,14 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
     return (
         <div 
             onClick={() => canManageStock && onEdit(product)}
-            className={`rounded-3xl p-5 flex items-center justify-between shadow-lg hover:shadow-xl transition-all duration-300 border ${cardClasses} ${canManageStock ? 'cursor-pointer' : ''}`}
+            className={`rounded-3xl p-5 shadow-lg hover:shadow-xl transition-all duration-300 border ${cardClasses} ${canManageStock ? 'cursor-pointer' : ''}`}
             style={{ 
                 animation: 'float-in 0.3s ease-out forwards',
                 animationDelay: `${index * 50}ms`,
                 opacity: 0
             }}
         >
-            <div className="flex items-center space-x-4 flex-grow min-w-0">
+            <div className="flex items-start space-x-4">
                 <div className={`w-20 h-20 ${imageBgClasses} rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden shadow-md`}>
                     {product.baseImageUrl ? (
                         <img src={product.baseImageUrl} alt={product.name} className="w-full h-full object-cover" />
@@ -104,80 +104,79 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
                     )}
                 </div>
                 <div className="flex-grow min-w-0">
-                    <h4 className={`font-bold text-lg leading-tight truncate ${textNameClasses}`} title={product.name}>{product.name}</h4>
-                     <div className="flex items-center gap-x-3 gap-y-1 mt-1 flex-wrap">
-                        <div className="flex items-center gap-1.5">
-                            <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px" />
-                            <span className={`text-xs font-semibold ${textMetaClasses}`}>{product.brand}</span>
+                     <div className="flex justify-between items-start gap-2">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h4 className={`font-bold text-lg leading-tight ${textNameClasses}`}>{product.name}</h4>
+                                <span className={`text-2xl font-black text-fuchsia-500`}>({totalStock})</span>
+                            </div>
+                            <div className="flex items-center gap-x-3 gap-y-1 mt-1 flex-wrap">
+                                <div className="flex items-center gap-1.5">
+                                    <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px" />
+                                    <span className={`text-xs font-semibold ${textMetaClasses}`}>{product.brand}</span>
+                                </div>
+                                <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
+                                    {product.fabricType}
+                                </span>
+                            </div>
                         </div>
-                        <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
-                            {product.fabricType}
-                        </span>
-                    </div>
-
-                    {product.variations && product.variations.length > 1 && (
-                        <div className="mt-2">
-                             <select
-                                value={selectedVariation}
-                                onClick={(e) => e.stopPropagation()}
-                                onChange={(e) => onSelectVariation(product.id, e.target.value as CushionSize)}
-                                className={`text-xs p-1.5 rounded-md border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${selectClasses}`}
+                        <div className="flex items-center space-x-1 flex-shrink-0">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onEdit(product); }}
                                 disabled={!canManageStock}
+                                className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? actionBtnClasses : disabledBtnClasses}`}
+                                aria-label={`Editar ${product.name}`}
                             >
-                                {product.variations.map(v => (
-                                    <option key={v.size} value={v.size}>
-                                        Ver estoque: {v.size}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
-
-                     <div className={`flex flex-col sm:flex-row sm:items-center sm:space-x-4 mt-2 ${textMetaClasses}`}>
-                        <StockControl 
-                            store={StoreName.TECA} 
-                            stock={tecaStock} 
-                            onUpdate={(change) => onUpdateStock(product.id, selectedVariation, StoreName.TECA, change)} 
-                            disabled={!canManageStock || !currentVariation}
-                        />
-                         <div className="mt-1 sm:mt-0">
-                            <StockControl 
-                                store={StoreName.IONE} 
-                                stock={ioneStock} 
-                                onUpdate={(change) => onUpdateStock(product.id, selectedVariation, StoreName.IONE, change)} 
-                                disabled={!canManageStock || !currentVariation}
-                            />
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" />
+                                </svg>
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onDelete(product.id); }}
+                                disabled={!canManageStock}
+                                className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? deleteBtnClasses : disabledBtnClasses}`}
+                                aria-label={`Excluir ${product.name}`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <div className="flex flex-col items-center justify-center space-y-2 ml-4 flex-shrink-0">
-                <div className="text-center">
-                    <span className="text-4xl font-black text-fuchsia-500">{totalStock}</span>
-                    <p className="text-xs text-fuchsia-500/80 font-semibold -mt-1">TOTAL</p>
-                </div>
-                <div className="flex items-center space-x-1">
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onEdit(product); }}
-                        disabled={!canManageStock}
-                        className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? actionBtnClasses : disabledBtnClasses}`}
-                        aria-label={`Editar ${product.name}`}
-                    >
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" />
-                        </svg>
-                    </button>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onDelete(product.id); }}
-                        disabled={!canManageStock}
-                        className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? deleteBtnClasses : disabledBtnClasses}`}
-                        aria-label={`Excluir ${product.name}`}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                    </button>
+            
+            <div className={`mt-4 pt-4 flex flex-col items-center justify-center gap-2 border-t ${isDark ? 'border-white/10' : 'border-gray-200/80'}`}>
+                {product.variations && product.variations.length > 1 && (
+                    <div className="mb-2 w-full flex justify-center">
+                         <select
+                            value={selectedVariation}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => onSelectVariation(product.id, e.target.value as CushionSize)}
+                            className={`text-xs p-1.5 rounded-md border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${selectClasses}`}
+                            disabled={!canManageStock}
+                        >
+                            {product.variations.map(v => (
+                                <option key={v.size} value={v.size}>
+                                    Ver estoque: {v.size}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+                 <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+                    <StockControl 
+                        store={StoreName.TECA} 
+                        stock={tecaStock} 
+                        onUpdate={(change) => onUpdateStock(product.id, selectedVariation, StoreName.TECA, change)} 
+                        disabled={!canManageStock || !currentVariation}
+                    />
+                    <StockControl 
+                        store={StoreName.IONE} 
+                        stock={ioneStock} 
+                        onUpdate={(change) => onUpdateStock(product.id, selectedVariation, StoreName.IONE, change)} 
+                        disabled={!canManageStock || !currentVariation}
+                    />
                 </div>
             </div>
         </div>
@@ -207,6 +206,29 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
   const [isFilterHeaderOpen, setIsFilterHeaderOpen] = useState(true);
+  const [scrollTop, setScrollTop] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+      const handleScroll = () => {
+          if (scrollContainerRef.current) {
+              setScrollTop(scrollContainerRef.current.scrollTop);
+          }
+      };
+      const scrollEl = scrollContainerRef.current;
+      if (scrollEl) {
+          scrollEl.addEventListener('scroll', handleScroll, { passive: true });
+      }
+      return () => {
+          if (scrollEl) {
+              scrollEl.removeEventListener('scroll', handleScroll);
+          }
+      };
+  }, []);
+
+  const headerOpacity = Math.max(0, 1 - scrollTop / 40);
+  const headerTransform = `translateY(-${Math.min(40, scrollTop)}px)`;
+  const headerScale = Math.max(0.95, 1 - scrollTop / 400);
   
   useEffect(() => {
     if (hasFetchError) {
@@ -276,9 +298,16 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
            )}
        </div>
 
-        <div className="flex-grow overflow-y-auto no-scrollbar">
+        <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar">
             <div className={`sticky top-0 z-10 pt-20 pb-4 ${isDark ? 'bg-[#1A1129]/80 backdrop-blur-md' : 'bg-gray-50/80 backdrop-blur-md'}`}>
-                <div className="px-6 text-center">
+                <div 
+                    className="px-6 text-center transition-transform duration-100"
+                    style={{ 
+                        opacity: headerOpacity, 
+                        transform: `${headerTransform} scale(${headerScale})`,
+                        willChange: 'transform, opacity'
+                    }}
+                >
                     <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gerenciamento de Estoque</h1>
                     <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
                         {searchQuery || selectedCategory !== 'Todas' ? `Mostrando ${filteredProducts.length} de ${products.length} produtos` : `${products.length} produtos cadastrados`}
