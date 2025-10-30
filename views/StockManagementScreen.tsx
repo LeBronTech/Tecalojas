@@ -275,101 +275,103 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
            )}
        </div>
 
-      <div className="relative z-10">
-        <div className="px-6 pt-20 pb-4 text-center">
-            <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gerenciamento de Estoque</h1>
-            <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
-                {searchQuery || selectedCategory !== 'Todas' ? `Mostrando ${filteredProducts.length} de ${products.length} produtos` : `${products.length} produtos cadastrados`}
-            </p>
-        </div>
-      </div>
-      
-       <div className="px-4 mb-4 z-10 flex items-center gap-4">
-            <div className="relative flex-grow">
-                <input
-                    type="text"
-                    placeholder="Buscar por nome..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400' : 'bg-white border-gray-300/80 text-gray-900 placeholder:text-gray-500 shadow-sm'}`}
-                />
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-            </div>
-             <select
-                value={sortOrder}
-                onChange={e => setSortOrder(e.target.value as 'recent' | 'alpha')}
-                className={`border rounded-full py-3 px-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow appearance-none ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white' : 'bg-white border-gray-300/80 text-gray-900 shadow-sm'}`}
-            >
-                <option value="recent">Mais Recentes</option>
-                <option value="alpha">Ordem Alfabética</option>
-            </select>
-        </div>
-        
-         <div className="px-4 flex flex-wrap gap-2 mb-4 z-10">
-            {categories.map(category => {
-                const isActive = selectedCategory === category;
-                const activeClasses = isDark 
-                    ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30 border-transparent hover:bg-fuchsia-500' 
-                    : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20 border-transparent hover:bg-purple-700';
-                const inactiveClasses = isDark 
-                    ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
-                    : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400';
-
-                return (
-                    <button
-                        key={category}
-                        onClick={() => setSelectedCategory(category)}
-                        className={`px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
-                            isActive ? activeClasses : inactiveClasses
-                        }`}
+        <div className="flex-grow overflow-y-auto no-scrollbar">
+            <div className={`sticky top-0 z-10 pt-20 pb-4 ${isDark ? 'bg-[#1A1129]/80 backdrop-blur-md' : 'bg-gray-50/80 backdrop-blur-md'}`}>
+                <div className="px-6 text-center">
+                    <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gerenciamento de Estoque</h1>
+                    <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
+                        {searchQuery || selectedCategory !== 'Todas' ? `Mostrando ${filteredProducts.length} de ${products.length} produtos` : `${products.length} produtos cadastrados`}
+                    </p>
+                </div>
+                
+                <div className="px-4 mt-4 flex items-center gap-4">
+                    <div className="relative flex-grow">
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400' : 'bg-white border-gray-300/80 text-gray-900 placeholder:text-gray-500 shadow-sm'}`}
+                        />
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    <select
+                        value={sortOrder}
+                        onChange={e => setSortOrder(e.target.value as 'recent' | 'alpha')}
+                        className={`border rounded-full py-3 px-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow appearance-none ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white' : 'bg-white border-gray-300/80 text-gray-900 shadow-sm'}`}
                     >
-                        {category}
-                    </button>
-                );
-            })}
-        </div>
-      
-      <main className="flex-grow overflow-y-auto px-4 space-y-3 pb-44 md:pb-6 z-10 no-scrollbar">
-        {canManageStock && showWarning && (
-            <div className={`relative border-l-4 p-4 rounded-lg shadow-md ${isDark ? 'bg-red-900/50 border-red-500 text-red-200' : 'bg-red-100 border-red-500 text-red-800'}`}>
-                <button 
-                    onClick={() => setShowWarning(false)}
-                    className={`absolute top-2 right-2 p-1 rounded-full ${isDark ? 'text-red-300 hover:bg-red-800/60' : 'text-red-800 hover:bg-red-200'}`}
-                    aria-label="Fechar aviso"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-                <p className="font-bold">Ação Necessária: Configuração de Permissões</p>
-                <p className="text-sm mt-1">
-                    A vitrine para visitantes está mostrando dados de demonstração porque as regras de segurança do seu banco de dados estão bloqueando o acesso público.
-                </p>
-                <a 
-                    href="https://console.firebase.google.com/project/meu-estoque-b1fbe/firestore/rules" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className={`inline-block mt-2 text-sm font-bold underline ${isDark ? 'text-red-100 hover:text-red-300' : 'text-red-900 hover:text-red-700'}`}
-                >
-                    Clique aqui para corrigir as regras do Firebase e exibir a vitrine real.
-                </a>
-            </div>
-        )}
+                        <option value="recent">Mais Recentes</option>
+                        <option value="alpha">Ordem Alfabética</option>
+                    </select>
+                </div>
+                
+                <div className="px-4 flex flex-wrap gap-2 mt-4">
+                    {categories.map(category => {
+                        const isActive = selectedCategory === category;
+                        const activeClasses = isDark 
+                            ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30 border-transparent hover:bg-fuchsia-500' 
+                            : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20 border-transparent hover:bg-purple-700';
+                        const inactiveClasses = isDark 
+                            ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
+                            : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400';
 
-        {filteredProducts.map((product, index) => (
-          <StockItem 
-            key={product.id} 
-            product={product} 
-            index={index} 
-            onEdit={onEditProduct} 
-            onDelete={onDeleteProduct} 
-            onUpdateStock={onUpdateStock}
-            canManageStock={canManageStock}
-            selectedVariation={selectedVariations[product.id]}
-            onSelectVariation={handleSelectVariation}
-          />
-        ))}
-      </main>
+                        return (
+                            <button
+                                key={category}
+                                onClick={() => setSelectedCategory(category)}
+                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
+                                    isActive ? activeClasses : inactiveClasses
+                                }`}
+                            >
+                                {category}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+            
+            <main className="px-4 space-y-3 pb-44 md:pb-6 z-0">
+                {canManageStock && showWarning && (
+                    <div className={`relative border-l-4 p-4 rounded-lg shadow-md ${isDark ? 'bg-red-900/50 border-red-500 text-red-200' : 'bg-red-100 border-red-500 text-red-800'}`}>
+                        <button 
+                            onClick={() => setShowWarning(false)}
+                            className={`absolute top-2 right-2 p-1 rounded-full ${isDark ? 'text-red-300 hover:bg-red-800/60' : 'text-red-800 hover:bg-red-200'}`}
+                            aria-label="Fechar aviso"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                        <p className="font-bold">Ação Necessária: Configuração de Permissões</p>
+                        <p className="text-sm mt-1">
+                            A vitrine para visitantes está mostrando dados de demonstração porque as regras de segurança do seu banco de dados estão bloqueando o acesso público.
+                        </p>
+                        <a 
+                            href="https://console.firebase.google.com/project/meu-estoque-b1fbe/firestore/rules" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className={`inline-block mt-2 text-sm font-bold underline ${isDark ? 'text-red-100 hover:text-red-300' : 'text-red-900 hover:text-red-700'}`}
+                        >
+                            Clique aqui para corrigir as regras do Firebase e exibir a vitrine real.
+                        </a>
+                    </div>
+                )}
+
+                {filteredProducts.map((product, index) => (
+                <StockItem 
+                    key={product.id} 
+                    product={product} 
+                    index={index} 
+                    onEdit={onEditProduct} 
+                    onDelete={onDeleteProduct} 
+                    onUpdateStock={onUpdateStock}
+                    canManageStock={canManageStock}
+                    selectedVariation={selectedVariations[product.id]}
+                    onSelectVariation={handleSelectVariation}
+                />
+                ))}
+            </main>
+        </div>
 
        <div 
          className="absolute bottom-24 md:bottom-6 left-0 right-0 p-6 z-20" 
