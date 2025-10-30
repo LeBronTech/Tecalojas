@@ -82,7 +82,7 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
     return (
         <div 
             onClick={() => canManageStock && onEdit(product)}
-            className={`rounded-3xl p-4 flex items-center justify-between shadow-lg hover:shadow-xl transition-all duration-300 border ${cardClasses} ${canManageStock ? 'cursor-pointer' : ''}`}
+            className={`rounded-3xl p-5 flex items-center justify-between shadow-lg hover:shadow-xl transition-all duration-300 border ${cardClasses} ${canManageStock ? 'cursor-pointer' : ''}`}
             style={{ 
                 animation: 'float-in 0.3s ease-out forwards',
                 animationDelay: `${index * 50}ms`,
@@ -90,7 +90,7 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
             }}
         >
             <div className="flex items-center space-x-4 flex-grow min-w-0">
-                <div className={`w-16 h-16 ${imageBgClasses} rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden shadow-md`}>
+                <div className={`w-20 h-20 ${imageBgClasses} rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden shadow-md`}>
                     {product.baseImageUrl ? (
                         <img src={product.baseImageUrl} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
@@ -104,7 +104,7 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
                     )}
                 </div>
                 <div className="flex-grow min-w-0">
-                    <h4 className={`font-bold text-base leading-tight truncate ${textNameClasses}`} title={product.name}>{product.name}</h4>
+                    <h4 className={`font-bold text-lg leading-tight truncate ${textNameClasses}`} title={product.name}>{product.name}</h4>
                      <div className="flex items-center gap-x-3 gap-y-1 mt-1 flex-wrap">
                         <div className="flex items-center gap-1.5">
                             <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px" />
@@ -154,7 +154,7 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
 
             <div className="flex flex-col items-center justify-center space-y-2 ml-4 flex-shrink-0">
                 <div className="text-center">
-                    <span className="text-3xl font-black text-fuchsia-500">{totalStock}</span>
+                    <span className="text-4xl font-black text-fuchsia-500">{totalStock}</span>
                     <p className="text-xs text-fuchsia-500/80 font-semibold -mt-1">TOTAL</p>
                 </div>
                 <div className="flex items-center space-x-1">
@@ -206,6 +206,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
+  const [isFilterHeaderOpen, setIsFilterHeaderOpen] = useState(true);
   
   useEffect(() => {
     if (hasFetchError) {
@@ -284,51 +285,67 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                     </p>
                 </div>
                 
-                <div className="px-4 mt-4 flex items-center gap-4">
-                    <div className="relative flex-grow">
-                        <input
-                            type="text"
-                            placeholder="Buscar por nome..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400' : 'bg-white border-gray-300/80 text-gray-900 placeholder:text-gray-500 shadow-sm'}`}
-                        />
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                    </div>
-                    <select
-                        value={sortOrder}
-                        onChange={e => setSortOrder(e.target.value as 'recent' | 'alpha')}
-                        className={`border rounded-full py-3 px-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow appearance-none ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white' : 'bg-white border-gray-300/80 text-gray-900 shadow-sm'}`}
+                <div className="text-center mt-4 px-6">
+                    <button
+                        onClick={() => setIsFilterHeaderOpen(!isFilterHeaderOpen)}
+                        className={`inline-flex items-center justify-center font-semibold py-2 px-4 rounded-lg transition-colors text-sm ${isDark ? 'bg-black/20 text-gray-300 hover:bg-black/40' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        aria-expanded={isFilterHeaderOpen}
+                        aria-controls="filters-panel"
                     >
-                        <option value="recent">Mais Recentes</option>
-                        <option value="alpha">Ordem Alfabética</option>
-                    </select>
+                        Filtros & Busca
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ml-2 transition-transform duration-300 ${isFilterHeaderOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
                 </div>
-                
-                <div className="px-4 flex flex-wrap gap-2 mt-4">
-                    {categories.map(category => {
-                        const isActive = selectedCategory === category;
-                        const activeClasses = isDark 
-                            ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30 border-transparent hover:bg-fuchsia-500' 
-                            : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20 border-transparent hover:bg-purple-700';
-                        const inactiveClasses = isDark 
-                            ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
-                            : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400';
 
-                        return (
-                            <button
-                                key={category}
-                                onClick={() => setSelectedCategory(category)}
-                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
-                                    isActive ? activeClasses : inactiveClasses
-                                }`}
-                            >
-                                {category}
-                            </button>
-                        );
-                    })}
+                <div id="filters-panel" className={`transition-all duration-500 ease-in-out overflow-hidden ${isFilterHeaderOpen ? 'max-h-[500px] opacity-100 pt-4' : 'max-h-0 opacity-0'}`}>
+                    <div className="px-4 flex items-center gap-4">
+                        <div className="relative flex-grow">
+                            <input
+                                type="text"
+                                placeholder="Buscar por nome..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400' : 'bg-white border-gray-300/80 text-gray-900 placeholder:text-gray-500 shadow-sm'}`}
+                            />
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <select
+                            value={sortOrder}
+                            onChange={e => setSortOrder(e.target.value as 'recent' | 'alpha')}
+                            className={`border rounded-full py-3 px-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow appearance-none ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white' : 'bg-white border-gray-300/80 text-gray-900 shadow-sm'}`}
+                        >
+                            <option value="recent">Mais Recentes</option>
+                            <option value="alpha">Ordem Alfabética</option>
+                        </select>
+                    </div>
+                    
+                    <div className="px-4 flex flex-wrap gap-2 mt-4">
+                        {categories.map(category => {
+                            const isActive = selectedCategory === category;
+                            const activeClasses = isDark 
+                                ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30 border-transparent hover:bg-fuchsia-500' 
+                                : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20 border-transparent hover:bg-purple-700';
+                            const inactiveClasses = isDark 
+                                ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
+                                : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400';
+
+                            return (
+                                <button
+                                    key={category}
+                                    onClick={() => setSelectedCategory(category)}
+                                    className={`px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
+                                        isActive ? activeClasses : inactiveClasses
+                                    }`}
+                                >
+                                    {category}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
             

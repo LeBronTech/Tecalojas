@@ -69,14 +69,14 @@ export const WATER_RESISTANCE_INFO: Record<WaterResistanceLevel, { label: string
     icon: SEMI_WATERPROOF_ICON_URL,
     description: 'Este tecido possui tratamento que repele líquidos, facilitando a limpeza.',
     shortLabel: '50% Impermeável 💧',
-    showcaseIndicator: '50% 💧'
+    showcaseIndicator: '💧 Interna'
   },
   [WaterResistanceLevel.FULL]: {
     label: 'Waterblock (100% Impermeável)',
     icon: WATERBLOCK_ICON_URL,
     description: 'Proteção máxima contra líquidos. 100% impermeável.',
     shortLabel: 'Waterblock 💧',
-    showcaseIndicator: '100%💧💧'
+    showcaseIndicator: '💧 Externa'
   },
 };
 
