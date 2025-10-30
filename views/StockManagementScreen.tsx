@@ -108,7 +108,7 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
                         <div>
                             <div className="flex items-center gap-2">
                                 <h4 className={`font-bold text-lg leading-tight ${textNameClasses}`}>{product.name}</h4>
-                                <span className={`text-2xl font-black text-fuchsia-500`}>({totalStock})</span>
+                                <span className={`text-2xl font-black text-fuchsia-500`}>{totalStock}</span>
                             </div>
                             <div className="flex items-center gap-x-3 gap-y-1 mt-1 flex-wrap">
                                 <div className="flex items-center gap-1.5">
