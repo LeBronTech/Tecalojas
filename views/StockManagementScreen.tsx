@@ -276,14 +276,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
        </div>
 
         <div className="flex-grow overflow-y-auto no-scrollbar">
-            <div className="pt-24 pb-4 px-6 text-center">
-                <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gerenciamento de Estoque</h1>
-                <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
-                    {searchQuery || selectedCategory !== 'Todas' ? `Mostrando ${filteredProducts.length} de ${products.length} produtos` : `${products.length} produtos cadastrados`}
-                </p>
-            </div>
-
-            <div className={`sticky top-0 z-10 py-4 ${isDark ? 'bg-[#1A1129]/80 backdrop-blur-md' : 'bg-gray-50/80 backdrop-blur-md'}`}>
+            <div className={`sticky top-0 z-10 pt-24 pb-4 ${isDark ? 'bg-[#1A1129]/80 backdrop-blur-md' : 'bg-gray-50/80 backdrop-blur-md'}`}>
                 <div className="text-center px-6">
                     <button
                         onClick={() => setIsFilterHeaderOpen(!isFilterHeaderOpen)}
@@ -349,6 +342,13 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
             </div>
             
             <main className="px-4 space-y-3 pb-44 md:pb-6 z-0">
+                <div className="pb-4 px-6 text-center">
+                    <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gerenciamento de Estoque</h1>
+                    <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
+                        {searchQuery || selectedCategory !== 'Todas' ? `Mostrando ${filteredProducts.length} de ${products.length} produtos` : `${products.length} produtos cadastrados`}
+                    </p>
+                </div>
+
                 {canManageStock && showWarning && (
                     <div className={`relative border-l-4 p-4 rounded-lg shadow-md ${isDark ? 'bg-red-900/50 border-red-500 text-red-200' : 'bg-red-100 border-red-500 text-red-800'}`}>
                         <button 
