@@ -12,6 +12,7 @@ interface CompositionGeneratorScreenProps {
     apiKey: string | null;
     onRequestApiKey: () => void;
     savedCompositions: SavedComposition[];
+    onSaveComposition: (composition: Omit<SavedComposition, 'id'>) => void;
     setSavedCompositions: React.Dispatch<React.SetStateAction<SavedComposition[]>>;
 }
 
@@ -45,7 +46,7 @@ const getDominantColor = (products: Product[]): string => {
         }
     }
     
-    return dominantColor.charAt(0).toUpperCase() + dominantColor.slice(1);
+    return `Composição ${dominantColor.charAt(0).toUpperCase() + dominantColor.slice(1)}`;
 };
 
 
@@ -72,7 +73,7 @@ const getBase64FromImageUrl = async (imageUrl: string): Promise<{ data: string; 
 };
 
 
-const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({ products, onNavigate, apiKey, onRequestApiKey, setSavedCompositions }) => {
+const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({ products, onNavigate, apiKey, onRequestApiKey, onSaveComposition }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
@@ -103,7 +104,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         setIsSelectModalOpen(false);
     };
 
-    const handleGenerate = () => {
+    const handleVisualize = () => {
         setError(null);
         setCurrentComposition(selectedProducts);
     }
@@ -113,73 +114,61 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         setIsSaveModalOpen(true);
     };
 
-    const confirmSave = async (name: string, generateAiImage: boolean) => {
+    const confirmSave = (name: string) => {
         if (!currentComposition) return;
-    
-        setIsSaveModalOpen(false);
-        const compositionToSave: Omit<SavedComposition, 'id'> = {
+        
+        onSaveComposition({
             name,
             products: currentComposition,
             size: currentComposition.length,
-            isGenerating: generateAiImage,
-        };
-    
-        const id = `${compositionToSave.size}-${compositionToSave.products.map(p => p.id).sort().join('-')}`;
-    
-        setSavedCompositions(prev => {
-            const newComposition = { ...compositionToSave, id, isGenerating: generateAiImage };
-            const existingIndex = prev.findIndex(c => c.id === id);
-    
-            if (existingIndex > -1) {
-                const updated = [...prev];
-                updated[existingIndex] = newComposition;
-                return updated;
-            } else {
-                return [...prev, newComposition];
-            }
+            imageUrl: generatedImageUrl || undefined,
+            isGenerating: false,
         });
-    
-        if (generateAiImage) {
-            if (!apiKey) {
-                onRequestApiKey();
-                // Revert saving state if no API key
-                setSavedCompositions(prev => prev.filter(c => c.id !== id));
-                return;
-            }
-    
-            try {
-                const imageParts = await Promise.all(
-                    currentComposition.map(p => getBase64FromImageUrl(p.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png').then(img => ({inlineData: img})))
-                );
-                const ai = new GoogleGenAI({ apiKey });
-                const textPart = { text: `Arrume estas ${currentComposition.length} almofadas de forma natural e esteticamente agradável em um sofá moderno de cor neutra, em uma sala de estar elegante e bem iluminada. A composição deve parecer realista e atraente para um catálogo de produtos.` };
-                
-                const response = await ai.models.generateContent({
-                    model: 'gemini-2.5-flash-image',
-                    contents: { parts: [...imageParts, textPart] },
-                    config: { responseModalities: [Modality.IMAGE] }
-                });
-
-                const candidate = response.candidates?.[0];
-                if (candidate?.finishReason === 'SAFETY' || response.promptFeedback?.blockReason) {
-                    throw new Error('Geração bloqueada por políticas de segurança.');
-                }
-                const generatedImagePart = candidate?.content?.parts?.find(p => p.inlineData);
-                if (generatedImagePart?.inlineData) {
-                    const newImageUrl = `data:${generatedImagePart.inlineData.mimeType};base64,${generatedImagePart.inlineData.data}`;
-                    setGeneratedImageUrl(newImageUrl);
-                    setSavedCompositions(prev => prev.map(c => c.id === id ? { ...c, imageUrl: newImageUrl, isGenerating: false } : c));
-                } else {
-                    throw new Error("A IA não retornou uma imagem.");
-                }
-            } catch (e: any) {
-                console.error("Failed to generate composition image:", e);
-                setError(`Falha ao gerar a imagem: ${e.message}`);
-                setSavedCompositions(prev => prev.map(c => c.id === id ? { ...c, isGenerating: false } : c));
-            }
-        }
+        setIsSaveModalOpen(false);
     };
 
+    const handleGenerateEnvironment = async () => {
+        if (!currentComposition) return;
+        if (!apiKey) {
+            onRequestApiKey();
+            return;
+        }
+
+        setIsGenerating(true);
+        setError(null);
+
+        try {
+            const imageParts = await Promise.all(
+                currentComposition.map(p => getBase64FromImageUrl(p.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png').then(img => ({inlineData: img})))
+            );
+            const ai = new GoogleGenAI({ apiKey });
+            const textPart = { text: `Arrume estas ${currentComposition.length} almofadas de forma natural e esteticamente agradável em um sofá moderno de cor neutra, em uma sala de estar elegante e bem iluminada. A composição deve parecer realista e atraente para um catálogo de produtos.` };
+            
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image',
+                contents: { parts: [...imageParts, textPart] },
+                config: { responseModalities: [Modality.IMAGE] }
+            });
+
+            const candidate = response.candidates?.[0];
+            if (candidate?.finishReason === 'SAFETY' || response.promptFeedback?.blockReason) {
+                throw new Error('Geração bloqueada por políticas de segurança.');
+            }
+            const generatedImagePart = candidate?.content?.parts?.find(p => p.inlineData);
+            if (generatedImagePart?.inlineData) {
+                const newImageUrl = `data:${generatedImagePart.inlineData.mimeType};base64,${generatedImagePart.inlineData.data}`;
+                setGeneratedImageUrl(newImageUrl);
+            } else {
+                throw new Error("A IA não retornou uma imagem.");
+            }
+        } catch (e: any) {
+            console.error("Failed to generate composition image:", e);
+            setError(`Falha ao gerar a imagem: ${e.message}`);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+    
     const handleShare = async () => {
         if (!currentComposition || isSharing || !canvasRef.current) return;
         setIsSharing(true);
@@ -190,23 +179,27 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             if (!ctx) throw new Error("Canvas context is unavailable.");
     
             const PADDING = 60;
-            const SQUARE_SIZE = 800; // Size of each square
+            const IMG_SIZE = 250;
+            const IMG_SPACING = 20;
+            const TEXT_HEIGHT = 40;
             const hasAiImage = !!generatedImageUrl;
     
-            canvas.width = SQUARE_SIZE + 2 * PADDING;
-            canvas.height = (SQUARE_SIZE * (hasAiImage ? 2 : 1)) + (PADDING * (hasAiImage ? 3 : 2));
+            const totalImageWidth = currentComposition.length * IMG_SIZE + (currentComposition.length - 1) * IMG_SPACING;
+            const aiImageHeight = hasAiImage ? (totalImageWidth * 1) / 1 : 0; // Assuming 1:1 aspect ratio for AI image
+    
+            canvas.width = totalImageWidth + 2 * PADDING;
+            canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING + (hasAiImage ? aiImageHeight + PADDING : 0);
     
             ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-            // Draw top square (products)
             const productImages = await Promise.all(
                 currentComposition.map(p => new Promise<HTMLImageElement>((resolve) => {
                     const img = new Image();
                     img.crossOrigin = 'Anonymous';
                     img.src = p.baseImageUrl;
                     img.onload = () => resolve(img);
-                    img.onerror = () => { // Fallback placeholder
+                    img.onerror = () => {
                         const placeholder = new Image();
                         placeholder.src = 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png';
                         placeholder.onload = () => resolve(placeholder);
@@ -214,18 +207,18 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                 }))
             );
     
-            const gridCols = Math.ceil(Math.sqrt(productImages.length));
-            const gridRows = Math.ceil(productImages.length / gridCols);
-            const cellWidth = SQUARE_SIZE / gridCols;
-            const cellHeight = SQUARE_SIZE / gridRows;
-            
+            let currentX = PADDING;
+            ctx.font = '24px sans-serif';
+            ctx.fillStyle = isDark ? '#FFFFFF' : '#000000';
+            ctx.textAlign = 'center';
+
             productImages.forEach((img, index) => {
-                const row = Math.floor(index / gridCols);
-                const col = index % gridCols;
-                ctx.drawImage(img, PADDING + col * cellWidth, PADDING + row * cellHeight, cellWidth, cellHeight);
+                ctx.drawImage(img, currentX, PADDING, IMG_SIZE, IMG_SIZE);
+                const productName = currentComposition[index].name;
+                ctx.fillText(productName, currentX + IMG_SIZE / 2, PADDING + IMG_SIZE + 30, IMG_SIZE - 10);
+                currentX += IMG_SIZE + IMG_SPACING;
             });
     
-            // Draw bottom square (AI image)
             if (hasAiImage) {
                 const aiImage = await new Promise<HTMLImageElement>((resolve) => {
                     const img = new Image();
@@ -233,16 +226,14 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     img.src = generatedImageUrl!;
                     img.onload = () => resolve(img);
                 });
-                ctx.drawImage(aiImage, PADDING, PADDING * 2 + SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+                const topSectionHeight = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING;
+                ctx.drawImage(aiImage, PADDING, topSectionHeight, totalImageWidth, aiImageHeight);
             }
     
             canvas.toBlob(async (blob) => {
                 if (blob && navigator.share) {
                     const file = new File([blob], 'composicao.png', { type: 'image/png' });
-                    await navigator.share({
-                        title: 'Minha Composição de Almofadas',
-                        files: [file],
-                    });
+                    await navigator.share({ title: 'Minha Composição de Almofadas', files: [file] });
                 } else {
                     throw new Error("Não foi possível criar a imagem para compartilhamento ou o navegador não suporta a função.");
                 }
@@ -253,6 +244,12 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             setError("Falha ao compartilhar: " + err.message);
         } finally {
             setIsSharing(false);
+        }
+    };
+    
+    const handleShuffle = () => {
+        if (currentComposition) {
+            setCurrentComposition(prev => [...prev!].sort(() => Math.random() - 0.5));
         }
     };
     
@@ -306,9 +303,9 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                              {/* Step 3: Generate */}
                             {selectedProducts.length > 0 && (
                                 <div className="border-t pt-6 mt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>3. Gerar Arranjo</h3>
-                                    <p className={`text-sm mb-3 ${subtitleClasses}`}>Tudo pronto! A IA vai criar um arranjo com as almofadas que você selecionou.</p>
-                                    <button onClick={handleGenerate} disabled={isGenerating} className="w-full bg-cyan-600 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-500">{isGenerating ? <ButtonSpinner /> : 'Visualizar Arranjo'}</button>
+                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>3. Visualizar Arranjo</h3>
+                                    <p className={`text-sm mb-3 ${subtitleClasses}`}>Tudo pronto! Clique abaixo para ver o arranjo com as almofadas que você selecionou.</p>
+                                    <button onClick={handleVisualize} className="w-full bg-cyan-600 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">Visualizar Arranjo</button>
                                 </div>
                             )}
                         </div>
@@ -317,21 +314,28 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                         <div className="flex-grow flex flex-col items-center gap-4">
                             <div className={`w-full aspect-square rounded-xl border p-4 flex flex-col ${cardClasses}`}>
                                 <div className="flex-grow flex items-center justify-center">
-                                    <div className="flex justify-center items-center -space-x-8">
-                                        {currentComposition.map((p, index) => (
-                                            <button key={p.id} onClick={() => setViewingProduct(p)} className="w-32 h-32 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-500" style={{ zIndex: index }}>
-                                                <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover rounded-lg" />
-                                            </button>
+                                    <div className="flex flex-wrap justify-center items-start gap-2">
+                                        {currentComposition.map((p) => (
+                                            <div key={p.id} className="flex flex-col items-center w-24">
+                                                <button onClick={() => setViewingProduct(p)} className="w-24 h-24 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-500">
+                                                    <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover rounded-lg" />
+                                                </button>
+                                                <p className={`text-xs mt-1 text-center ${subtitleClasses} h-8`}>{p.name}</p>
+                                            </div>
                                         ))}
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-center gap-2 pt-3 mt-auto">
+                                    <button onClick={handleShuffle} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Ordem</button>
                                     <button onClick={handleShare} disabled={isSharing} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>{isSharing ? <ButtonSpinner/> : "Compartilhar"}</button>
-                                    <button onClick={handleSave} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Ações</button>
+                                    <button onClick={handleSave} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Salvar</button>
                                 </div>
                             </div>
-                            <div className={`w-full aspect-square rounded-xl border flex items-center justify-center ${cardClasses}`}>
-                                {isGenerating ? <ButtonSpinner /> : generatedImageUrl ? <img src={generatedImageUrl} alt="Composição Gerada por IA" className="w-full h-full object-contain" /> : <p className={subtitleClasses}>Gere uma imagem com IA ao salvar.</p>}
+                            <div className={`w-full aspect-square rounded-xl border flex flex-col items-center justify-center p-4 ${cardClasses}`}>
+                                <div className="flex-grow w-full h-full flex items-center justify-center">
+                                    {isGenerating ? <ButtonSpinner /> : generatedImageUrl ? <img src={generatedImageUrl} alt="Composição Gerada por IA" className="max-w-full max-h-full object-contain rounded-lg" /> : <p className={subtitleClasses}>Gere uma imagem com IA.</p>}
+                                </div>
+                                 <button onClick={handleGenerateEnvironment} disabled={isGenerating} className="mt-4 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-500">{isGenerating ? <ButtonSpinner /> : 'Gerar Ambiente (IA)'}</button>
                             </div>
                              {error && <p className="text-center text-red-500 mt-2">{error}</p>}
                             <button onClick={resetAll} className="w-full max-w-sm mt-4 bg-fuchsia-600 text-white font-bold py-3 rounded-lg">Criar Nova Composição</button>

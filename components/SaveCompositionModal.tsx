@@ -4,7 +4,7 @@ import { ThemeContext } from '../App';
 interface SaveCompositionModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (name: string, generateAiImage: boolean) => void;
+    onConfirm: (name: string) => void;
     predefinedName: string;
 }
 
@@ -12,7 +12,6 @@ const SaveCompositionModal: React.FC<SaveCompositionModalProps> = ({ isOpen, onC
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [name, setName] = useState(predefinedName);
-    const [generateAiImage, setGenerateAiImage] = useState(true);
 
     useEffect(() => {
         setName(predefinedName);
@@ -23,7 +22,7 @@ const SaveCompositionModal: React.FC<SaveCompositionModalProps> = ({ isOpen, onC
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (name.trim()) {
-            onConfirm(name.trim(), generateAiImage);
+            onConfirm(name.trim());
         }
     };
 
@@ -39,12 +38,6 @@ const SaveCompositionModal: React.FC<SaveCompositionModalProps> = ({ isOpen, onC
                     required
                     className={`w-full border-2 rounded-lg px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-100 text-gray-900 border-gray-300'}`}
                 />
-                 <div className="mb-6">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={generateAiImage} onChange={(e) => setGenerateAiImage(e.target.checked)} className="h-5 w-5 rounded text-fuchsia-600 focus:ring-fuchsia-500" />
-                        <span className={`font-semibold text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Gerar imagem de vitrine com IA</span>
-                    </label>
-                </div>
                 <div className="flex justify-end gap-4">
                     <button type="button" onClick={onClose} className={`font-bold py-2 px-6 rounded-lg ${isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}>Cancelar</button>
                     <button type="submit" className="bg-fuchsia-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-fuchsia-700">Salvar</button>

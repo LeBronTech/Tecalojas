@@ -35,12 +35,17 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
     
-        const PADDING = 60, IMG_SIZE = 250, IMG_SPACING = 20;
-        const totalImageWidth = currentComposition.products.length * IMG_SIZE + (currentComposition.products.length - 1) * IMG_SPACING;
+        const PADDING = 60;
+        const IMG_SIZE = 250;
+        const IMG_SPACING = 20;
+        const TEXT_HEIGHT = 40;
         const hasAiImage = !!currentComposition.imageUrl;
     
+        const totalImageWidth = currentComposition.products.length * IMG_SIZE + (currentComposition.products.length - 1) * IMG_SPACING;
+        const aiImageHeight = hasAiImage ? (totalImageWidth * 1) / 1 : 0; // Assuming 1:1 aspect ratio for AI image
+    
         canvas.width = totalImageWidth + 2 * PADDING;
-        canvas.height = PADDING + IMG_SIZE + PADDING + (hasAiImage ? IMG_SIZE + PADDING : 0);
+        canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING + (hasAiImage ? aiImageHeight + PADDING : 0);
     
         ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -60,8 +65,14 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
         );
     
         let currentX = PADDING;
-        productImages.forEach(img => {
+        ctx.font = '24px sans-serif';
+        ctx.fillStyle = isDark ? '#FFFFFF' : '#000000';
+        ctx.textAlign = 'center';
+        
+        productImages.forEach((img, index) => {
             ctx.drawImage(img, currentX, PADDING, IMG_SIZE, IMG_SIZE);
+            const productName = currentComposition.products[index].name;
+            ctx.fillText(productName, currentX + IMG_SIZE / 2, PADDING + IMG_SIZE + 30, IMG_SIZE - 10);
             currentX += IMG_SIZE + IMG_SPACING;
         });
     
@@ -70,10 +81,8 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
             aiImage.crossOrigin = 'Anonymous';
             aiImage.src = currentComposition.imageUrl!;
             aiImage.onload = () => {
-                const aspectRatio = aiImage.width / aiImage.height;
-                const drawWidth = canvas.width - 2 * PADDING;
-                const drawHeight = drawWidth / aspectRatio;
-                ctx.drawImage(aiImage, PADDING, PADDING + IMG_SIZE + PADDING, drawWidth, drawHeight);
+                const topSectionHeight = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING;
+                ctx.drawImage(aiImage, PADDING, topSectionHeight, totalImageWidth, aiImageHeight);
                 shareCanvas();
             };
         } else {
@@ -137,10 +146,13 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
                     {/* Top Square - Products */}
                     <div className={`w-full aspect-square rounded-xl border p-4 mb-4 flex flex-col ${isDark ? 'bg-black/20 border-white/10' : 'bg-gray-100 border-gray-200'}`}>
                         <div className="flex-grow flex items-center justify-center">
-                            <div className="flex justify-center items-center -space-x-8">
-                                {currentComposition.products.map((p, index) => (
-                                    <div key={p.id} className="w-32 h-32 rounded-lg shadow-lg" style={{ zIndex: index }}>
-                                        <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover rounded-lg" />
+                            <div className="flex flex-wrap justify-center items-start gap-2">
+                                {currentComposition.products.map((p) => (
+                                    <div key={p.id} className="flex flex-col items-center w-24">
+                                        <div className="w-24 h-24 rounded-lg shadow-lg">
+                                            <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover rounded-lg" />
+                                        </div>
+                                        <p className={`text-xs mt-1 text-center ${textClasses} h-8`}>{p.name}</p>
                                     </div>
                                 ))}
                             </div>
@@ -149,10 +161,6 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
                             <button onClick={handleShare} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12s-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" /></svg>
                                 Compartilhar
-                            </button>
-                             <button className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" /></svg>
-                                Ações
                             </button>
                         </div>
                     </div>

@@ -300,7 +300,7 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPixModalOpen, setIsPixModalOpen] = useState(false);
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyAX1XcWqVjlnYVpHaaQNh91LgT2ge19Z4Q");
+  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyCq8roeLwkCxFR8_HBlsVOHkM-LQiYNtto");
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [customColors, setCustomColors] = useState<{ name: string; hex: string }[]>([]);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
@@ -333,16 +333,16 @@ export default function App() {
     }
   }, [savedCompositions]);
 
-  const handleSaveComposition = useCallback((compositionToSave: Omit<SavedComposition, 'id' | 'isGenerating' | 'imageUrl'>, isGenerating: boolean, imageUrl?: string) => {
+  const handleSaveComposition = useCallback((compositionToSave: Omit<SavedComposition, 'id'>) => {
     const id = `${compositionToSave.size}-${compositionToSave.products.map(p => p.id).sort().join('-')}`;
     
     setSavedCompositions(prev => {
-        const newComposition = { ...compositionToSave, id, isGenerating, imageUrl };
+        const newComposition = { ...compositionToSave, id };
         const existingIndex = prev.findIndex(c => c.id === id);
 
         if (existingIndex > -1) {
             const updated = [...prev];
-            // Preserve the old image if a new one isn't being generated
+            // Preserve the old image if a new one isn't being generated and isn't passed
             if (!newComposition.imageUrl && !newComposition.isGenerating) {
                 newComposition.imageUrl = prev[existingIndex].imageUrl;
             }
