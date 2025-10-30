@@ -43,7 +43,7 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({ savedCompositio
           </div>
           
           {savedCompositions.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {savedCompositions.map((comp, index) => (
                 <div key={comp.id} className={`rounded-2xl border ${cardClasses} flex flex-col`}>
                   <button onClick={() => openViewer(index)} className="w-full aspect-square rounded-t-2xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-fuchsia-500">

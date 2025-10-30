@@ -3,6 +3,7 @@ import { Product, View, DynamicBrand, SavedComposition } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { ThemeContext } from '../App';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO } from '../constants';
+import CompositionViewerModal from '../components/CompositionViewerModal';
 
 type ProductGroup = Product[];
 
@@ -180,6 +181,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
+  const [compositionToView, setCompositionToView] = useState<{ compositions: SavedComposition[], startIndex: number } | null>(null);
+
 
   const categories = ['Todas', ...Array.from(new Set(products.map(p => p.category)))];
 
@@ -257,6 +260,11 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
   const handleSwitchProduct = (product: Product) => {
     setSelectedProduct(product); // Switch to another product variation in the detail modal
   };
+
+  const handleViewComposition = (compositions: SavedComposition[], startIndex: number) => {
+      setCompositionToView({ compositions, startIndex });
+      setSelectedProduct(null); // Close product detail modal if open
+  }
 
   const searchInputClasses = isDark 
     ? "bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400"
@@ -396,6 +404,14 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
               apiKey={apiKey}
               onRequestApiKey={onRequestApiKey}
               savedCompositions={savedCompositions}
+              onViewComposition={handleViewComposition}
+          />
+      )}
+      {compositionToView && (
+          <CompositionViewerModal 
+              compositions={compositionToView.compositions}
+              startIndex={compositionToView.startIndex}
+              onClose={() => setCompositionToView(null)}
           />
       )}
     </>

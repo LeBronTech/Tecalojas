@@ -333,6 +333,26 @@ export default function App() {
     }
   }, [savedCompositions]);
 
+  const handleSaveComposition = useCallback((compositionToSave: Omit<SavedComposition, 'id' | 'isGenerating' | 'imageUrl'>, isGenerating: boolean, imageUrl?: string) => {
+    const id = `${compositionToSave.size}-${compositionToSave.products.map(p => p.id).sort().join('-')}`;
+    
+    setSavedCompositions(prev => {
+        const newComposition = { ...compositionToSave, id, isGenerating, imageUrl };
+        const existingIndex = prev.findIndex(c => c.id === id);
+
+        if (existingIndex > -1) {
+            const updated = [...prev];
+            // Preserve the old image if a new one isn't being generated
+            if (!newComposition.imageUrl && !newComposition.isGenerating) {
+                newComposition.imageUrl = prev[existingIndex].imageUrl;
+            }
+            updated[existingIndex] = newComposition;
+            return updated;
+        } else {
+            return [...prev, newComposition];
+        }
+    });
+  }, []);
 
   const addCustomColor = useCallback((color: { name: string; hex: string }) => {
     setCustomColors(prev => {
@@ -774,6 +794,7 @@ export default function App() {
                     apiKey={apiKey}
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
                     savedCompositions={savedCompositions}
+                    onSaveComposition={handleSaveComposition}
                     setSavedCompositions={setSavedCompositions}
                 />;
       case View.COMPOSITIONS:
