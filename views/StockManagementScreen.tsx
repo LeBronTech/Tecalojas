@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
+import React, { useContext, useState, useEffect, useMemo } from 'react';
 // FIX: Add DynamicBrand to imports to be used in component props.
 import { Product, StoreName, View, Brand, CushionSize, DynamicBrand } from '../types';
 import { ThemeContext } from '../App';
@@ -206,29 +206,6 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
   const [isFilterHeaderOpen, setIsFilterHeaderOpen] = useState(true);
-  const [scrollTop, setScrollTop] = useState(0);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-      const handleScroll = () => {
-          if (scrollContainerRef.current) {
-              setScrollTop(scrollContainerRef.current.scrollTop);
-          }
-      };
-      const scrollEl = scrollContainerRef.current;
-      if (scrollEl) {
-          scrollEl.addEventListener('scroll', handleScroll, { passive: true });
-      }
-      return () => {
-          if (scrollEl) {
-              scrollEl.removeEventListener('scroll', handleScroll);
-          }
-      };
-  }, []);
-
-  const headerOpacity = Math.max(0, 1 - scrollTop / 40);
-  const headerTransform = `translateY(-${Math.min(40, scrollTop)}px)`;
-  const headerScale = Math.max(0.95, 1 - scrollTop / 400);
   
   useEffect(() => {
     if (hasFetchError) {
@@ -298,23 +275,16 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
            )}
        </div>
 
-        <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar">
-            <div className={`sticky top-0 z-10 pt-20 pb-4 ${isDark ? 'bg-[#1A1129]/80 backdrop-blur-md' : 'bg-gray-50/80 backdrop-blur-md'}`}>
-                <div 
-                    className="px-6 text-center transition-transform duration-100"
-                    style={{ 
-                        opacity: headerOpacity, 
-                        transform: `${headerTransform} scale(${headerScale})`,
-                        willChange: 'transform, opacity'
-                    }}
-                >
-                    <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gerenciamento de Estoque</h1>
-                    <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
-                        {searchQuery || selectedCategory !== 'Todas' ? `Mostrando ${filteredProducts.length} de ${products.length} produtos` : `${products.length} produtos cadastrados`}
-                    </p>
-                </div>
-                
-                <div className="text-center mt-4 px-6">
+        <div className="flex-grow overflow-y-auto no-scrollbar">
+            <div className="pt-24 pb-4 px-6 text-center">
+                <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gerenciamento de Estoque</h1>
+                <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
+                    {searchQuery || selectedCategory !== 'Todas' ? `Mostrando ${filteredProducts.length} de ${products.length} produtos` : `${products.length} produtos cadastrados`}
+                </p>
+            </div>
+
+            <div className={`sticky top-0 z-10 py-4 ${isDark ? 'bg-[#1A1129]/80 backdrop-blur-md' : 'bg-gray-50/80 backdrop-blur-md'}`}>
+                <div className="text-center px-6">
                     <button
                         onClick={() => setIsFilterHeaderOpen(!isFilterHeaderOpen)}
                         className={`inline-flex items-center justify-center font-semibold py-2 px-4 rounded-lg transition-colors text-sm ${isDark ? 'bg-black/20 text-gray-300 hover:bg-black/40' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
