@@ -866,6 +866,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const availableFabricTypes = Object.keys(BRAND_FABRIC_MAP[formData.brand] || {});
   const canCreateVariations = formData.name.trim() && formData.category.trim();
   
+  const sortedCategories = useMemo(() => [...categories].sort((a, b) => a.localeCompare(b)), [categories]);
+
   return (
       <>
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 transition-opacity duration-300" onClick={onClose}>
@@ -894,6 +896,18 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         </FormInput>
                         <div>
                             <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Categoria</label>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {sortedCategories.map(cat => (
+                                    <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({...prev, category: cat }))}
+                                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
                             <input list="categories-list" name="category" value={formData.category} onChange={handleChange} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
                             <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
                         </div>
