@@ -1,3 +1,5 @@
+import { createContext } from 'react';
+
 // FIX: Defined and exported the StoreName enum here to resolve a circular dependency.
 export enum StoreName {
   TECA = 'Têca',
@@ -99,3 +101,23 @@ export interface User {
   email: string | null;
   role?: 'admin' | 'user';
 }
+
+export interface CompositionViewerModalProps {
+    compositions: SavedComposition[];
+    startIndex: number;
+    onClose: () => void;
+    apiKey: string | null;
+    onRequestApiKey: () => void;
+    onViewProduct: (product: Product) => void;
+    onSaveComposition: (composition: Omit<SavedComposition, 'id'>) => void;
+}
+
+// --- Theme Context ---
+export interface ThemeContextType {
+  theme: Theme;
+  toggleTheme: () => void;
+}
+export const ThemeContext = createContext<ThemeContextType>({
+  theme: 'light',
+  toggleTheme: () => {},
+});

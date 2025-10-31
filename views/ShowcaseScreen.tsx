@@ -1,7 +1,6 @@
 import React, { useState, useContext, useEffect, useMemo } from 'react';
-import { Product, View, DynamicBrand, SavedComposition } from '../types';
+import { Product, View, DynamicBrand, SavedComposition, ThemeContext } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
-import { ThemeContext } from '../App';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO } from '../constants';
 import CompositionViewerModal from '../components/CompositionViewerModal';
 
@@ -174,7 +173,7 @@ interface ShowcaseScreenProps {
   savedCompositions: SavedComposition[];
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, hasFetchError, canManageStock, onEditProduct, apiKey, onRequestApiKey, onNavigate, savedCompositions }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, hasFetchError, canManageStock, onEditProduct, brands, apiKey, onRequestApiKey, onNavigate, savedCompositions }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedFabric, setSelectedFabric] = useState<string>('Todos os Tecidos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -412,6 +411,10 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
               compositions={compositionToView.compositions}
               startIndex={compositionToView.startIndex}
               onClose={() => setCompositionToView(null)}
+              apiKey={apiKey}
+              onRequestApiKey={onRequestApiKey}
+              onViewProduct={() => {}}
+              onSaveComposition={() => {}}
           />
       )}
     </>

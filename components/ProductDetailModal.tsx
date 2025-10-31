@@ -1,6 +1,5 @@
 import React, { useState, useContext, useEffect, useMemo, useRef } from 'react';
-import { Product, Variation, WaterResistanceLevel, SavedComposition } from '../types';
-import { ThemeContext } from '../App';
+import { Product, Variation, WaterResistanceLevel, SavedComposition, ThemeContext } from '../types';
 import { WATER_RESISTANCE_INFO, BRAND_LOGOS } from '../constants';
 import { GoogleGenAI, Modality } from '@google/genai';
 
@@ -217,7 +216,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
             setDisplayImageUrl(newImageUrl);
         } catch (error: any) {
             console.error("AI image generation failed:", error);
-            setGenError(error.message || "Falha ao gerar imagem com IA.");
+            window.alert("Aconteceu um erro! Mas não se preocupe, tente novamente agora");
         } finally {
             setIsGenerating(null);
         }

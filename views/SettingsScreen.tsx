@@ -1,6 +1,5 @@
 import React, { useState, useContext, useRef, useMemo } from 'react';
-import { ThemeContext } from '../App';
-// FIX: The 'Brand' enum should be imported from the 'types' file where it is defined, not from 'constants' which only uses it.
+import { ThemeContext } from '../types';
 import { DynamicBrand, Brand } from '../types';
 import ApiKeyModal from '../components/ApiKeyModal';
 import { BRANDS, BRAND_LOGOS } from '../constants';

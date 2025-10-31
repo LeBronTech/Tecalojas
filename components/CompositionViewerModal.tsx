@@ -1,7 +1,8 @@
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { SavedComposition, Product } from '../types';
-import { ThemeContext } from '../App';
+import { ThemeContext } from '../types';
 import { GoogleGenAI, Modality } from '@google/genai';
+import { STORE_IMAGE_URLS } from '../constants';
 
 interface CompositionViewerModalProps {
   compositions: SavedComposition[];
@@ -19,6 +20,24 @@ const ButtonSpinner = () => (
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
+
+const loadLogos = (): Promise<[HTMLImageElement, HTMLImageElement]> => {
+    const tecaPromise = new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.src = STORE_IMAGE_URLS.teca;
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+    });
+    const ionePromise = new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.src = STORE_IMAGE_URLS.ione;
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+    });
+    return Promise.all([tecaPromise, ionePromise]);
+};
 
 const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ compositions, startIndex, onClose, apiKey, onRequestApiKey, onViewProduct, onSaveComposition }) => {
     const { theme } = useContext(ThemeContext);
@@ -67,7 +86,7 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
         }
     };
     
-    const shareCanvas = () => {
+    const shareCanvas = async () => {
         if (!canvasRef.current) return;
         canvasRef.current.toBlob(async (blob) => {
             if (blob && navigator.share) {
@@ -91,7 +110,7 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
             const ctx = canvas.getContext('2d', { alpha: false });
             if (!ctx) throw new Error("Canvas context is unavailable.");
             
-            const PADDING = 60; const IMG_SIZE = 250; const IMG_SPACING = 20; const TEXT_HEIGHT = 40;
+            const PADDING = 60; const IMG_SIZE = 250; const IMG_SPACING = 20; const TEXT_HEIGHT = 80; const WATERMARK_HEIGHT = 80;
             const hasAiImage = !!currentComposition.imageUrl;
 
             const productImages = await Promise.all(
@@ -102,6 +121,32 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
             );
 
             const totalImageWidth = currentComposition.products.length * IMG_SIZE + (currentComposition.products.length - 1) * IMG_SPACING;
+            
+            const drawWatermark = async () => {
+                const [tecaLogo, ioneLogo] = await loadLogos();
+                const watermarkY = canvas.height - WATERMARK_HEIGHT;
+                
+                ctx.fillStyle = isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)';
+                ctx.fillRect(0, watermarkY, canvas.width, WATERMARK_HEIGHT);
+                
+                ctx.font = '22px sans-serif';
+                ctx.fillStyle = isDark ? '#FFFFFF' : '#111827';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const text = "composição de Têca Lojas";
+                const textMetrics = ctx.measureText(text);
+                const textX = canvas.width / 2;
+                const textY = watermarkY + WATERMARK_HEIGHT / 2;
+                
+                const logoSize = 40; const logoPadding = 15;
+                
+                const tecaLogoX = textX - textMetrics.width / 2 - logoSize - logoPadding;
+                const ioneLogoX = textX + textMetrics.width / 2 + logoPadding;
+                
+                ctx.fillText(text, textX, textY);
+                ctx.drawImage(tecaLogo, tecaLogoX, textY - logoSize / 2, logoSize, logoSize);
+                ctx.drawImage(ioneLogo, ioneLogoX, textY - logoSize / 2, logoSize, logoSize);
+            };
 
             const drawTopPart = () => {
                 let currentX = PADDING;
@@ -110,13 +155,8 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
                 ctx.textAlign = 'center';
                 productImages.forEach((img, index) => {
                     const aspectRatio = img.width / img.height;
-                    let drawWidth = IMG_SIZE;
-                    let drawHeight = IMG_SIZE;
-                    if (aspectRatio > 1) { // Landscape
-                        drawHeight = IMG_SIZE / aspectRatio;
-                    } else { // Portrait or square
-                        drawWidth = IMG_SIZE * aspectRatio;
-                    }
+                    let drawWidth = IMG_SIZE; let drawHeight = IMG_SIZE;
+                    if (aspectRatio > 1) { drawHeight = IMG_SIZE / aspectRatio; } else { drawWidth = IMG_SIZE * aspectRatio; }
                     const xOffset = currentX + (IMG_SIZE - drawWidth) / 2;
                     const yOffset = PADDING + (IMG_SIZE - drawHeight) / 2;
                     ctx.drawImage(img, xOffset, yOffset, drawWidth, drawHeight);
@@ -125,7 +165,7 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
                     currentX += IMG_SIZE + IMG_SPACING;
                 });
             };
-
+            
             if (hasAiImage) {
                 const aiImage = await new Promise<HTMLImageElement>((resolve, reject) => {
                     const img = new Image(); img.crossOrigin = 'Anonymous'; img.src = currentComposition.imageUrl!;
@@ -133,19 +173,20 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
                 });
                 const aiImageHeight = (totalImageWidth * aiImage.height) / aiImage.width;
                 canvas.width = totalImageWidth + 2 * PADDING;
-                canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING + aiImageHeight + PADDING;
-                ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING + aiImageHeight + PADDING + WATERMARK_HEIGHT;
+                ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height);
                 drawTopPart();
                 ctx.drawImage(aiImage, PADDING, PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING, totalImageWidth, aiImageHeight);
             } else {
                 canvas.width = totalImageWidth + 2 * PADDING;
-                canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING;
-                ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING + WATERMARK_HEIGHT;
+                ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height);
                 drawTopPart();
             }
-            shareCanvas();
+            
+            await drawWatermark();
+            await shareCanvas();
+
         } catch (e: any) {
             alert(`Error preparing share image: ${e.message}`);
         }
@@ -165,7 +206,7 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
             const newImageUrl = `data:${generatedImagePart.inlineData.mimeType};base64,${generatedImagePart.inlineData.data}`;
             onSaveComposition({ ...currentComposition, imageUrl: newImageUrl });
         } catch (e: any) {
-            setError(`Falha ao gerar a imagem: ${e.message}`);
+            window.alert("Aconteceu um erro! Mas não se preocupe, tente novamente agora");
         } finally {
             setIsGenerating(false);
         }

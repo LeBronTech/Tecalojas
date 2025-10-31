@@ -1,10 +1,12 @@
 import React, { useState, useContext, useMemo, useEffect, useRef } from 'react';
-import { Product, View, SavedComposition } from '../types';
-import { ThemeContext } from '../App';
+import { Product, View, SavedComposition, CushionSize } from '../types';
+// FIX: ThemeContext is exported from 'types.ts', not 'App.tsx'.
+import { ThemeContext } from '../types';
 import { GoogleGenAI, Modality } from '@google/genai';
 import ProductDetailModal from '../components/ProductDetailModal';
 import ProductSelectModal from '../components/ProductSelectModal';
 import SaveCompositionModal from '../components/SaveCompositionModal';
+import { STORE_IMAGE_URLS } from '../constants';
 
 interface CompositionGeneratorScreenProps {
     products: Product[];
@@ -72,6 +74,24 @@ const getBase64FromImageUrl = async (imageUrl: string): Promise<{ data: string; 
     }
 };
 
+const loadLogos = (): Promise<[HTMLImageElement, HTMLImageElement]> => {
+    const tecaPromise = new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.src = STORE_IMAGE_URLS.teca;
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+    });
+    const ionePromise = new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.src = STORE_IMAGE_URLS.ione;
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+    });
+    return Promise.all([tecaPromise, ionePromise]);
+};
+
 
 const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({ products, onNavigate, apiKey, onRequestApiKey, onSaveComposition }) => {
     const { theme } = useContext(ThemeContext);
@@ -89,6 +109,11 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    
+    // AI Generation Options
+    const [selectedSizes, setSelectedSizes] = useState<CushionSize[]>([]);
+    const [sofaColor, setSofaColor] = useState('Bege');
+    const sofaColors = ['Bege', 'Cinza', 'Branco', 'Marrom Escuro', 'Azul Marinho'];
 
 
     useEffect(() => {
@@ -142,7 +167,12 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                 currentComposition.map(p => getBase64FromImageUrl(p.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png').then(img => ({inlineData: img})))
             );
             const ai = new GoogleGenAI({ apiKey });
-            const textPart = { text: `Arrume estas ${currentComposition.length} almofadas de forma natural e esteticamente agradável em um sofá moderno de cor neutra, em uma sala de estar elegante e bem iluminada. A composição deve parecer realista e atraente para um catálogo de produtos.` };
+            
+            let promptText = `Arrume estas ${currentComposition.length} almofadas de forma natural e esteticamente agradável em um sofá moderno de cor ${sofaColor}, em uma sala de estar elegante e bem iluminada. A composição deve parecer realista e atraente para um catálogo de produtos.`;
+            if (selectedSizes.length > 0) {
+                promptText += ` A composição deve incluir os seguintes formatos de almofada: ${selectedSizes.join(', ')}.`;
+            }
+            const textPart = { text: promptText };
             
             const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash-image',
@@ -163,7 +193,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             }
         } catch (e: any) {
             console.error("Failed to generate composition image:", e);
-            setError(`Falha ao gerar a imagem: ${e.message}`);
+            window.alert("Aconteceu um erro! Mas não se preocupe, tente novamente agora");
         } finally {
             setIsGenerating(false);
         }
@@ -178,23 +208,44 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             const ctx = canvas.getContext('2d', { alpha: false });
             if (!ctx) throw new Error("Canvas context is unavailable.");
     
-            const PADDING = 60;
-            const IMG_SIZE = 250;
-            const IMG_SPACING = 20;
-            const TEXT_HEIGHT = 40;
+            const PADDING = 60; const IMG_SIZE = 250; const IMG_SPACING = 20; const TEXT_HEIGHT = 80; const WATERMARK_HEIGHT = 80;
             const hasAiImage = !!generatedImageUrl;
 
             const productImages = await Promise.all(
                 currentComposition.map(p => new Promise<HTMLImageElement>((resolve, reject) => {
-                    const img = new Image();
-                    img.crossOrigin = 'Anonymous';
-                    img.src = p.baseImageUrl;
-                    img.onload = () => resolve(img);
-                    img.onerror = () => reject(new Error(`Failed to load image for ${p.name}`));
+                    const img = new Image(); img.crossOrigin = 'Anonymous'; img.src = p.baseImageUrl;
+                    img.onload = () => resolve(img); img.onerror = () => reject(new Error(`Failed to load image for ${p.name}`));
                 }))
             );
     
             const totalImageWidth = currentComposition.length * IMG_SIZE + (currentComposition.length - 1) * IMG_SPACING;
+            
+            const drawWatermark = async () => {
+                const [tecaLogo, ioneLogo] = await loadLogos();
+                const watermarkY = canvas.height - WATERMARK_HEIGHT;
+                
+                ctx.fillStyle = isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)';
+                ctx.fillRect(0, watermarkY, canvas.width, WATERMARK_HEIGHT);
+                
+                ctx.font = '22px sans-serif';
+                ctx.fillStyle = isDark ? '#FFFFFF' : '#111827';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const text = "composição de Têca Lojas";
+                const textMetrics = ctx.measureText(text);
+                const textX = canvas.width / 2;
+                const textY = watermarkY + WATERMARK_HEIGHT / 2;
+                
+                const logoSize = 40;
+                const logoPadding = 15;
+                
+                const tecaLogoX = textX - textMetrics.width / 2 - logoSize - logoPadding;
+                const ioneLogoX = textX + textMetrics.width / 2 + logoPadding;
+                
+                ctx.fillText(text, textX, textY);
+                ctx.drawImage(tecaLogo, tecaLogoX, textY - logoSize / 2, logoSize, logoSize);
+                ctx.drawImage(ioneLogo, ioneLogoX, textY - logoSize / 2, logoSize, logoSize);
+            };
 
             const drawTopPart = () => {
                  let currentX = PADDING;
@@ -204,13 +255,8 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
 
                  productImages.forEach((img, index) => {
                     const aspectRatio = img.width / img.height;
-                    let drawWidth = IMG_SIZE;
-                    let drawHeight = IMG_SIZE;
-                    if (aspectRatio > 1) { // Landscape
-                        drawHeight = IMG_SIZE / aspectRatio;
-                    } else { // Portrait or square
-                        drawWidth = IMG_SIZE * aspectRatio;
-                    }
+                    let drawWidth = IMG_SIZE; let drawHeight = IMG_SIZE;
+                    if (aspectRatio > 1) { drawHeight = IMG_SIZE / aspectRatio; } else { drawWidth = IMG_SIZE * aspectRatio; }
                     const xOffset = currentX + (IMG_SIZE - drawWidth) / 2;
                     const yOffset = PADDING + (IMG_SIZE - drawHeight) / 2;
                     ctx.drawImage(img, xOffset, yOffset, drawWidth, drawHeight);
@@ -221,45 +267,38 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                  });
             }
 
-            const shareCanvas = () => {
+            const shareCanvas = async () => {
+                await drawWatermark();
                 canvas.toBlob(async (blob) => {
                     if (blob && navigator.share) {
                         const file = new File([blob], 'composicao.png', { type: 'image/png' });
                         await navigator.share({ title: 'Minha Composição de Almofadas', files: [file] });
-                    } else {
-                        throw new Error("Não foi possível criar a imagem para compartilhamento ou o navegador não suporta a função.");
-                    }
+                    } else { throw new Error("Não foi possível criar a imagem para compartilhamento ou o navegador não suporta a função."); }
                 }, 'image/png', 0.95);
             };
 
             if (hasAiImage) {
                 const aiImage = await new Promise<HTMLImageElement>((resolve, reject) => {
-                    const img = new Image();
-                    img.crossOrigin = 'Anonymous';
-                    img.src = generatedImageUrl!;
-                    img.onload = () => resolve(img);
-                    img.onerror = () => reject(new Error("Failed to load AI image"));
+                    const img = new Image(); img.crossOrigin = 'Anonymous'; img.src = generatedImageUrl!;
+                    img.onload = () => resolve(img); img.onerror = () => reject(new Error("Failed to load AI image"));
                 });
                 
                 const aiImageHeight = (totalImageWidth * aiImage.height) / aiImage.width;
                 canvas.width = totalImageWidth + 2 * PADDING;
-                canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING + aiImageHeight + PADDING;
+                canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING + aiImageHeight + PADDING + WATERMARK_HEIGHT;
 
-                ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
+                ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height);
                 drawTopPart();
                 const topSectionHeight = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING; // Y start for AI image
                 ctx.drawImage(aiImage, PADDING, topSectionHeight, totalImageWidth, aiImageHeight);
-                shareCanvas();
+                await shareCanvas();
 
             } else {
                 canvas.width = totalImageWidth + 2 * PADDING;
-                canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING;
-                ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                canvas.height = PADDING + IMG_SIZE + TEXT_HEIGHT + PADDING + WATERMARK_HEIGHT;
+                ctx.fillStyle = isDark ? '#1A1129' : '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height);
                 drawTopPart();
-                shareCanvas();
+                await shareCanvas();
             }
     
         } catch (err: any) {
@@ -283,6 +322,10 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         setGeneratedImageUrl(null);
         setError(null);
     }
+
+    const toggleSize = (size: CushionSize) => {
+        setSelectedSizes(prev => prev.includes(size) ? prev.filter(s => s !== size) : [...prev, size]);
+    };
     
     const titleClasses = isDark ? "text-white" : "text-gray-900";
     const subtitleClasses = isDark ? "text-gray-400" : "text-gray-600";
@@ -309,9 +352,35 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                 <div className="grid grid-cols-5 gap-2">{[2, 3, 4, 5, 6].map(size => (<button key={size} onClick={() => setCompositionSize(size)} className={`py-3 font-bold rounded-lg transition-colors text-center ${compositionSize === size ? 'bg-fuchsia-600 text-white' : (isDark ? 'bg-gray-700' : 'bg-gray-200')}`}>{size}</button>))}</div>
                             </div>
                             
-                            {/* Step 2: Selection */}
+                             {/* Step 1.5: AI Options */}
                             {compositionSize !== null && (
                                 <div className="border-t pt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>1.5 Detalhes para IA (Opcional)</h3>
+                                    <div className="mb-4">
+                                        <p className={`text-sm mb-3 ${subtitleClasses}`}>Selecione os tamanhos para incluir na imagem:</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {Object.values(CushionSize).map(size => {
+                                                const isSelected = selectedSizes.includes(size);
+                                                return <button key={size} onClick={() => toggleSize(size)} className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isSelected ? 'bg-cyan-600 text-white' : (isDark ? 'bg-gray-700' : 'bg-gray-200')}`}>{size}</button>;
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className={`text-sm mb-3 ${subtitleClasses}`}>Cor do sofá no ambiente:</p>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {sofaColors.map(color => {
+                                                const isSelected = sofaColor === color;
+                                                return <button key={color} onClick={() => setSofaColor(color)} className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isSelected ? 'bg-cyan-600 text-white' : (isDark ? 'bg-gray-700' : 'bg-gray-200')}`}>{color}</button>;
+                                            })}
+                                            <input type="text" value={sofaColor} onChange={e => setSofaColor(e.target.value)} placeholder="Cor customizada" className={`text-xs p-1.5 rounded-md w-28 ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-300'}`} />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Step 2: Selection */}
+                            {compositionSize !== null && (
+                                <div className="border-t pt-6 mt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
                                     <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>2. Escolha suas Almofadas</h3>
                                     <p className={`text-sm mb-3 ${subtitleClasses}`}>Selecione até {compositionSize} almofadas que você gosta.</p>
                                     <div className="flex items-center gap-3 p-2 rounded-lg min-h-[88px]" style={{backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.05)'}}>

@@ -1,7 +1,8 @@
 import React, { useState, useContext } from 'react';
-import { ThemeContext } from '../App';
+import { ThemeContext } from '../types';
 import { SavedComposition, View, Product } from '../types';
 import CompositionViewerModal from '../components/CompositionViewerModal';
+import ProductDetailModal from '../components/ProductDetailModal';
 
 interface CompositionsScreenProps {
   savedCompositions: SavedComposition[];
@@ -21,6 +22,7 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const [viewerState, setViewerState] = useState<{ open: boolean; startIndex: number }>({ open: false, startIndex: 0 });
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
 
   const handleDelete = (e: React.MouseEvent, idToDelete: string) => {
     e.stopPropagation();
@@ -29,6 +31,13 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
 
   const openViewer = (index: number) => {
     setViewerState({ open: true, startIndex: index });
+  };
+  
+  const handleViewProduct = (product: Product) => {
+      setViewerState({ open: false, startIndex: 0 });
+      setTimeout(() => {
+          setViewingProduct(product);
+      }, 150);
   };
 
   const titleClasses = isDark ? "text-white" : "text-gray-900";
@@ -97,9 +106,31 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
             onClose={() => setViewerState({ open: false, startIndex: 0 })}
             apiKey={apiKey}
             onRequestApiKey={onRequestApiKey}
-            onViewProduct={onEditProduct}
+            onViewProduct={handleViewProduct}
             onSaveComposition={onSaveComposition}
         />
+      )}
+      {viewingProduct && (
+          <ProductDetailModal
+              product={viewingProduct}
+              products={products}
+              onClose={() => setViewingProduct(null)}
+              canManageStock={false}
+              onEditProduct={(productToEdit) => {
+                  setViewingProduct(null);
+                  onEditProduct(productToEdit);
+              }}
+              onSwitchProduct={setViewingProduct}
+              apiKey={apiKey}
+              onRequestApiKey={onRequestApiKey}
+              savedCompositions={savedCompositions}
+              onViewComposition={(compositions, startIndex) => {
+                  setViewingProduct(null);
+                  setTimeout(() => {
+                      setViewerState({ open: true, startIndex: startIndex });
+                  }, 150)
+              }}
+          />
       )}
     </>
   );

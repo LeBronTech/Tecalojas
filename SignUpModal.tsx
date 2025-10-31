@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { ThemeContext } from '../App';
+import { ThemeContext } from '../types';
 
 interface SignUpModalProps {
     onClose: () => void;

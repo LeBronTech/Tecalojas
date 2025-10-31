@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { ThemeContext } from '../App';
+import { ThemeContext } from '../types';
 
 interface SaveCompositionModalProps {
     isOpen: boolean;

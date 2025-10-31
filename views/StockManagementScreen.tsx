@@ -1,7 +1,6 @@
 import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
 // FIX: Add DynamicBrand to imports to be used in component props.
-import { Product, StoreName, View, Brand, CushionSize, DynamicBrand } from '../types';
-import { ThemeContext } from '../App';
+import { Product, StoreName, View, Brand, CushionSize, DynamicBrand, ThemeContext } from '../types';
 import { BRAND_LOGOS } from '../constants';
 
 // --- StockControl Sub-component ---
@@ -197,7 +196,7 @@ interface StockManagementScreenProps {
   brands: DynamicBrand[];
 }
 
-const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products, onEditProduct, onDeleteProduct, onAddProduct, onUpdateStock, canManageStock, hasFetchError }) => {
+const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products, onEditProduct, onDeleteProduct, onAddProduct, onUpdateStock, onMenuClick, canManageStock, hasFetchError, brands }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const [selectedVariations, setSelectedVariations] = useState<Record<string, CushionSize>>({});

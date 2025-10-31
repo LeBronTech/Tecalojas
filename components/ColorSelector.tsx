@@ -1,5 +1,5 @@
 import React, { useState, useContext, useMemo } from 'react';
-import { ThemeContext } from '../App';
+import { ThemeContext } from '../types';
 
 // --- ColorSelector Component ---
 interface ColorSelectorProps {

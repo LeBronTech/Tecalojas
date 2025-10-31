@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useContext } from 'react';
 import { Product } from '../types';
-import { ThemeContext } from '../App';
+import { ThemeContext } from '../types';
 
 interface ProductSelectModalProps {
     products: Product[];

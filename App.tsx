@@ -1,5 +1,5 @@
 import React, { useState, useCallback, createContext, useContext, useEffect, useMemo } from 'react';
-import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition } from './types';
+import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType } from './types';
 // FIX: Import PREDEFINED_COLORS to be used when creating color variations for products.
 import { INITIAL_PRODUCTS, PREDEFINED_COLORS } from './constants';
 import LoginScreen from './views/LoginScreen';
@@ -10,12 +10,13 @@ import CatalogScreen from './views/CatalogScreen';
 import CompositionGeneratorScreen from './views/CompositionGeneratorScreen';
 import CompositionsScreen from './views/CompositionsScreen';
 import AddEditProductModal from './components/AddEditProductModal';
-import SignUpModal from './components/SignUpModal';
+import SignUpModal from './SignUpModal';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import ApiKeyModal from './components/ApiKeyModal';
 import ConfirmationModal from './components/ConfirmationModal';
-import ProductCreationWizard from './components/ProductCreationWizard'; // Import the new wizard
+// FIX: Changed to a named import for ProductCreationWizard as it does not have a default export.
+import { ProductCreationWizard } from './views/ProductCreationWizard'; // Import the new wizard
 import * as api from './firebase';
 import { firebaseConfig } from './firebaseConfig';
 
@@ -39,16 +40,6 @@ const THEME_STORAGE_KEY = 'pillow-oasis-theme';
 const API_KEY_STORAGE_KEY = 'pillow-oasis-api-key';
 const CUSTOM_COLORS_STORAGE_KEY = 'pillow-oasis-custom-colors';
 const SAVED_COMPOSITIONS_STORAGE_KEY = 'pillow-oasis-saved-compositions';
-
-// --- Theme Context ---
-interface ThemeContextType {
-  theme: Theme;
-  toggleTheme: () => void;
-}
-export const ThemeContext = createContext<ThemeContextType>({
-  theme: 'light',
-  toggleTheme: () => {},
-});
 
 // --- Configuration Required Modal ---
 const ConfigurationRequiredModal = () => {
