@@ -107,7 +107,11 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
                         <div>
                             <div className="flex items-center gap-2">
                                 <h4 className={`font-bold text-lg leading-tight ${textNameClasses}`}>{product.name}</h4>
-                                <span className={`text-2xl font-black text-fuchsia-500`}>{totalStock}</span>
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-2xl font-black ${totalStock <= 1 ? (isDark ? 'text-red-400' : 'text-red-600') : 'text-fuchsia-500'}`}>{totalStock}</span>
+                                    {totalStock <= 1 && <div className="w-3 h-3 bg-red-500 rounded-full blinking-dot"></div>}
+                                    {totalStock === 2 && <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>}
+                                </div>
                             </div>
                             <div className="flex items-center gap-x-3 gap-y-1 mt-1 flex-wrap">
                                 <div className="flex items-center gap-1.5">

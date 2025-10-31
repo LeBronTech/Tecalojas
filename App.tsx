@@ -9,6 +9,7 @@ import SettingsScreen from './views/SettingsScreen';
 import CatalogScreen from './views/CatalogScreen';
 import CompositionGeneratorScreen from './views/CompositionGeneratorScreen';
 import CompositionsScreen from './views/CompositionsScreen';
+import ReplacementScreen from './views/ReplacementScreen';
 import AddEditProductModal from './components/AddEditProductModal';
 import SignUpModal from './SignUpModal';
 import Header from './components/Header';
@@ -165,6 +166,12 @@ const CompositionIcon = () => (
     </svg>
 );
 
+const ReplacementIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+);
+
 
 // --- Side Menu Component ---
 interface SideMenuProps {
@@ -176,9 +183,10 @@ interface SideMenuProps {
   activeView: View;
   onNavigate: (view: View) => void;
   isLoggedIn: boolean;
+  hasItemsToRestock: boolean;
 }
 
-const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginClick, onPixClick, activeView, onNavigate, isLoggedIn }) => {
+const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginClick, onPixClick, activeView, onNavigate, isLoggedIn, hasItemsToRestock }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   const menuBgColor = theme === 'dark' ? 'bg-[#1A1129]' : 'bg-white';
@@ -215,6 +223,18 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginC
             <NavItem label="Vitrine" view={View.SHOWCASE} icon={<HomeIcon />} />
             <NavItem label="Composições" view={View.COMPOSITIONS} icon={<CompositionIcon />} />
             <NavItem label="Estoque" view={View.STOCK} icon={<InventoryIcon />} />
+            <NavItem 
+                label="Reposição" 
+                view={View.REPLACEMENT} 
+                icon={
+                    <div className="relative">
+                        <ReplacementIcon />
+                        {hasItemsToRestock && (
+                           <span className="absolute -top-1 -right-1 block h-3 w-3 rounded-full bg-red-500 ring-2 ring-white dark:ring-[#1A1129] blinking-dot" />
+                        )}
+                    </div>
+                } 
+            />
             <NavItem label="Catálogo" view={View.CATALOG} icon={<CatalogIcon />} />
             <NavItem label="Configurações" view={View.SETTINGS} icon={<SettingsIcon />} />
             
@@ -710,12 +730,19 @@ export default function App() {
     onMenuClick: handleMenuClick,
   }), [handleMenuClick]);
 
+  const hasItemsToRestock = useMemo(() => {
+    return products.some(p => {
+        const totalStock = p.variations.reduce((sum, v) => sum + (v.stock[StoreName.TECA] || 0) + (v.stock[StoreName.IONE] || 0), 0);
+        return totalStock <= 1;
+    });
+  }, [products]);
+
   const renderView = () => {
     if (productsLoading || authLoading) {
       return <div className="flex-grow flex items-center justify-center"><p className={theme === 'dark' ? 'text-white' : 'text-gray-800'}>Carregando...</p></div>
     }
 
-    const isStockViewAttempt = view === View.STOCK || view === View.SETTINGS || view === View.CATALOG;
+    const isStockViewAttempt = view === View.STOCK || view === View.SETTINGS || view === View.CATALOG || view === View.REPLACEMENT;
     const needsLogin = isStockViewAttempt && !currentUser;
 
     if (needsLogin) {
@@ -772,6 +799,14 @@ export default function App() {
                     onUploadCatalog={handleUploadCatalog}
                     canManageStock={!!canManageStock}
                     brands={brands}
+                    {...mainScreenProps}
+                />;
+      case View.REPLACEMENT:
+        return <ReplacementScreen
+                    products={products}
+                    onEditProduct={setEditingProduct}
+                    onDeleteProduct={requestDeleteProduct}
+                    canManageStock={!!canManageStock}
                     {...mainScreenProps}
                 />;
       case View.COMPOSITION_GENERATOR:
@@ -831,9 +866,10 @@ export default function App() {
                     activeView={view}
                     onNavigate={handleNavigate}
                     isLoggedIn={!!isLoggedIn}
+                    hasItemsToRestock={hasItemsToRestock}
                 />
                 <div className="md:hidden">
-                    <BottomNav activeView={view} onNavigate={handleNavigate} />
+                    <BottomNav activeView={view} onNavigate={handleNavigate} hasItemsToRestock={hasItemsToRestock} />
                 </div>
             </div>
 

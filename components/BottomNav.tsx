@@ -13,9 +13,9 @@ const InventoryIcon = () => (
     </svg>
 );
 
-const CompositionIcon = () => (
+const ReplacementIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
 );
 
@@ -23,6 +23,7 @@ const CompositionIcon = () => (
 interface BottomNavProps {
   activeView: View;
   onNavigate: (view: View) => void;
+  hasItemsToRestock: boolean;
 }
 
 const NavButton: React.FC<{
@@ -68,7 +69,7 @@ const NavButton: React.FC<{
 };
 
 
-const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate }) => {
+const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsToRestock }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
 
@@ -81,11 +82,16 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate }) => {
       <NavButton label="Vitrine" view={View.SHOWCASE} isActive={activeView === View.SHOWCASE} onNavigate={onNavigate}>
         <HomeIcon />
       </NavButton>
-       <NavButton label="Composições" view={View.COMPOSITIONS} isActive={activeView === View.COMPOSITIONS} onNavigate={onNavigate}>
-        <CompositionIcon />
-      </NavButton>
-      <NavButton label="Estoque" view={View.STOCK} isActive={activeView === View.STOCK} onNavigate={onNavigate}>
+       <NavButton label="Estoque" view={View.STOCK} isActive={activeView === View.STOCK} onNavigate={onNavigate}>
         <InventoryIcon />
+      </NavButton>
+       <NavButton label="Reposição" view={View.REPLACEMENT} isActive={activeView === View.REPLACEMENT} onNavigate={onNavigate}>
+        <div className="relative">
+            <ReplacementIcon />
+            {hasItemsToRestock && (
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-[#1A1129] blinking-dot"></span>
+            )}
+        </div>
       </NavButton>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useMemo } from 'react';
 import { ThemeContext } from '../types';
 import { SavedComposition, View, Product } from '../types';
 import CompositionViewerModal from '../components/CompositionViewerModal';
@@ -23,6 +23,16 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
   const isDark = theme === 'dark';
   const [viewerState, setViewerState] = useState<{ open: boolean; startIndex: number }>({ open: false, startIndex: 0 });
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredCompositions = useMemo(() => {
+    if (!searchQuery.trim()) {
+        return savedCompositions;
+    }
+    return savedCompositions.filter(comp => 
+        comp.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [savedCompositions, searchQuery]);
 
   const handleDelete = (e: React.MouseEvent, idToDelete: string) => {
     e.stopPropagation();
@@ -30,7 +40,9 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
   };
 
   const openViewer = (index: number) => {
-    setViewerState({ open: true, startIndex: index });
+    // Find the original index in the unfiltered list
+    const originalIndex = savedCompositions.findIndex(c => c.id === filteredCompositions[index].id);
+    setViewerState({ open: true, startIndex: originalIndex });
   };
   
   const handleViewProduct = (product: Product) => {
@@ -43,12 +55,13 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
   const titleClasses = isDark ? "text-white" : "text-gray-900";
   const subtitleClasses = isDark ? "text-gray-400" : "text-gray-600";
   const cardClasses = isDark ? "bg-black/20 border-white/10" : "bg-white border-gray-200 shadow-sm";
+  const inputClasses = isDark ? "bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400" : "bg-white border-gray-300/80 text-gray-900 placeholder:text-gray-500 shadow-sm";
 
   return (
     <>
       <div className="h-full w-full flex flex-col relative overflow-hidden">
         <main className="flex-grow overflow-y-auto px-6 pt-24 pb-36 md:pb-6 no-scrollbar z-10">
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex justify-between items-center mb-4">
             <h1 className={`text-3xl font-bold ${titleClasses}`}>Composições Salvas</h1>
              <button
                 onClick={() => onNavigate(View.COMPOSITION_GENERATOR)}
@@ -58,10 +71,23 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
                 Criar Nova
             </button>
           </div>
+            
+            <div className="relative mb-6">
+                 <input
+                    type="text"
+                    placeholder="Buscar por nome da composição..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${inputClasses}`}
+                />
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </div>
           
           {savedCompositions.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {savedCompositions.map((comp, index) => (
+              {filteredCompositions.map((comp, index) => (
                 <div key={comp.id} className={`rounded-2xl border ${cardClasses} flex flex-col`}>
                   <button onClick={() => openViewer(index)} className="w-full aspect-square rounded-t-2xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-fuchsia-500">
                     {comp.isGenerating ? (
@@ -127,7 +153,9 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
               onViewComposition={(compositions, startIndex) => {
                   setViewingProduct(null);
                   setTimeout(() => {
-                      setViewerState({ open: true, startIndex: startIndex });
+                      // We need to find the correct start index from the main `savedCompositions` list
+                      const originalIndex = savedCompositions.findIndex(c => c.id === compositions[startIndex].id);
+                      setViewerState({ open: true, startIndex: originalIndex > -1 ? originalIndex : 0 });
                   }, 150)
               }}
           />

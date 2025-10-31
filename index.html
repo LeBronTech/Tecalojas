@@ -40,6 +40,14 @@
         transform: translateY(0);
       }
     }
+    @keyframes blink {
+      50% {
+        opacity: 0;
+      }
+    }
+    .blinking-dot {
+      animation: blink 1.2s infinite;
+    }
   </style>
 </head>
   <body>

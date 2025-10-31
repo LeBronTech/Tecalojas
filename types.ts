@@ -88,6 +88,7 @@ export interface SavedComposition {
 export enum View {
   SHOWCASE,
   STOCK,
+  REPLACEMENT,
   SETTINGS,
   CATALOG,
   COMPOSITION_GENERATOR,

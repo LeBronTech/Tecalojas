@@ -6,7 +6,7 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import ProductDetailModal from '../components/ProductDetailModal';
 import ProductSelectModal from '../components/ProductSelectModal';
 import SaveCompositionModal from '../components/SaveCompositionModal';
-import { STORE_IMAGE_URLS } from '../constants';
+import { STORE_IMAGE_URLS, PREDEFINED_COLORS } from '../constants';
 
 interface CompositionGeneratorScreenProps {
     products: Product[];
@@ -25,30 +25,47 @@ const ButtonSpinner = () => (
     </svg>
 );
 
-const getDominantColor = (products: Product[]): string => {
-    if (!products || products.length === 0) return 'Composição';
+const generateCompositionName = (products: Product[]): string => {
+    if (!products || products.length === 0) return 'Nova Composição';
 
-    const colorCounts: { [key: string]: number } = {};
-    const allColors = products.flatMap(p => p.colors.map(c => c.name));
-    
-    if (allColors.length === 0) return 'Composição Mista';
+    const getBaseName = (product: Product): string => {
+        let baseName = product.name.split('(')[0].trim();
+        const lowerBaseName = baseName.toLowerCase();
 
-    for (const color of allColors) {
-        const normalizedColor = color.toLowerCase(); 
-        colorCounts[normalizedColor] = (colorCounts[normalizedColor] || 0) + 1;
-    }
+        // Check if the base name is a known color.
+        const isColor = PREDEFINED_COLORS.some(c => c.name.toLowerCase() === lowerBaseName);
 
-    let dominantColor = '';
-    let maxCount = 0;
-
-    for (const color in colorCounts) {
-        if (colorCounts[color] > maxCount) {
-            maxCount = colorCounts[color];
-            dominantColor = color;
+        if (isColor) {
+            return `${baseName} ${product.fabricType}`;
         }
+        return baseName;
+    };
+
+    const nameCounts = products.reduce((acc, product) => {
+        const descriptiveName = getBaseName(product);
+        acc[descriptiveName] = (acc[descriptiveName] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    const parts = Object.entries(nameCounts).map(([name, count]) => {
+        if (count > 1) {
+             // Basic pluralization
+            if (name.endsWith('s') || name.endsWith('z')) {
+                 return `${count} ${name}`;
+            } else if (name.endsWith('l')) {
+                 return `${count} ${name.slice(0, -1)}is`;
+            } else {
+                 return `${count} ${name}s`;
+            }
+        }
+        return `${count} ${name}`;
+    });
+
+    if (parts.length > 1) {
+        const lastPart = parts.pop();
+        return parts.join(', ') + ' e ' + lastPart;
     }
-    
-    return `Composição ${dominantColor.charAt(0).toUpperCase() + dominantColor.slice(1)}`;
+    return parts[0] || 'Composição';
 };
 
 
@@ -168,7 +185,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             );
             const ai = new GoogleGenAI({ apiKey });
             
-            let promptText = `Arrume estas ${currentComposition.length} almofadas de forma natural e esteticamente agradável em um sofá moderno de cor ${sofaColor}, em uma sala de estar elegante e bem iluminada. A composição deve parecer realista e atraente para um catálogo de produtos.`;
+            let promptText = `Arrume estas almofadas de forma natural e esteticamente agradável em um sofá moderno de cor ${sofaColor}, em uma sala de estar elegante e bem iluminada. É crucial que a imagem final contenha exatamente ${currentComposition.length} almofadas. A composição deve parecer realista e atraente para um catálogo de produtos.`;
             if (selectedSizes.length > 0) {
                 promptText += ` A composição deve incluir os seguintes formatos de almofada: ${selectedSizes.join(', ')}.`;
             }
@@ -254,13 +271,22 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                  ctx.textAlign = 'center';
 
                  productImages.forEach((img, index) => {
-                    const aspectRatio = img.width / img.height;
-                    let drawWidth = IMG_SIZE; let drawHeight = IMG_SIZE;
-                    if (aspectRatio > 1) { drawHeight = IMG_SIZE / aspectRatio; } else { drawWidth = IMG_SIZE * aspectRatio; }
-                    const xOffset = currentX + (IMG_SIZE - drawWidth) / 2;
-                    const yOffset = PADDING + (IMG_SIZE - drawHeight) / 2;
-                    ctx.drawImage(img, xOffset, yOffset, drawWidth, drawHeight);
-
+                    // --- Logic to crop image to a square (cover effect) ---
+                    const ratio = img.width / img.height;
+                    let sx, sy, sWidth, sHeight;
+                    if (ratio > 1) { // Landscape
+                        sHeight = img.height;
+                        sWidth = sHeight;
+                        sx = (img.width - sWidth) / 2;
+                        sy = 0;
+                    } else { // Portrait or square
+                        sWidth = img.width;
+                        sHeight = sWidth;
+                        sy = (img.height - sHeight) / 2;
+                        sx = 0;
+                    }
+                    ctx.drawImage(img, sx, sy, sWidth, sHeight, currentX, PADDING, IMG_SIZE, IMG_SIZE);
+                    
                      const productName = currentComposition[index].name;
                      ctx.fillText(productName, currentX + IMG_SIZE / 2, PADDING + IMG_SIZE + 30, IMG_SIZE - 10);
                      currentX += IMG_SIZE + IMG_SPACING;
@@ -349,13 +375,16 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                             <div className="mb-6">
                                 <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>1. Tamanho da Composição</h3>
                                 <p className={`text-sm mb-3 ${subtitleClasses}`}>Quantas almofadas você quer na sua composição?</p>
-                                <div className="grid grid-cols-5 gap-2">{[2, 3, 4, 5, 6].map(size => (<button key={size} onClick={() => setCompositionSize(size)} className={`py-3 font-bold rounded-lg transition-colors text-center ${compositionSize === size ? 'bg-fuchsia-600 text-white' : (isDark ? 'bg-gray-700' : 'bg-gray-200')}`}>{size}</button>))}</div>
+                                <div className="grid grid-cols-5 gap-2">{[2, 3, 4, 5, 6].map(size => (<button key={size} onClick={() => setCompositionSize(size)} className={`py-3 font-bold rounded-lg transition-colors text-center ${compositionSize === size ? 'bg-fuchsia-600 text-white' : (isDark ? 'bg-gray-700 text-black' : 'bg-gray-200 text-black')}`}>{size}</button>))}</div>
                             </div>
                             
                              {/* Step 1.5: AI Options */}
                             {compositionSize !== null && (
                                 <div className="border-t pt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>1.5 Detalhes para IA (Opcional)</h3>
+                                     <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>
+                                        1.5 Detalhes para IA (Opcional)
+                                        <span className="text-sm font-normal text-purple-400 ml-2">(Você pode adicionar mais de um tamanho)</span>
+                                    </h3>
                                     <div className="mb-4">
                                         <p className={`text-sm mb-3 ${subtitleClasses}`}>Selecione os tamanhos para incluir na imagem:</p>
                                         <div className="flex flex-wrap gap-2">
@@ -367,12 +396,18 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                     </div>
                                     <div>
                                         <p className={`text-sm mb-3 ${subtitleClasses}`}>Cor do sofá no ambiente:</p>
-                                        <div className="flex flex-wrap items-center gap-2">
+                                         <div className="flex flex-wrap items-center gap-2">
                                             {sofaColors.map(color => {
                                                 const isSelected = sofaColor === color;
                                                 return <button key={color} onClick={() => setSofaColor(color)} className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isSelected ? 'bg-cyan-600 text-white' : (isDark ? 'bg-gray-700' : 'bg-gray-200')}`}>{color}</button>;
                                             })}
-                                            <input type="text" value={sofaColor} onChange={e => setSofaColor(e.target.value)} placeholder="Cor customizada" className={`text-xs p-1.5 rounded-md w-28 ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-300'}`} />
+                                             <div className="relative flex items-center">
+                                                <input type="text" value={sofaColor} onChange={e => setSofaColor(e.target.value)} placeholder="Cor customizada" className={`text-xs p-1.5 rounded-md w-28 border-2 ${isDark ? 'bg-black/20 border-purple-500/80 focus:border-purple-400' : 'bg-white border-purple-400 focus:border-purple-600'} focus:ring-0`} />
+                                                <div className="absolute left-full ml-2 flex items-center whitespace-nowrap text-purple-400 text-xs pointer-events-none">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 transform -scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                                                    <span>digite a cor que deseja</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -404,15 +439,15 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     ) : (
                         // RESULT VIEW
                         <div className="flex-grow flex flex-col items-center gap-4">
-                            <div className={`w-full aspect-square rounded-xl border p-4 flex flex-col ${cardClasses}`}>
+                             <div className={`w-full aspect-[4/3] rounded-xl border p-4 flex flex-col ${cardClasses}`}>
                                 <div className="flex-grow flex items-center justify-center">
-                                    <div className="flex flex-wrap justify-center items-start gap-2">
+                                     <div className="flex flex-wrap justify-center items-start gap-4 p-4">
                                         {currentComposition.map((p) => (
-                                            <div key={p.id} className="flex flex-col items-center w-24">
-                                                <button onClick={() => setViewingProduct(p)} className="w-24 h-24 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-500">
+                                            <div key={p.id} className="flex flex-col items-center w-32">
+                                                <button onClick={() => setViewingProduct(p)} className="w-32 h-32 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-500">
                                                     <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover rounded-lg" />
                                                 </button>
-                                                <p className={`text-xs mt-1 text-center ${subtitleClasses} h-8`}>{p.name}</p>
+                                                <p className={`text-xs mt-2 text-center ${subtitleClasses} h-8`}>{p.name}</p>
                                             </div>
                                         ))}
                                     </div>
@@ -449,7 +484,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     isOpen={isSaveModalOpen}
                     onClose={() => setIsSaveModalOpen(false)} 
                     onConfirm={confirmSave} 
-                    predefinedName={getDominantColor(currentComposition)}
+                    predefinedName={generateCompositionName(currentComposition)}
                 />
             )}
             {viewingProduct && (

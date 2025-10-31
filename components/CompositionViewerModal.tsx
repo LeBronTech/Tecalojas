@@ -154,12 +154,21 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
                 ctx.fillStyle = isDark ? '#E9D5FF' : '#4A044E';
                 ctx.textAlign = 'center';
                 productImages.forEach((img, index) => {
-                    const aspectRatio = img.width / img.height;
-                    let drawWidth = IMG_SIZE; let drawHeight = IMG_SIZE;
-                    if (aspectRatio > 1) { drawHeight = IMG_SIZE / aspectRatio; } else { drawWidth = IMG_SIZE * aspectRatio; }
-                    const xOffset = currentX + (IMG_SIZE - drawWidth) / 2;
-                    const yOffset = PADDING + (IMG_SIZE - drawHeight) / 2;
-                    ctx.drawImage(img, xOffset, yOffset, drawWidth, drawHeight);
+                    // --- Logic to crop image to a square (cover effect) ---
+                    const ratio = img.width / img.height;
+                    let sx, sy, sWidth, sHeight;
+                    if (ratio > 1) { // Landscape
+                        sHeight = img.height;
+                        sWidth = sHeight;
+                        sx = (img.width - sWidth) / 2;
+                        sy = 0;
+                    } else { // Portrait or square
+                        sWidth = img.width;
+                        sHeight = sWidth;
+                        sy = (img.height - sHeight) / 2;
+                        sx = 0;
+                    }
+                    ctx.drawImage(img, sx, sy, sWidth, sHeight, currentX, PADDING, IMG_SIZE, IMG_SIZE);
 
                     ctx.fillText(currentComposition.products[index].name, currentX + IMG_SIZE / 2, PADDING + IMG_SIZE + 30, IMG_SIZE - 10);
                     currentX += IMG_SIZE + IMG_SPACING;
