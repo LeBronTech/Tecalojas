@@ -185,7 +185,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             );
             const ai = new GoogleGenAI({ apiKey });
             
-            let promptText = `Arrume estas almofadas de forma natural e esteticamente agradável em um sofá moderno de cor ${sofaColor}, em uma sala de estar elegante e bem iluminada. É crucial que a imagem final contenha exatamente ${currentComposition.length} almofadas. A composição deve parecer realista e atraente para um catálogo de produtos.`;
+            let promptText = `Arrume estas almofadas de forma natural e esteticamente agradável em um sofá moderno de cor ${sofaColor}, em uma sala de estar elegante e bem iluminada. É crucial que a imagem final contenha exatamente ${currentComposition.length} almofadas, dispostas na mesma ordem em que as imagens foram fornecidas (da esquerda para a direita). A composição deve parecer realista e atraente para um catálogo de produtos.`;
             if (selectedSizes.length > 0) {
                 promptText += ` A composição deve incluir os seguintes formatos de almofada: ${selectedSizes.join(', ')}.`;
             }
@@ -390,7 +390,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                         <div className="flex flex-wrap gap-2">
                                             {Object.values(CushionSize).map(size => {
                                                 const isSelected = selectedSizes.includes(size);
-                                                return <button key={size} onClick={() => toggleSize(size)} className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isSelected ? 'bg-cyan-600 text-white' : (isDark ? 'bg-gray-700' : 'bg-gray-200')}`}>{size}</button>;
+                                                return <button key={size} onClick={() => toggleSize(size)} className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isSelected ? 'bg-cyan-600 text-white' : (isDark ? 'bg-gray-700 text-black' : 'bg-gray-200 text-black')}`}>{size}</button>;
                                             })}
                                         </div>
                                     </div>
@@ -399,10 +399,10 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                          <div className="flex flex-wrap items-center gap-2">
                                             {sofaColors.map(color => {
                                                 const isSelected = sofaColor === color;
-                                                return <button key={color} onClick={() => setSofaColor(color)} className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isSelected ? 'bg-cyan-600 text-white' : (isDark ? 'bg-gray-700' : 'bg-gray-200')}`}>{color}</button>;
+                                                return <button key={color} onClick={() => setSofaColor(color)} className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isSelected ? 'bg-cyan-600 text-white' : (isDark ? 'bg-gray-700 text-black' : 'bg-gray-200 text-black')}`}>{color}</button>;
                                             })}
                                              <div className="relative flex items-center">
-                                                <input type="text" value={sofaColor} onChange={e => setSofaColor(e.target.value)} placeholder="Cor customizada" className={`text-xs p-1.5 rounded-md w-28 border-2 ${isDark ? 'bg-black/20 border-purple-500/80 focus:border-purple-400' : 'bg-white border-purple-400 focus:border-purple-600'} focus:ring-0`} />
+                                                <input type="text" value={sofaColor} onChange={e => setSofaColor(e.target.value)} placeholder="Cor customizada" className={`text-xs p-1.5 rounded-md w-28 border-2 ${isDark ? 'bg-black/20 border-purple-500/80 focus:border-purple-400' : 'bg-white border-purple-400 focus:border-purple-600'} focus:ring-0 outline-none border-purple-500`} />
                                                 <div className="absolute left-full ml-2 flex items-center whitespace-nowrap text-purple-400 text-xs pointer-events-none">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 transform -scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                                                     <span>digite a cor que deseja</span>

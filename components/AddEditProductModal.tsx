@@ -729,7 +729,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setSaveError(null);
     try {
         const ai = new GoogleGenAI({ apiKey });
-        const prompt = `Você é um assistente de e-commerce especializado em produtos de decoração. Sua tarefa é padronizar nomes de produtos e extrair informações. Analise o seguinte texto de entrada do usuário: '${formData.name}'. Sua resposta DEVE ser um objeto JSON válido com a seguinte estrutura: {\"formattedName\": \"string\", \"fabricType\": \"string\"}. Para 'formattedName', crie um nome de produto conciso e atraente, como 'Roxa Lisa' ou 'Floral Fundo Bege'. Para 'fabricType', extraia o tipo de tecido (como gorgurinho, suede, jacquard, etc.). Se nenhum tecido for identificado, retorne null para 'fabricType'. Exemplo de entrada: 'capa de almofada roxa lisa gorgurinho'. Saída esperada: {\"formattedName\": \"Roxa Lisa\", \"fabricType\": \"gorgurinho\"}.`;
+        const prompt = `Você é um assistente de e-commerce para uma loja de decoração. Analise o texto de entrada: '${formData.name}'. Sua tarefa é extrair e padronizar as informações em um objeto JSON. A resposta DEVE ser um JSON válido com a estrutura: {"name": "string", "fabricType": "string", "colorName": "string", "category": "string"}. Regras: 1. 'name': Crie um nome de produto conciso, usando gênero feminino e singular (ex: 'Lisa Verde', 'Costela de Adão'). 2. 'fabricType': Extraia o tipo de tecido (ex: 'Gorgurinho', 'Suede'). Se não encontrar, retorne null. 3. 'colorName': Extraia o nome da cor principal (ex: 'Verde', 'Bege'). Se não encontrar, retorne null. 4. 'category': Extraia a categoria e coloque-a no plural (ex: 'Almofadas Lisas', 'Capas Florais'). Se não encontrar, retorne null.`;
         
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
@@ -739,16 +739,28 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
         const resultText = response.text.trim();
         const resultJson = JSON.parse(resultText);
-        const { formattedName, fabricType } = resultJson;
+        const { name, fabricType, colorName, category } = resultJson;
 
         setFormData(prev => {
             let newState = { ...prev };
-            if (formattedName) newState.name = formattedName;
+
+            if (name) {
+                newState.name = name;
+            }
+            if (category) {
+                newState.category = category;
+            }
             if (fabricType) {
                 const matchedFabric = findMatchingFabricType(fabricType, newState.brand);
                 if (matchedFabric) {
                     newState.fabricType = matchedFabric;
-                    newState.description = BRAND_FABRIC_MAP[newState.brand][matchedFabric] || '';
+                    newState.description = BRAND_FABRIC_MAP[newState.brand]?.[matchedFabric] || '';
+                }
+            }
+            if (colorName) {
+                const matchedColor = allColors.find(c => c.name.toLowerCase() === colorName.toLowerCase());
+                if (matchedColor) {
+                    newState.colors = [matchedColor];
                 }
             }
             return newState;
