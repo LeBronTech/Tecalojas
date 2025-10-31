@@ -40,6 +40,7 @@ declare global {
 const THEME_STORAGE_KEY = 'pillow-oasis-theme';
 const API_KEY_STORAGE_KEY = 'pillow-oasis-api-key';
 const CUSTOM_COLORS_STORAGE_KEY = 'pillow-oasis-custom-colors';
+const DELETED_PREDEFINED_COLORS_KEY = 'pillow-oasis-deleted-predefined-colors';
 const SAVED_COMPOSITIONS_STORAGE_KEY = 'pillow-oasis-saved-compositions';
 
 // --- Configuration Required Modal ---
@@ -149,7 +150,7 @@ const InventoryIcon = () => (
 
 const SettingsIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
 );
@@ -314,6 +315,7 @@ export default function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyCq8roeLwkCxFR8_HBlsVOHkM-LQiYNtto");
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [customColors, setCustomColors] = useState<{ name: string; hex: string }[]>([]);
+  const [deletedPredefinedColorNames, setDeletedPredefinedColorNames] = useState<string[]>([]);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
@@ -323,17 +325,26 @@ export default function App() {
   useEffect(() => {
     try {
       const storedColors = localStorage.getItem(CUSTOM_COLORS_STORAGE_KEY);
-      if (storedColors) {
-        setCustomColors(JSON.parse(storedColors));
-      }
+      if (storedColors) setCustomColors(JSON.parse(storedColors));
+
+      const storedDeleted = localStorage.getItem(DELETED_PREDEFINED_COLORS_KEY);
+      if (storedDeleted) setDeletedPredefinedColorNames(JSON.parse(storedDeleted));
+      
       const storedCompositions = localStorage.getItem(SAVED_COMPOSITIONS_STORAGE_KEY);
-      if (storedCompositions) {
-        setSavedCompositions(JSON.parse(storedCompositions));
-      }
+      if (storedCompositions) setSavedCompositions(JSON.parse(storedCompositions));
+
     } catch (error) {
       console.error("Failed to load from localStorage:", error);
     }
   }, []);
+
+  useEffect(() => {
+      try {
+          localStorage.setItem(DELETED_PREDEFINED_COLORS_KEY, JSON.stringify(deletedPredefinedColorNames));
+      } catch (error) {
+          console.error("Failed to save deleted predefined colors to localStorage:", error);
+      }
+  }, [deletedPredefinedColorNames]);
   
   // Effect for saving compositions to localStorage
   useEffect(() => {
@@ -372,6 +383,35 @@ export default function App() {
       return newColors;
     });
   }, []);
+  
+  const deleteCustomColor = useCallback((colorNameToDelete: string) => {
+    setCustomColors(prev => {
+      const newColors = prev.filter(c => c.name.toLowerCase() !== colorNameToDelete.toLowerCase());
+      try {
+        localStorage.setItem(CUSTOM_COLORS_STORAGE_KEY, JSON.stringify(newColors));
+      } catch (error) {
+        console.error("Failed to save custom colors to localStorage:", error);
+      }
+      return newColors;
+    });
+  }, []);
+
+  const deletePredefinedColor = useCallback((colorNameToDelete: string) => {
+    setDeletedPredefinedColorNames(prev => {
+        if (prev.includes(colorNameToDelete)) {
+            return prev;
+        }
+        return [...prev, colorNameToDelete];
+    });
+  }, []);
+
+  const allAppColors = useMemo(() => {
+    const activePredefined = PREDEFINED_COLORS.filter(c => !deletedPredefinedColorNames.includes(c.name));
+    const uniqueCustom = customColors.filter(
+        (cc, index, self) => index === self.findIndex(c => c.name.toLowerCase() === cc.name.toLowerCase())
+    );
+    return [...activePredefined, ...uniqueCustom];
+  }, [customColors, deletedPredefinedColorNames]);
   
   // Check if the Firebase config is valid. If not, the app will be blocked.
   const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_REAL_API_KEY_HERE";
@@ -791,6 +831,10 @@ export default function App() {
                     onAddNewBrand={handleAddNewBrand}
                     canManageStock={!!canManageStock}
                     brands={brands}
+                    customColors={customColors}
+                    onAddCustomColor={addCustomColor}
+                    onDeleteCustomColor={deleteCustomColor}
+                    onDeletePredefinedColor={deletePredefinedColor}
                     {...mainScreenProps}
                 />;
        case View.CATALOG:
@@ -818,6 +862,7 @@ export default function App() {
                     savedCompositions={savedCompositions}
                     onSaveComposition={handleSaveComposition}
                     setSavedCompositions={setSavedCompositions}
+                    availableColors={allAppColors}
                 />;
       case View.COMPOSITIONS:
         return <CompositionsScreen
@@ -877,7 +922,7 @@ export default function App() {
                 <ProductCreationWizard
                     onClose={() => setIsWizardOpen(false)}
                     onConfigure={handleCreateProductsFromWizard}
-                    customColors={customColors}
+                    allColors={allAppColors}
                     onAddCustomColor={addCustomColor}
                     categories={uniqueCategories}
                     products={products}
@@ -897,7 +942,7 @@ export default function App() {
                     categories={uniqueCategories}
                     apiKey={apiKey}
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
-                    customColors={customColors}
+                    allColors={allAppColors}
                     onAddCustomColor={addCustomColor}
                     brands={brands}
                 />

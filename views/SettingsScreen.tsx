@@ -2,7 +2,7 @@ import React, { useState, useContext, useRef, useMemo } from 'react';
 import { ThemeContext } from '../types';
 import { DynamicBrand, Brand } from '../types';
 import ApiKeyModal from '../components/ApiKeyModal';
-import { BRANDS, BRAND_LOGOS } from '../constants';
+import { BRANDS, BRAND_LOGOS, PREDEFINED_COLORS } from '../constants';
 
 interface SettingsScreenProps {
   onSaveApiKey: (key: string) => void;
@@ -10,6 +10,10 @@ interface SettingsScreenProps {
   onMenuClick: () => void;
   canManageStock: boolean;
   brands: DynamicBrand[];
+  customColors: { name: string; hex: string }[];
+  onAddCustomColor: (color: { name: string; hex: string }) => void;
+  onDeleteCustomColor: (colorName: string) => void;
+  onDeletePredefinedColor: (colorName: string) => void;
 }
 
 // --- Helper Components (Moved Outside to prevent re-rendering bugs) ---
@@ -46,17 +50,22 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
 
 // --- Main Component ---
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewBrand, onMenuClick, canManageStock, brands }) => {
+const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewBrand, onMenuClick, canManageStock, brands, customColors, onAddCustomColor, onDeleteCustomColor, onDeletePredefinedColor }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  // Brand state
   const [newBrandName, setNewBrandName] = useState('');
   const [newBrandLogoUrl, setNewBrandLogoUrl] = useState('');
   const [newBrandLogoFile, setNewBrandLogoFile] = useState<File | null>(null);
   const [isSavingBrand, setIsSavingBrand] = useState(false);
   const [brandError, setBrandError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Color state
+  const [newColor, setNewColor] = useState({ name: '', hex: '#ffffff' });
+  const [colorError, setColorError] = useState<string | null>(null);
 
   const allBrandsToDisplay = useMemo(() => {
     const dynamicBrands = brands;
@@ -109,6 +118,31 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
         setIsSavingBrand(false);
     }
   };
+  
+  const allCurrentColors = useMemo(() => [...PREDEFINED_COLORS, ...customColors], [customColors]);
+
+  const handleAddColor = () => {
+    setColorError(null);
+    if (!newColor.name.trim()) {
+        setColorError("O nome da cor é obrigatório.");
+        return;
+    }
+    if (allCurrentColors.some(c => c.name.toLowerCase() === newColor.name.trim().toLowerCase())) {
+        setColorError("Essa cor já existe.");
+        return;
+    }
+    onAddCustomColor({ name: newColor.name.trim(), hex: newColor.hex });
+    setNewColor({ name: '', hex: '#ffffff' });
+  };
+
+  const handleDeleteColor = (color: { name: string; hex: string }) => {
+    const isCustom = customColors.some(c => c.name.toLowerCase() === color.name.toLowerCase());
+    if (isCustom) {
+      onDeleteCustomColor(color.name);
+    } else {
+      onDeletePredefinedColor(color.name);
+    }
+  };
 
   return (
     <>
@@ -127,6 +161,39 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
                 </Card>
                 
                 {canManageStock && (
+                    <>
+                    <Card>
+                        <SectionTitle>Gerenciador de Cores</SectionTitle>
+                        <div className="space-y-3">
+                            <div>
+                                <label className={`text-sm font-semibold mb-1 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Adicionar Nova Cor</label>
+                                <div className="flex items-center gap-3">
+                                    <input type="color" value={newColor.hex} onChange={e => setNewColor(c => ({...c, hex: e.target.value}))} className="w-10 h-10 p-1 rounded bg-transparent border-0 cursor-pointer" />
+                                    <Input type="text" placeholder="Nome da cor" value={newColor.name} onChange={e => setNewColor(c => ({...c, name: e.target.value}))} />
+                                    <button onClick={handleAddColor} className="bg-cyan-600 text-white p-3 rounded-lg hover:bg-cyan-700 transition">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                    </button>
+                                </div>
+                                {colorError && <p className="text-xs text-red-500 mt-1">{colorError}</p>}
+                            </div>
+
+                             <div className="border-t pt-3 mt-3" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+                                <h3 className={`font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Cores Ativas no App</h3>
+                                <div className="flex flex-wrap gap-2">
+                                {[...PREDEFINED_COLORS, ...customColors].sort((a,b) => a.name.localeCompare(b.name)).map(color => (
+                                    <div key={color.name} className={`flex items-center gap-2 p-1 pr-2 rounded-full ${isDark ? 'bg-black/30' : 'bg-gray-100'}`}>
+                                        <div style={{ backgroundColor: color.hex }} className="w-6 h-6 rounded-full border border-black/20"></div>
+                                        <span className={`font-medium text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{color.name}</span>
+                                        <button onClick={() => handleDeleteColor(color)} className={`ml-1 p-1 rounded-full ${isDark ? 'text-gray-400 hover:bg-red-900/50 hover:text-red-400' : 'text-gray-500 hover:bg-red-100 hover:text-red-600'}`}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+                                ))}
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+
                     <Card>
                         <SectionTitle>Gerenciamento de Marcas</SectionTitle>
                         <div className="space-y-4">
@@ -166,6 +233,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
                              </div>
                         </div>
                     </Card>
+                    </>
                 )}
             </div>
         </main>

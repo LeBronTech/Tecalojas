@@ -225,7 +225,7 @@ interface AddEditProductModalProps {
   categories: string[];
   apiKey: string | null;
   onRequestApiKey: () => void;
-  customColors: { name: string; hex: string }[];
+  allColors: { name: string; hex: string }[];
   onAddCustomColor: (color: { name: string; hex: string }) => void;
   brands: DynamicBrand[];
 }
@@ -237,6 +237,7 @@ const initialFormState: Omit<Product, 'id'> = {
   baseImageUrl: '',
   unitsSold: 0,
   category: '',
+  subCategory: '',
   fabricType: defaultFabricType,
   description: defaultFabricInfo[defaultFabricType],
   brand: Brand.MARCA_PROPRIA,
@@ -377,7 +378,7 @@ const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> =
 };
 
 
-const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, apiKey, onRequestApiKey, customColors, onAddCustomColor, brands }) => {
+const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, apiKey, onRequestApiKey, allColors, onAddCustomColor, brands }) => {
   const [formData, setFormData] = useState<Product>(() => ({ ...initialFormState, ...product }));
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -400,14 +401,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const isDark = theme === 'dark';
   const noApiKeyTitle = "Adicionar chave de API da Gemini para usar IA";
 
-  const allColors = useMemo(() => [...PREDEFINED_COLORS, ...customColors].filter(
-    (color, index, self) => index === self.findIndex((c) => c.name.toLowerCase() === color.name.toLowerCase())
-  ), [customColors]);
-  
   const allBrandNames = useMemo(() => {
     const dynamicNames = brands.map(b => b.name);
     const staticNames = Object.values(Brand);
-    return [...new Set([...dynamicNames, ...staticNames])];
+    return [...new Set([...dynamicNames, ...staticNames])].sort((a,b) => String(a).localeCompare(String(b)));
   }, [brands]);
 
   const familyProducts = useMemo(() => {
@@ -436,6 +433,19 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         })
         .flatMap(p => p.colors.map(c => c.name));
   }, [familyProducts, formData.id, currentBaseName]);
+
+  const availableSubCategories = useMemo(() => {
+    if (!formData.category) return [];
+    const subCats = products
+        .filter(p => p.category === formData.category && p.subCategory)
+        .map(p => p.subCategory!);
+    // Also suggest fabric types as potential sub-categories
+    const fabricTypesAsSubCats = products
+        .filter(p => p.category === formData.category && p.fabricType)
+        .map(p => p.fabricType);
+        
+    return [...new Set([...subCats, ...fabricTypesAsSubCats])].sort((a, b) => a.localeCompare(b));
+  }, [formData.category, products]);
 
 
   useEffect(() => {
@@ -863,10 +873,12 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const cardClasses = isDark ? "bg-black/20 border-white/10" : "bg-gray-50 border-gray-200";
   const cancelBtnClasses = isDark ? "text-gray-300 hover:bg-black/20" : "text-gray-600 hover:bg-gray-100";
   
-  const availableFabricTypes = Object.keys(BRAND_FABRIC_MAP[formData.brand] || {});
   const canCreateVariations = formData.name.trim() && formData.category.trim();
   
-  const sortedCategories = useMemo(() => [...categories].sort((a, b) => a.localeCompare(b)), [categories]);
+  // FIX: Safely sort categories by casting to string to avoid 'localeCompare' on 'unknown' type errors.
+  const sortedCategories = useMemo(() => [...categories].sort((a, b) => String(a).localeCompare(String(b))), [categories]);
+
+  const availableFabricTypes = useMemo(() => Object.keys(BRAND_FABRIC_MAP[formData.brand] || {}), [formData.brand]);
 
   return (
       <>
@@ -881,55 +893,99 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                 </div>
 
                 <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar pr-2 -mr-2 space-y-6 pb-24">
-                    {/* Reordered Fields Start */}
+                    <FormInput 
+                        label="Nome do Produto" 
+                        name="name" 
+                        value={formData.name} 
+                        onChange={handleChange}
+                        required
+                    >
+                          <button type="button" onClick={handleAiCorrectName} disabled={isNameAiLoading || !apiKey} title="Corrigir Nome com IA" className={`absolute top-1/2 right-2 -translate-y-1/2 text-xs font-bold py-2 px-3 rounded-md transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                            {isNameAiLoading ? <ButtonSpinner /> : 'Corrigir texto'}
+                        </button>
+                    </FormInput>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormInput 
-                            label="Nome do Produto" 
-                            name="name" 
-                            value={formData.name} 
-                            onChange={handleChange}
-                            required
-                        >
-                             <button type="button" onClick={handleAiCorrectName} disabled={isNameAiLoading || !apiKey} title="Corrigir Nome com IA" className={`absolute top-1/2 right-2 -translate-y-1/2 text-xs font-bold py-2 px-3 rounded-md transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
-                                {isNameAiLoading ? <ButtonSpinner /> : 'Corrigir texto'}
-                            </button>
-                        </FormInput>
-                        <div>
-                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Categoria</label>
+                      <div>
+                          <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
+                          <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(brandName => <option key={brandName} value={brandName}>{brandName}</option>)}</select>
+                      </div>
+                      <div>
+                          <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
+                          <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>
+                            {availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                          </select>
+                      </div>
+                    </div>
+                    
+                    <div>
+                        <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Categoria</label>
+                        {sortedCategories.length > 0 && (
                             <div className="flex flex-wrap gap-2 mb-2">
                                 {sortedCategories.map(cat => (
                                     <button
                                         key={cat}
                                         type="button"
-                                        onClick={() => setFormData(prev => ({...prev, category: cat }))}
-                                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+                                        onClick={() => setFormData(prev => ({...prev, category: cat, subCategory: ''}))}
+                                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                                            formData.category === cat
+                                                ? (isDark ? 'bg-fuchsia-600 text-white' : 'bg-purple-600 text-white')
+                                                : (isDark ? 'bg-black/20 text-gray-300 hover:bg-black/40' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
+                                        }`}
                                     >
                                         {cat}
                                     </button>
                                 ))}
                             </div>
-                            <input list="categories-list" name="category" value={formData.category} onChange={handleChange} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
-                            <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
-                        </div>
+                        )}
+                        <input 
+                            name="category"
+                            value={formData.category}
+                            onChange={handleChange}
+                            required
+                            placeholder="Selecione acima ou digite uma nova categoria"
+                            className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} 
+                        />
                     </div>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         <div>
-                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
-                            <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(brandName => <option key={brandName} value={brandName}>{brandName}</option>)}</select>
-                        </div>
-                        <div>
-                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
-                            <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
-                        </div>
+
+                    <div>
+                        <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Sub-categoria (Opcional)</label>
+                        {availableSubCategories.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {availableSubCategories.map(subCat => (
+                                    <button
+                                        key={subCat}
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({...prev, subCategory: subCat}))}
+                                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                                            formData.subCategory === subCat
+                                                ? (isDark ? 'bg-cyan-600 text-white' : 'bg-teal-500 text-white')
+                                                : (isDark ? 'bg-black/20 text-gray-300 hover:bg-black/40' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
+                                        }`}
+                                    >
+                                        {subCat}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        <input 
+                            name="subCategory"
+                            value={formData.subCategory || ''}
+                            onChange={handleChange}
+                            placeholder="Selecione acima ou digite uma nova sub-categoria"
+                            className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} 
+                        />
                     </div>
-                     <div>
+                   
+                    <div>
                         <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Proteção contra líquidos</label>
                         <div className="space-y-2">
-                             <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.NONE} checked={formData.waterResistance === WaterResistanceLevel.NONE} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>Nenhum</span></label>
+                            <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.NONE} checked={formData.waterResistance === WaterResistanceLevel.NONE} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>Nenhum</span></label>
                             <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.SEMI} checked={formData.waterResistance === WaterResistanceLevel.SEMI} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.SEMI]?.label}</span></label>
                             <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.FULL} checked={formData.waterResistance === WaterResistanceLevel.FULL} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.FULL]?.label}</span></label>
                         </div>
                     </div>
+                    
                     <div className="flex items-start gap-4">
                         <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
                             {formData.baseImageUrl ? (
@@ -989,7 +1045,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         />
                     </div>
                     <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label><textarea name="description" value={formData.description} onChange={handleChange} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}></textarea></div>
-                    {/* Reordered Fields End */}
 
                     {/* Collapsible Size Variations */}
                     <div>

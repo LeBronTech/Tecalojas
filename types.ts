@@ -61,6 +61,7 @@ export interface Product {
   baseImageUrl: string;
   unitsSold: number;
   category: string;
+  subCategory?: string;
   fabricType: string;
   description: string;
   waterResistance: WaterResistanceLevel;
