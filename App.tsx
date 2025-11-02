@@ -20,6 +20,7 @@ import ConfirmationModal from './components/ConfirmationModal';
 import { ProductCreationWizard } from './views/ProductCreationWizard'; // Import the new wizard
 import * as api from './firebase';
 import { firebaseConfig } from './firebaseConfig';
+import { GoogleGenAI } from '@google/genai';
 
 // --- Cordova/TypeScript Declarations ---
 declare global {
@@ -295,6 +296,11 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginC
 };
 
 
+// --- Rate Limiter constants ---
+const AI_CALLS_LIMIT = 15; // Generous limit for free tier (often 15 RPM)
+const AI_CALLS_WINDOW_MS = 60 * 1000; // 60 seconds
+const AI_COOLDOWN_MS = 60 * 1000; // 60 second hard cooldown on 429 error
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -312,14 +318,54 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPixModalOpen, setIsPixModalOpen] = useState(false);
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyCq8roeLwkCxFR8_HBlsVOHkM-LQiYNtto");
+  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyAMH2xOKl2DRmWG4T9A7upmPGx6DeY2yRI");
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [customColors, setCustomColors] = useState<{ name: string; hex: string }[]>([]);
   const [deletedPredefinedColorNames, setDeletedPredefinedColorNames] = useState<string[]>([]);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
+  
+  // --- AI Rate Limiting State ---
+  const [aiCallTimestamps, setAiCallTimestamps] = useState<number[]>([]);
+  const [aiCooldownUntil, setAiCooldownUntil] = useState<number | null>(null);
 
+  // Effect to manage cooldown timer display
+  useEffect(() => {
+    if (!aiCooldownUntil) return;
+    const now = Date.now();
+    if (now >= aiCooldownUntil) {
+        setAiCooldownUntil(null);
+        return;
+    }
+    const timer = setTimeout(() => {
+        setAiCooldownUntil(prev => (prev ? (Date.now() >= prev ? null : prev) : null));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [aiCooldownUntil]);
+
+  // --- AI Rate Limiting Logic ---
+  const triggerAiCooldown = useCallback(() => {
+    const cooldownEndTime = Date.now() + AI_COOLDOWN_MS;
+    setAiCooldownUntil(cooldownEndTime);
+    console.warn(`AI Cooldown triggered. UI locked until ${new Date(cooldownEndTime).toLocaleTimeString()}`);
+  }, []);
+
+  const checkAndRegisterAiCall = useCallback(() => {
+    const now = Date.now();
+    if (aiCooldownUntil && now < aiCooldownUntil) {
+        const timeLeft = Math.ceil((aiCooldownUntil - now) / 1000);
+        return { allowed: false, message: `Limite de API excedido. Aguarde ${timeLeft} segundos.` };
+    }
+    const recentTimestamps = aiCallTimestamps.filter(ts => now - ts < AI_CALLS_WINDOW_MS);
+    if (recentTimestamps.length >= AI_CALLS_LIMIT) {
+        triggerAiCooldown();
+        const timeLeft = Math.ceil(AI_COOLDOWN_MS / 1000);
+        return { allowed: false, message: `Muitas requisições. Aguarde ${timeLeft} segundos.` };
+    }
+    setAiCallTimestamps([...recentTimestamps, now]);
+    return { allowed: true, message: '' };
+  }, [aiCallTimestamps, aiCooldownUntil, triggerAiCooldown]);
 
   // Effect for loading custom colors from localStorage on initial load
   useEffect(() => {
@@ -528,11 +574,44 @@ export default function App() {
     setView(View.SHOWCASE); // Go back to showcase on logout
   }, []);
 
-  const handleSaveApiKey = useCallback((key: string) => {
-    setApiKey(key);
-    localStorage.setItem(API_KEY_STORAGE_KEY, key);
-    setIsApiKeyModalOpen(false);
-  }, []);
+  const handleSaveApiKey = useCallback(async (key: string) => {
+    if (!key.trim()) {
+        throw new Error("A chave de API não pode ser vazia.");
+    }
+
+    const check = checkAndRegisterAiCall();
+    if (!check.allowed) {
+        throw new Error(check.message);
+    }
+    
+    try {
+        // Attempt a simple API call to validate the key
+        const ai = new GoogleGenAI({ apiKey: key });
+        // Using a very simple, low-cost model and prompt for validation
+        await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: 'olá',
+        });
+        
+        // If the call succeeds, save the key
+        setApiKey(key);
+        localStorage.setItem(API_KEY_STORAGE_KEY, key);
+
+    } catch (error: any) {
+        console.error("API Key validation failed:", error);
+        const errorMessage = error.toString();
+        
+        if (errorMessage.includes('429')) {
+             triggerAiCooldown(); // Trigger hard cooldown
+             throw new Error('Cota da API excedida. Aguarde 60 segundos e tente novamente.');
+        } else if (errorMessage.includes('API key not valid')) {
+            throw new Error('A chave de API fornecida não é válida. Verifique se copiou corretamente.');
+        } else if (errorMessage.includes('400')) {
+             throw new Error('A chave de API parece estar mal formatada. Verifique se copiou corretamente.');
+        }
+        throw new Error('Não foi possível validar a chave. Verifique a chave e sua conexão.');
+    }
+  }, [checkAndRegisterAiCall, triggerAiCooldown]);
 
     const handleSaveProduct = useCallback(async (productToSave: Product, options?: { closeModal?: boolean }): Promise<Product> => {
         try {
@@ -809,6 +888,9 @@ export default function App() {
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
                     onNavigate={handleNavigate}
                     savedCompositions={savedCompositions}
+                    aiCooldownUntil={aiCooldownUntil}
+                    checkAndRegisterAiCall={checkAndRegisterAiCall}
+                    triggerAiCooldown={triggerAiCooldown}
                     {...mainScreenProps} 
                 />;
       case View.STOCK:
@@ -863,6 +945,9 @@ export default function App() {
                     onSaveComposition={handleSaveComposition}
                     setSavedCompositions={setSavedCompositions}
                     availableColors={allAppColors}
+                    aiCooldownUntil={aiCooldownUntil}
+                    checkAndRegisterAiCall={checkAndRegisterAiCall}
+                    triggerAiCooldown={triggerAiCooldown}
                 />;
       case View.COMPOSITIONS:
         return <CompositionsScreen
@@ -874,6 +959,9 @@ export default function App() {
                     products={products}
                     onEditProduct={setEditingProduct}
                     onSaveComposition={handleSaveComposition}
+                    aiCooldownUntil={aiCooldownUntil}
+                    checkAndRegisterAiCall={checkAndRegisterAiCall}
+                    triggerAiCooldown={triggerAiCooldown}
                 />
       default:
         return <ShowcaseScreen 
@@ -886,6 +974,9 @@ export default function App() {
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
                     onNavigate={handleNavigate}
                     savedCompositions={savedCompositions}
+                    aiCooldownUntil={aiCooldownUntil}
+                    checkAndRegisterAiCall={checkAndRegisterAiCall}
+                    triggerAiCooldown={triggerAiCooldown}
                     {...mainScreenProps} 
                 />;
     }
@@ -945,6 +1036,9 @@ export default function App() {
                     allColors={allAppColors}
                     onAddCustomColor={addCustomColor}
                     brands={brands}
+                    aiCooldownUntil={aiCooldownUntil}
+                    checkAndRegisterAiCall={checkAndRegisterAiCall}
+                    triggerAiCooldown={triggerAiCooldown}
                 />
             )}
             {isSignUpModalOpen && (

@@ -104,7 +104,13 @@ export interface User {
   role?: 'admin' | 'user';
 }
 
-export interface CompositionViewerModalProps {
+export interface AiRateLimitProps {
+    aiCooldownUntil: number | null;
+    checkAndRegisterAiCall: () => { allowed: boolean; message: string };
+    triggerAiCooldown: () => void;
+}
+
+export interface CompositionViewerModalProps extends AiRateLimitProps {
     compositions: SavedComposition[];
     startIndex: number;
     onClose: () => void;

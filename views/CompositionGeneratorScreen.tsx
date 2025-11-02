@@ -1,5 +1,5 @@
 import React, { useState, useContext, useMemo, useEffect, useRef } from 'react';
-import { Product, View, SavedComposition, CushionSize } from '../types';
+import { Product, View, SavedComposition, CushionSize, AiRateLimitProps } from '../types';
 // FIX: ThemeContext is exported from 'types.ts', not 'App.tsx'.
 import { ThemeContext } from '../types';
 import { GoogleGenAI, Modality } from '@google/genai';
@@ -9,7 +9,7 @@ import SaveCompositionModal from '../components/SaveCompositionModal';
 import { STORE_IMAGE_URLS, PREDEFINED_COLORS } from '../constants';
 import ColorSelector from '../components/ColorSelector';
 
-interface CompositionGeneratorScreenProps {
+interface CompositionGeneratorScreenProps extends AiRateLimitProps {
     products: Product[];
     onNavigate: (view: View) => void;
     apiKey: string | null;
@@ -112,7 +112,7 @@ const loadLogos = (): Promise<[HTMLImageElement, HTMLImageElement]> => {
 };
 
 
-const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({ products, onNavigate, apiKey, onRequestApiKey, onSaveComposition, availableColors }) => {
+const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({ products, onNavigate, apiKey, onRequestApiKey, onSaveComposition, availableColors, aiCooldownUntil, checkAndRegisterAiCall, triggerAiCooldown }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
@@ -137,7 +137,26 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     // Color Filter State
     const [useColorFilter, setUseColorFilter] = useState(false);
     const [filterColors, setFilterColors] = useState<{name: string, hex: string}[]>([]);
+    
+    const cooldownActive = aiCooldownUntil && Date.now() < aiCooldownUntil;
+    const cooldownTimeLeft = cooldownActive ? Math.ceil((aiCooldownUntil! - Date.now()) / 1000) : 0;
 
+    const handleAiError = (error: any) => {
+        console.error("AI Error:", error);
+        const errorMessage = error.toString();
+        let displayError = "Ocorreu um erro ao se comunicar com a IA. Por favor, tente novamente.";
+        if (errorMessage.includes('429')) {
+            displayError = "Você excedeu sua cota de uso da API Gemini. Aguarde 60 segundos.";
+            triggerAiCooldown();
+        } else if (errorMessage.includes('API key not valid')) {
+            displayError = "Sua chave de API da Gemini não é válida. Verifique e insira novamente.";
+        } else if (error.message && (error.message.includes('SAFETY') || error.message.includes('blockReason'))) {
+            displayError = `Geração bloqueada por segurança: ${error.message}.`;
+        } else if (error.message) {
+            displayError = error.message;
+        }
+        setError(displayError);
+    };
 
     useEffect(() => {
         setSelectedProducts([]);
@@ -209,6 +228,12 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             return;
         }
 
+        const check = checkAndRegisterAiCall();
+        if (!check.allowed) {
+            setError(check.message);
+            return;
+        }
+
         setIsGenerating(true);
         setError(null);
 
@@ -242,8 +267,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                 throw new Error("A IA não retornou uma imagem.");
             }
         } catch (e: any) {
-            console.error("Failed to generate composition image:", e);
-            window.alert("Aconteceu um erro! Mas não se preocupe, tente novamente agora");
+            handleAiError(e);
         } finally {
             setIsGenerating(false);
         }
@@ -567,7 +591,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                 <div className="flex-grow w-full h-full flex items-center justify-center">
                                     {isGenerating ? <ButtonSpinner /> : generatedImageUrl ? <img src={generatedImageUrl} alt="Composição Gerada por IA" className="max-w-full max-h-full object-contain rounded-lg" /> : <p className={subtitleClasses}>Gere uma imagem com IA.</p>}
                                 </div>
-                                 <button onClick={handleGenerateEnvironment} disabled={isGenerating} className="mt-4 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-500">{isGenerating ? <ButtonSpinner /> : 'Gerar Ambiente (IA)'}</button>
+                                 <button onClick={handleGenerateEnvironment} disabled={isGenerating || cooldownActive} className="mt-4 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-500">{isGenerating ? <ButtonSpinner /> : (cooldownActive ? `Aguarde ${cooldownTimeLeft}s` : 'Gerar Ambiente (IA)')}</button>
                             </div>
                              {error && <p className="text-center text-red-500 mt-2">{error}</p>}
                             <button onClick={resetAll} className="w-full max-w-sm mt-4 bg-fuchsia-600 text-white font-bold py-3 rounded-lg">Criar Nova Composição</button>
@@ -604,6 +628,9 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     onRequestApiKey={onRequestApiKey}
                     savedCompositions={[]}
                     onViewComposition={() => {}}
+                    aiCooldownUntil={aiCooldownUntil}
+                    checkAndRegisterAiCall={checkAndRegisterAiCall}
+                    triggerAiCooldown={triggerAiCooldown}
                 />
             )}
         </>

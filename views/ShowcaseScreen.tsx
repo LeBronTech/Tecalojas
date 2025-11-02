@@ -2,7 +2,8 @@ import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { Product, View, DynamicBrand, SavedComposition, ThemeContext } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO } from '../constants';
-import CompositionViewerModal from '../components/CompositionViewerModal';
+// FIX: Changed to a named import as CompositionViewerModal does not have a default export.
+import { CompositionViewerModal } from '../components/CompositionViewerModal';
 
 type ProductGroup = Product[];
 
