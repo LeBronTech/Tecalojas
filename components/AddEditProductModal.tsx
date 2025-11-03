@@ -867,4 +867,97 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   return (
       <>
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 transition-opacity duration-300" onClick={onClose}>
-            <form onSubmit={handleSubmit} className={`border rounded-3xl shadow-2xl w-full max-w-lg p-6 relative transform transition-all duration-
+            <form onSubmit={handleSubmit} className={`border rounded-3xl shadow-2xl w-full max-w-lg p-6 relative transform transition-all duration-300 scale-95 opacity-0 animate-fade-in-scale flex flex-col ${modalBgClasses}`} 
+                onClick={e => e.stopPropagation()}
+                style={{ maxHeight: '90vh' }}
+            >
+                <style>{`
+                    @keyframes fade-in-scale { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+                    .animate-fade-in-scale { animation: fade-in-scale 0.3s forwards; }
+                `}</style>
+                <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                    <h2 className={`text-2xl font-bold ${titleClasses}`}>{product.id ? "Editar Produto" : "Adicionar Produto"}</h2>
+                    <button type="button" onClick={onClose} className={`rounded-full p-2 transition-colors z-10 ${closeBtnClasses}`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+
+                <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar pr-4 -mr-4">
+                    <div className="space-y-6">
+
+                        {/* Image Section */}
+                        <div className="flex items-start gap-4">
+                            <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
+                                {formData.baseImageUrl ? (
+                                    <img src={formData.baseImageUrl} alt="Preview do Produto" className="w-full h-full object-cover transition-transform duration-300" style={{ transform: `rotate(${imageRotation}deg)` }} />
+                                ) : (
+                                    <div className="text-center text-xs text-gray-500">Sem Imagem</div>
+                                )}
+                                <button type="button" onClick={handleRotateImage} title="Girar Imagem" className="absolute bottom-1 right-1 w-8 h-8 rounded-full z-10 bg-black/30 backdrop-blur-sm hover:bg-black/50 flex items-center justify-center transition-colors">
+                                     <img src="https://i.postimg.cc/C1qXzX3z/20251019-214841-0000.png" alt="Girar" className="w-6 h-6" />
+                                </button>
+                            </div>
+                            <div className="flex-grow space-y-2">
+                                <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Imagem Principal</label>
+                                <button type="button" onClick={handleOpenImagePicker} className={`w-full text-center font-bold py-2.5 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
+                                    Alterar Imagem
+                                </button>
+                                <button type="button" onClick={generateShowcaseImage} disabled={!apiKey || isGeneratingShowcase} title={!apiKey ? noApiKeyTitle : "Gerar imagem de vitrine com IA"} className={`w-full text-center font-bold py-2.5 px-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>
+                                    {isGeneratingShowcase ? <ButtonSpinner /> : 'Vitrine (IA)'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Main Details Section */}
+                        <div className="space-y-4">
+                           <FormInput label="Nome do Produto" name="name" value={formData.name} onChange={handleChange} required>
+                                <button type="button" onClick={handleAiCorrectName} disabled={!apiKey || isNameAiLoading} title={!apiKey ? noApiKeyTitle : "Corrigir/Padronizar com IA"} className="absolute top-1/2 right-2 -translate-y-1/2 bg-fuchsia-600 text-white font-bold py-2 px-3 text-sm rounded-md hover:bg-fuchsia-700 transition-colors disabled:opacity-50">
+                                     {isNameAiLoading ? <ButtonSpinner /> : 'Corrigir (IA)'}
+                                </button>
+                           </FormInput>
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Categoria</label>
+                                    <div className="relative">
+                                    <input list="categories-list" value={formData.category} onChange={(e) => setFormData(prev => ({...prev, category: e.target.value}))} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition pr-10 ${inputClasses}`} />
+                                    <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
+                                    <button type="button" onClick={() => setIsCategoryVisible(!isCategoryVisible)} className="absolute top-1/2 right-3 -translate-y-1/2 text-gray-400">
+                                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${isCategoryVisible ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                    </button>
+                                    </div>
+                                    {isCategoryVisible && <div className="p-2 mt-1 rounded-md max-h-32 overflow-y-auto bg-black/10">{categories.map(c => <div key={c} onClick={() => { setFormData(p => ({...p, category: c})); setIsCategoryVisible(false);}} className="p-1.5 rounded hover:bg-fuchsia-500/20 cursor-pointer">{c}</div>)}</div>}
+                                </div>
+                                <div>
+                                    <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
+                                    <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(b => <option key={b} value={b}>{b}</option>)}</select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Variations Section */}
+                        <div>
+                          {/* ... more JSX ... */}
+                        </div>
+                    </div>
+                </div>
+
+                 <div className="flex justify-between items-center pt-4 mt-auto border-t flex-shrink-0" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+                    <button type="button" onClick={() => onRequestDelete(formData.id)} className="text-red-500 font-bold py-3 px-6 rounded-lg hover:bg-red-500/10 transition">Excluir</button>
+                    <div className="flex gap-4">
+                        <button type="button" onClick={onClose} className={`font-bold py-3 px-6 rounded-lg transition ${cancelBtnClasses}`}>Cancelar</button>
+                        <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-fuchsia-700 disabled:bg-gray-400 flex items-center gap-2">
+                          {isSaving && <ButtonSpinner />}
+                          {isSaving ? 'Salvando...' : 'Salvar'}
+                        </button>
+                    </div>
+                </div>
+                {saveError && <p className="text-sm text-center text-red-500 font-semibold mt-2">{saveError}</p>}
+            </form>
+        </div>
+        {isImagePickerOpen && <ImagePickerModal onSelect={handleImageSelect} onClose={() => setIsImagePickerOpen(false)} onTakePhoto={handleTakePhoto} />}
+        {isCameraOpen && <CameraView onCapture={handleImageSelect} onClose={() => setIsCameraOpen(false)} />}
+      </>
+  );
+};
+
+export default AddEditProductModal;
