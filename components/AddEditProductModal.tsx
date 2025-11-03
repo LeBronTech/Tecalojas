@@ -238,6 +238,7 @@ const initialFormState: Omit<Product, 'id'> = {
   baseImageUrl: '',
   unitsSold: 0,
   category: '',
+  subCategory: '',
   fabricType: defaultFabricType,
   description: defaultFabricInfo[defaultFabricType],
   brand: Brand.MARCA_PROPRIA,
@@ -316,11 +317,10 @@ const resizeImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promis
 };
 
 
-const pluralizeCategory = (category: string): string => {
-    const trimmed = category.trim();
+const pluralize = (word: string): string => {
+    const trimmed = word.trim();
     if (!trimmed) return '';
     
-    // Capitalize first letter
     let capitalized = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
     
     const lower = capitalized.toLowerCase();
@@ -396,6 +396,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isVariationsVisible, setIsVariationsVisible] = useState(true);
   const [isBackgroundsVisible, setIsBackgroundsVisible] = useState(true);
+  const [isCategorySectionVisible, setIsCategorySectionVisible] = useState(true);
 
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -408,13 +409,30 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   }, [brands]);
 
   const familyProducts = useMemo(() => {
-    if (!formData.category || !formData.fabricType || !formData.brand) return [];
+    if (!formData.brand || !formData.category) return [];
+    
     return products.filter(p => 
+        p.brand === formData.brand &&
         p.category === formData.category &&
-        p.fabricType === formData.fabricType &&
-        p.brand === formData.brand
+        (p.subCategory || '') === (formData.subCategory || '')
     );
-  }, [products, formData.category, formData.fabricType, formData.brand]);
+  }, [products, formData.brand, formData.category, formData.subCategory]);
+
+  const subCategorySuggestions = useMemo(() => {
+    const fromSubCategories = products.map(p => p.subCategory).filter((sc): sc is string => !!sc);
+    const fromFabricTypes = products.map(p => {
+        const parts = p.fabricType.split(' ');
+        if (parts.length > 1) {
+            const lastPart = parts[parts.length - 1];
+            if (!lastPart.includes('®') && lastPart.length > 2) {
+                return lastPart.charAt(0).toUpperCase() + lastPart.slice(1);
+            }
+        }
+        return null;
+    }).filter((ft): ft is string => !!ft);
+    return [...new Set([...fromSubCategories, ...fromFabricTypes])];
+  }, [products]);
+
 
   const currentBaseName = useMemo(() => {
     if (!formData.name || !formData.colors || formData.colors.length === 0) return formData.name.trim();
@@ -777,7 +795,11 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     try {
         const productToSave = { ...formData };
 
-        productToSave.category = pluralizeCategory(productToSave.category);
+        productToSave.category = pluralize(productToSave.category);
+        if(productToSave.subCategory) {
+            productToSave.subCategory = pluralize(productToSave.subCategory);
+        }
+
         if (!productToSave.isMultiColor) {
             productToSave.name = standardizeProductName(productToSave.name, productToSave.colors, allColors);
         }
@@ -876,6 +898,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                 </div>
 
                 <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar pr-2 -mr-2 space-y-6 pb-24">
+                    {/* Main Image Section */}
                     <div className="flex items-start gap-4">
                         <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
                             {formData.baseImageUrl ? (
@@ -908,7 +931,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             </button>
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                    <div className="w-full">
                         <FormInput 
                             label="Nome do Produto" 
                             name="name" 
@@ -920,24 +944,55 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                 {isNameAiLoading ? <ButtonSpinner /> : 'Corrigir texto'}
                             </button>
                         </FormInput>
-                        <div>
-                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Categoria</label>
-                             <div className="flex flex-wrap gap-2 mb-2">
-                                {categories.map(cat => (
-                                    <button
-                                        type="button"
-                                        key={cat}
-                                        onClick={() => setFormData(prev => ({ ...prev, category: cat }))}
-                                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${formData.category === cat ? (isDark ? 'bg-fuchsia-600 text-white' : 'bg-purple-600 text-white') : (isDark ? 'bg-black/30 text-gray-300' : 'bg-gray-200 text-gray-700')}`}
-                                    >
-                                        {cat}
-                                    </button>
-                                ))}
+                    </div>
+
+                    {/* Collapsible Category Section */}
+                    <div>
+                        <div className="flex justify-between items-center mb-2 cursor-pointer" onClick={() => setIsCategorySectionVisible(!isCategorySectionVisible)}>
+                            <h3 className={`text-lg font-bold ${titleClasses}`}>Categoria & Sub-categoria</h3>
+                             <button type="button" className="p-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isCategorySectionVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                        </div>
+                        <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isCategorySectionVisible ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                <div>
+                                    <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Categoria</label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {categories.map(cat => (
+                                            <button
+                                                type="button"
+                                                key={cat}
+                                                onClick={() => setFormData(prev => ({ ...prev, category: cat }))}
+                                                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${formData.category === cat ? (isDark ? 'bg-fuchsia-600 text-white' : 'bg-purple-600 text-white') : (isDark ? 'bg-black/30 text-gray-300' : 'bg-gray-200 text-gray-700')}`}
+                                            >
+                                                {cat}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <input list="categories-list" name="category" value={formData.category} onChange={handleChange} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
+                                    <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
+                                </div>
+                                <div>
+                                    <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Sub-categoria (Opcional)</label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {subCategorySuggestions.map(subCat => (
+                                            <button
+                                                type="button"
+                                                key={subCat}
+                                                onClick={() => setFormData(prev => ({ ...prev, subCategory: subCat }))}
+                                                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${formData.subCategory === subCat ? (isDark ? 'bg-cyan-600 text-white' : 'bg-teal-600 text-white') : (isDark ? 'bg-black/30 text-gray-300' : 'bg-gray-200 text-gray-700')}`}
+                                            >
+                                                {subCat}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <input type="text" name="subCategory" value={formData.subCategory} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
+                                </div>
                             </div>
-                            <input list="categories-list" name="category" value={formData.category} onChange={handleChange} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
-                            <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
                         </div>
                     </div>
+
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div>
                             <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
@@ -956,6 +1011,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.FULL} checked={formData.waterResistance === WaterResistanceLevel.FULL} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.FULL]?.label}</span></label>
                         </div>
                     </div>
+                    <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label><textarea name="description" value={formData.description} onChange={handleChange} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}></textarea></div>
+                    
                     <div>
                         <h3 className={`text-lg font-bold mb-2 ${titleClasses}`}>Cor do Produto</h3>
                          <div className="flex items-center mb-3">
@@ -983,7 +1040,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             onDeleteColor={onDeleteColor}
                         />
                     </div>
-                    <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label><textarea name="description" value={formData.description} onChange={handleChange} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}></textarea></div>
                     
                     {/* Collapsible Size Variations */}
                     <div>

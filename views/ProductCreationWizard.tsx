@@ -46,8 +46,8 @@ const resizeImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promis
     });
 };
 
-const pluralizeCategory = (category: string): string => {
-    const trimmed = category.trim();
+const pluralize = (word: string): string => {
+    const trimmed = word.trim();
     if (!trimmed) return '';
     
     let capitalized = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
@@ -402,8 +402,8 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
                 return {
                     name: newName,
                     baseImageUrl,
-                    category: pluralizeCategory(category),
-                    subCategory: pluralizeCategory(subCategory),
+                    category: pluralize(category),
+                    subCategory: pluralize(subCategory),
                     brand,
                     fabricType,
                     description: BRAND_FABRIC_MAP[brand]?.[fabricType] || '',
