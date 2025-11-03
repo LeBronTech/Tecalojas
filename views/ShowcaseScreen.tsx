@@ -9,7 +9,7 @@ type ProductGroup = Product[];
 const FireIcon = ({ className }: { className: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
         <path fillRule="evenodd" d="M11.828 6.065c.348-.348.348-.913 0-1.261a.89.89 0 0 0-1.261 0c-1.121 1.121-1.859 2.62-1.859 4.289 0 .548.152 1.07.42 1.536l-.805 1.209a.89.89 0 0 0 1.503 1.002l.805-1.209c.466.268.988.42 1.536.42 1.668 0 3.167-.738 4.288-1.86a.89.89 0 0 0 0-1.26c-.347-.348-.912-.348-1.26 0l-1.06 1.06c-.495-.713-.88-1.52-1.077-2.389.336-.264.63-.578.875-.923l1.06 1.061Z" clipRule="evenodd" />
-        <path d="M4.172 13.935c-.348.348-.348.913 0 1.261a.89.89 0 0 0 1.261 0c1.121-1.121 1.859-2.62-1.859-4.289 0-.548-.152-1.07-.42-1.536l.805-1.209a.89.89 0 0 0-1.503-1.002l-.805 1.209c-.466-.268-.988-.42-1.536-.42-1.668 0-3.167.738-4.288 1.86a.89.89 0 0 0 0 1.26c.347.348.912.348 1.26 0l1.06-1.06c.495.713.88 1.52 1.077 2.389-.336-.264-.63.578-.875-.923l-1.06 1.061Z" />
+        <path d="M4.172 13.935c-.348.348-.348.913 0 1.261a.89.89 0 0 0 1.261 0c1.121-1.121 1.859-2.62-1.859-4.289 0-.548-.152-1.07-.42-1.536l.805-1.209a.89.89 0 0 0-1.503-1.002l-.805 1.209c-.466-.268-.988-.42-1.536-.42-1.668 0-3.167.738-4.288 1.86a.89.89 0 0 0 0 1.26c.347.348.912.348 1.26 0l1.06-1.06c.495.713.88 1.52 1.077 2.389-.336-.264-.63-.578-.875-.923l-1.06 1.061Z" />
     </svg>
 );
 
@@ -183,14 +183,18 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
   const [compositionToView, setCompositionToView] = useState<{ compositions: SavedComposition[], startIndex: number } | null>(null);
 
 
-  const categories = ['Todas', ...Array.from(new Set(products.map(p => p.category)))];
+  const categories = useMemo(() => {
+    const allCategoryValues = products.flatMap(p => [p.category, p.subCategory]).filter((c): c is string => !!c && c.trim() !== '');
+    const uniqueCategories = [...new Set(allCategoryValues)];
+    return ['Todas', ...uniqueCategories.sort((a, b) => a.localeCompare(b))];
+  }, [products]);
 
   const availableFabrics = useMemo(() => {
     if (selectedCategory === 'Todas') {
       return [];
     }
     const fabricsInCategory = products
-      .filter(p => p.category === selectedCategory)
+      .filter(p => p.category === selectedCategory || p.subCategory === selectedCategory)
       .map(p => p.fabricType);
     return ['Todos os Tecidos', ...Array.from(new Set(fabricsInCategory))];
   }, [selectedCategory, products]);
@@ -224,7 +228,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
       filtered = groupedProducts;
     } else {
       // When a category is selected, we show individual products, not groups.
-      let categoryProducts: Product[] = products.filter(p => p.category === selectedCategory);
+      let categoryProducts: Product[] = products.filter(p => p.category === selectedCategory || p.subCategory === selectedCategory);
       if (selectedFabric !== 'Todos os Tecidos') {
           categoryProducts = categoryProducts.filter(p => p.fabricType === selectedFabric);
       }
@@ -240,7 +244,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
         if (sortOrder === 'alpha') {
             const nameA = Array.isArray(a) ? itemA.category : itemA.name;
             const nameB = Array.isArray(b) ? itemB.category : itemB.name;
-            return nameA.localeCompare(nameB);
+            // FIX: Explicitly cast to string to prevent `unknown` type error.
+            return String(nameA).localeCompare(String(nameB));
         } else { // 'recent'
             const timeA = parseInt(itemA.id.split('-')[0], 10) || 0;
             const timeB = parseInt(itemB.id.split('-')[0], 10) || 0;
