@@ -10,6 +10,9 @@ interface SettingsScreenProps {
   onMenuClick: () => void;
   canManageStock: boolean;
   brands: DynamicBrand[];
+  allColors: { name: string; hex: string }[];
+  onAddColor: (color: { name: string; hex: string }) => void;
+  onDeleteColor: (colorName: string) => void;
 }
 
 // --- Helper Components (Moved Outside to prevent re-rendering bugs) ---
@@ -46,7 +49,7 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
 
 // --- Main Component ---
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewBrand, onMenuClick, canManageStock, brands }) => {
+const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewBrand, onMenuClick, canManageStock, brands, allColors, onAddColor, onDeleteColor }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   
@@ -57,6 +60,16 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
   const [isSavingBrand, setIsSavingBrand] = useState(false);
   const [brandError, setBrandError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [newColor, setNewColor] = useState({ name: '', hex: '#ffffff' });
+  const colorInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAddNewColor = () => {
+    if (newColor.name.trim() && !allColors.some(c => c.name.toLowerCase() === newColor.name.trim().toLowerCase())) {
+        onAddColor({ name: newColor.name.trim(), hex: newColor.hex });
+        setNewColor({ name: '', hex: '#ffffff' });
+    }
+  };
 
   const allBrandsToDisplay = useMemo(() => {
     const dynamicBrands = brands;
@@ -125,6 +138,73 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
                         Gerenciar Chave de API
                     </button>
                 </Card>
+
+                {canManageStock && (
+                    <Card>
+                        <SectionTitle>Gerenciamento de Cores</SectionTitle>
+                        <p className={`mb-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Adicione ou remova as cores disponíveis em todo o aplicativo.
+                        </p>
+                        <div className={`flex items-end gap-2 mb-4 p-3 rounded-lg border ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
+                            <div className="flex-grow">
+                                <label className={`text-xs font-semibold mb-1 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Nome da Cor</label>
+                                <input
+                                    type="text"
+                                    placeholder="Ex: Azul Royal"
+                                    value={newColor.name}
+                                    onChange={e => setNewColor(c => ({...c, name: e.target.value}))}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleAddNewColor();
+                                        }
+                                    }}
+                                    className={`w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-50 text-gray-900 border-gray-200'}`}
+                                />
+                            </div>
+                             <div className="relative">
+                                <button 
+                                    type="button" 
+                                    onClick={() => colorInputRef.current?.click()}
+                                    style={{
+                                      background: newColor.hex === '#ffffff' 
+                                        ? 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' 
+                                        : newColor.hex,
+                                      borderColor: isDark ? '#4B5563' : '#D1D5DB'
+                                    }}
+                                    className="w-10 h-10 p-1 rounded-md cursor-pointer border-2"
+                                />
+                                <input
+                                    ref={colorInputRef}
+                                    type="color"
+                                    value={newColor.hex}
+                                    onChange={e => setNewColor(c => ({...c, hex: e.target.value}))}
+                                    className="absolute top-0 left-0 w-0 h-0 opacity-0"
+                                />
+                            </div>
+                            <button onClick={handleAddNewColor} className="bg-cyan-600 text-white font-bold h-10 px-4 rounded-lg hover:bg-cyan-700 transition">
+                                Adicionar
+                            </button>
+                        </div>
+
+                        <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
+                            {allColors.map(color => (
+                                <div key={color.name} className={`flex items-center justify-between p-2 rounded-lg ${isDark ? 'bg-black/30' : 'bg-gray-100'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <div style={{ backgroundColor: color.hex }} className="w-8 h-8 rounded-md border border-black/20" />
+                                        <div className="flex flex-col">
+                                            <span className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{color.name}</span>
+                                            <span className={`text-xs font-mono ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{color.hex}</span>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => onDeleteColor(color.name)} className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-red-500/20 hover:text-red-400' : 'text-gray-500 hover:bg-red-100 hover:text-red-600'}`}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                )}
                 
                 {canManageStock && (
                     <Card>

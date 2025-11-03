@@ -1,11 +1,11 @@
-import React, { useState, useContext, useMemo } from 'react';
+import React, { useState, useContext, useMemo, useRef } from 'react';
 import { ThemeContext } from '../types';
 
 // --- ColorSelector Component ---
 interface ColorSelectorProps {
   allColors: { name: string; hex: string }[];
   disabledColors?: string[];
-  onAddCustomColor: (color: { name: string; hex: string }) => void;
+  onAddColor: (color: { name: string; hex: string }) => void;
   // Single selection mode
   selectedColor?: { name: string; hex: string };
   onSelectColor?: (color: { name: string; hex: string }) => void;
@@ -15,9 +15,10 @@ interface ColorSelectorProps {
   onToggleColor?: (color: { name: string; hex: string }) => void;
 }
 
-const ColorSelector: React.FC<ColorSelectorProps> = ({ allColors, disabledColors = [], onAddCustomColor, selectedColor, onSelectColor, multiSelect = false, selectedColors = [], onToggleColor }) => {
+const ColorSelector: React.FC<ColorSelectorProps> = ({ allColors, disabledColors = [], onAddColor, selectedColor, onSelectColor, multiSelect = false, selectedColors = [], onToggleColor }) => {
   const [newColor, setNewColor] = useState({ name: '', hex: '#ffffff' });
   const { theme } = useContext(ThemeContext);
+  const colorInputRef = useRef<HTMLInputElement>(null);
   const isDark = theme === 'dark';
   
   const cardClasses = isDark ? "bg-black/20 border-white/10" : "bg-gray-50 border-gray-200";
@@ -34,7 +35,7 @@ const ColorSelector: React.FC<ColorSelectorProps> = ({ allColors, disabledColors
   const handleAddNewColor = () => {
     if (newColor.name.trim() && !allColors.some(c => c.name.toLowerCase() === newColor.name.trim().toLowerCase())) {
         const colorToAdd = { name: newColor.name.trim(), hex: newColor.hex };
-        onAddCustomColor(colorToAdd);
+        onAddColor(colorToAdd);
         if (multiSelect && onToggleColor) {
             onToggleColor(colorToAdd);
         } else if (!multiSelect && onSelectColor) {
@@ -89,8 +90,38 @@ const ColorSelector: React.FC<ColorSelectorProps> = ({ allColors, disabledColors
             <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Adicionar nova cor</label>
             <div className="flex flex-wrap gap-2 items-center justify-between">
                 <div className="flex gap-2 items-center flex-grow">
-                    <input type="text" placeholder="Nome da nova cor" value={newColor.name} onChange={e => setNewColor(c => ({...c, name: e.target.value}))} className={`flex-grow min-w-[120px] text-sm p-2 rounded ${inputClasses}`} />
-                    <input type="color" value={newColor.hex} onChange={e => setNewColor(c => ({...c, hex: e.target.value}))} className="w-10 h-10 p-1 rounded bg-transparent border-0 cursor-pointer" />
+                    <input 
+                        type="text" 
+                        placeholder="Nome da nova cor" 
+                        value={newColor.name} 
+                        onChange={e => setNewColor(c => ({...c, name: e.target.value}))} 
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddNewColor();
+                            }
+                        }}
+                        className={`flex-grow min-w-[120px] text-sm p-2 rounded ${inputClasses}`} />
+                    <div className="relative">
+                        <button 
+                            type="button" 
+                            onClick={() => colorInputRef.current?.click()}
+                            style={{
+                              background: newColor.hex === '#ffffff' 
+                                ? 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' 
+                                : newColor.hex,
+                              borderColor: isDark ? '#4B5563' : '#D1D5DB'
+                            }}
+                            className="w-10 h-10 p-1 rounded-md cursor-pointer border-2"
+                        />
+                        <input
+                            ref={colorInputRef}
+                            type="color"
+                            value={newColor.hex}
+                            onChange={e => setNewColor(c => ({...c, hex: e.target.value}))}
+                            className="absolute top-0 left-0 w-0 h-0 opacity-0"
+                        />
+                    </div>
                 </div>
                 <div className="flex flex-col items-center">
                     <button type="button" onClick={handleAddNewColor} title="Adicionar e Salvar Nova Cor" className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold p-2 rounded-lg hover:opacity-80 transition-opacity flex items-center justify-center">

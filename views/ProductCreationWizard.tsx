@@ -273,14 +273,14 @@ const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, 
 interface ProductCreationWizardProps {
   onClose: () => void;
   onConfigure: (productsToCreate: Omit<Product, 'id'>[], productToConfigure: Omit<Product, 'id'>) => Promise<void>;
-  customColors: { name: string; hex: string }[];
-  onAddCustomColor: (color: { name: string; hex: string }) => void;
+  allColors: { name: string; hex: string }[];
+  onAddColor: (color: { name: string; hex: string }) => void;
   categories: string[];
   products: Product[];
   brands: DynamicBrand[];
 }
 
-export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ onClose, onConfigure, customColors, onAddCustomColor, categories, products, brands }) => {
+export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ onClose, onConfigure, allColors, onAddColor, categories, products, brands }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
@@ -300,10 +300,6 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
     // UI State
     const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
     const [isCameraOpen, setIsCameraOpen] = useState(false);
-    
-    const allColors = useMemo(() => [...PREDEFINED_COLORS, ...customColors].filter(
-        (color, index, self) => index === self.findIndex((c) => c.name.toLowerCase() === color.name.toLowerCase())
-    ), [customColors]);
   
     const allBrandNames = useMemo(() => {
         const dynamicNames = brands.map(b => b.name);
@@ -489,7 +485,7 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
                                 multiSelect
                                 selectedColors={selectedColors}
                                 onToggleColor={handleToggleColor}
-                                onAddCustomColor={onAddCustomColor}
+                                onAddColor={onAddColor}
                             />
                         </div>
                     )}

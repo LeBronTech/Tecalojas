@@ -225,8 +225,8 @@ interface AddEditProductModalProps {
   categories: string[];
   apiKey: string | null;
   onRequestApiKey: () => void;
-  customColors: { name: string; hex: string }[];
-  onAddCustomColor: (color: { name: string; hex: string }) => void;
+  allColors: { name: string; hex: string }[];
+  onAddColor: (color: { name: string; hex: string }) => void;
   brands: DynamicBrand[];
 }
 
@@ -377,7 +377,7 @@ const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> =
 };
 
 
-const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, apiKey, onRequestApiKey, customColors, onAddCustomColor, brands }) => {
+const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, apiKey, onRequestApiKey, allColors, onAddColor, brands }) => {
   const [formData, setFormData] = useState<Product>(() => ({ ...initialFormState, ...product }));
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -399,10 +399,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const noApiKeyTitle = "Adicionar chave de API da Gemini para usar IA";
-
-  const allColors = useMemo(() => [...PREDEFINED_COLORS, ...customColors].filter(
-    (color, index, self) => index === self.findIndex((c) => c.name.toLowerCase() === color.name.toLowerCase())
-  ), [customColors]);
   
   const allBrandNames = useMemo(() => {
     const dynamicNames = brands.map(b => b.name);
@@ -971,7 +967,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             selectedColor={!formData.isMultiColor ? formData.colors?.[0] : undefined}
                             onSelectColor={handleColorSelect}
                             disabledColors={usedColorNamesInFamily}
-                            onAddCustomColor={onAddCustomColor}
+                            onAddColor={onAddColor}
                         />
                     </div>
                     <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label><textarea name="description" value={formData.description} onChange={handleChange} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}></textarea></div>
@@ -1078,7 +1074,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                 selectedColors={selectedNewColors}
                                 onToggleColor={handleToggleNewColor}
                                 disabledColors={[...usedColorNamesInFamily, ...(formData.colors?.map(c => c.name) || [])].filter((name): name is string => !!name)}
-                                onAddCustomColor={onAddCustomColor}
+                                onAddColor={onAddColor}
                             />
                             <button 
                                 type="button" 
