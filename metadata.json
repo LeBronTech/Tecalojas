@@ -1,5 +1,5 @@
 {
-  "name": "Copy of Gerenciador de Estoque Têca lojas",
+  "name": "Gerenciador de Estoque Têca lojas",
   "description": "Um aplicativo web para exibir e gerenciar o estoque de almofadas para duas lojas de decoração, Têca Decoração e Ione Lourenço Decor, inspirado em um design moderno de aplicativo móvel.",
   "requestFramePermissions": [
     "camera"

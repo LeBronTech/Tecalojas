@@ -1,4 +1,4 @@
-import { createContext } from 'react';
+import React, { createContext, useContext } from 'react';
 
 // FIX: Defined and exported the StoreName enum here to resolve a circular dependency.
 export enum StoreName {
@@ -61,6 +61,7 @@ export interface Product {
   baseImageUrl: string;
   unitsSold: number;
   category: string;
+  subCategory?: string;
   fabricType: string;
   description: string;
   waterResistance: WaterResistanceLevel;
@@ -103,12 +104,49 @@ export interface User {
   role?: 'admin' | 'user';
 }
 
+// --- AI Context ---
+export interface AiContextState {
+    isAiBusy: boolean;
+    tryAcquireAiLock: () => boolean;
+    releaseAiLock: () => void;
+    timeLeft: number;
+    apiKey: string | null;
+    checkAndRegisterAiCall: () => { allowed: boolean; message: string };
+    triggerAiCooldown: () => void;
+    saveApiKey: (key: string) => Promise<void>;
+    openApiKeyModal: () => void;
+}
+
+export const AiContext = createContext<AiContextState | undefined>(undefined);
+
+export const useAi = (): AiContextState => {
+    const context = useContext(AiContext);
+    if (!context) {
+        throw new Error('useAi must be used within an AiProvider');
+    }
+    return context;
+};
+
+// Deprecated - no longer needed
+export interface AiRateLimitProps {}
+
+export interface ShowcaseScreenProps {
+  products: Product[];
+  onMenuClick: () => void;
+  hasFetchError: boolean;
+  canManageStock: boolean;
+  onEditProduct: (product: Product) => void;
+  brands: DynamicBrand[];
+  onNavigate: (view: View) => void;
+  savedCompositions: SavedComposition[];
+  onSaveComposition: (composition: Omit<SavedComposition, 'id'>) => void;
+}
+
+
 export interface CompositionViewerModalProps {
     compositions: SavedComposition[];
     startIndex: number;
     onClose: () => void;
-    apiKey: string | null;
-    onRequestApiKey: () => void;
     onViewProduct: (product: Product) => void;
     onSaveComposition: (composition: Omit<SavedComposition, 'id'>) => void;
 }

@@ -13,9 +13,22 @@ interface ColorSelectorProps {
   multiSelect?: boolean;
   selectedColors?: { name: string; hex: string }[];
   onToggleColor?: (color: { name: string; hex: string }) => void;
+  maxSelection?: number;
+  showAddColor?: boolean;
 }
 
-const ColorSelector: React.FC<ColorSelectorProps> = ({ allColors, disabledColors = [], onAddCustomColor, selectedColor, onSelectColor, multiSelect = false, selectedColors = [], onToggleColor }) => {
+const ColorSelector: React.FC<ColorSelectorProps> = ({ 
+  allColors, 
+  disabledColors = [], 
+  onAddCustomColor, 
+  selectedColor, 
+  onSelectColor, 
+  multiSelect = false, 
+  selectedColors = [], 
+  onToggleColor,
+  maxSelection,
+  showAddColor = true,
+}) => {
   const [newColor, setNewColor] = useState({ name: '', hex: '#ffffff' });
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -26,7 +39,7 @@ const ColorSelector: React.FC<ColorSelectorProps> = ({ allColors, disabledColors
   const colorNameClasses = isDark ? "text-gray-300" : "text-gray-700";
 
   const sortedColors = useMemo(() => 
-    [...allColors].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })),
+    [...allColors].sort((a, b) => a.name.localeCompare(b, 'pt-BR', { sensitivity: 'base' })),
     [allColors]
   );
 
@@ -41,6 +54,13 @@ const ColorSelector: React.FC<ColorSelectorProps> = ({ allColors, disabledColors
             onSelectColor(colorToAdd);
         }
         setNewColor({ name: '', hex: '#ffffff' });
+    }
+  };
+  
+  const handleAddColorKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddNewColor();
     }
   };
 
@@ -59,7 +79,12 @@ const ColorSelector: React.FC<ColorSelectorProps> = ({ allColors, disabledColors
                             type="button" 
                             onClick={() => {
                                 if (isDisabled) return;
-                                if (multiSelect && onToggleColor) onToggleColor(color);
+                                if (multiSelect && onToggleColor) {
+                                    if (!isSelected && maxSelection && selectedColors.length >= maxSelection) {
+                                        return;
+                                    }
+                                    onToggleColor(color);
+                                }
                                 else if (!multiSelect && onSelectColor) onSelectColor(color);
                             }}
                             style={{ backgroundColor: color.hex }} 
@@ -85,21 +110,40 @@ const ColorSelector: React.FC<ColorSelectorProps> = ({ allColors, disabledColors
                 )
             })}
         </div>
-        <div className="border-t pt-3 mt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-            <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Adicionar nova cor</label>
-            <div className="flex flex-wrap gap-2 items-center justify-between">
-                <div className="flex gap-2 items-center flex-grow">
-                    <input type="text" placeholder="Nome da nova cor" value={newColor.name} onChange={e => setNewColor(c => ({...c, name: e.target.value}))} className={`flex-grow min-w-[120px] text-sm p-2 rounded ${inputClasses}`} />
-                    <input type="color" value={newColor.hex} onChange={e => setNewColor(c => ({...c, hex: e.target.value}))} className="w-10 h-10 p-1 rounded bg-transparent border-0 cursor-pointer" />
-                </div>
-                <div className="flex flex-col items-center">
-                    <button type="button" onClick={handleAddNewColor} title="Adicionar e Salvar Nova Cor" className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold p-2 rounded-lg hover:opacity-80 transition-opacity flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                    </button>
-                    <span className={`text-xs mt-1 ${colorNameClasses}`}>Add Cor</span>
+        {showAddColor && (
+            <div className="border-t pt-3 mt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+                <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Adicionar nova cor</label>
+                <div className="flex flex-wrap gap-2 items-end justify-between">
+                    <div className="flex gap-3 items-end flex-grow">
+                        <div className="flex flex-col items-center">
+                            <label className="relative w-10 h-10 cursor-pointer rounded-lg overflow-hidden" title="Selecionar cor">
+                            <div 
+                                className="w-full h-full border-2"
+                                style={{ 
+                                    background: newColor.hex === '#ffffff' ? 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' : newColor.hex,
+                                    borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'
+                                }}
+                            ></div>
+                            <input 
+                                type="color" 
+                                value={newColor.hex} 
+                                onChange={e => setNewColor(c => ({...c, hex: e.target.value}))}
+                                className="absolute inset-0 w-full h-full opacity-0"
+                            />
+                            </label>
+                            <span className={`text-[10px] mt-1 ${colorNameClasses}`}>Selecione</span>
+                        </div>
+                        <input type="text" placeholder="Nome da nova cor" value={newColor.name} onChange={e => setNewColor(c => ({...c, name: e.target.value}))} onKeyDown={handleAddColorKeyDown} className={`flex-grow min-w-[120px] text-sm p-2 rounded ${inputClasses}`} />
+                    </div>
+                    <div className="flex flex-col items-center">
+                        <button type="button" onClick={handleAddNewColor} title="Adicionar e Salvar Nova Cor" className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold p-2 rounded-lg hover:opacity-80 transition-opacity flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                        </button>
+                        <span className={`text-xs mt-1 ${colorNameClasses}`}>Add Cor</span>
+                    </div>
                 </div>
             </div>
-        </div>
+        )}
     </div>
   );
 };

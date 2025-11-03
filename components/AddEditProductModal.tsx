@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react';
-import { Product, StoreName, Variation, CushionSize, Brand, WaterResistanceLevel, DynamicBrand, ThemeContext } from '../types';
+import { Product, StoreName, Variation, CushionSize, Brand, WaterResistanceLevel, DynamicBrand, ThemeContext, useAi } from '../types';
 import { VARIATION_DEFAULTS, BRAND_FABRIC_MAP, STORE_NAMES, BRANDS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
 import { GoogleGenAI, Modality } from '@google/genai';
 import ColorSelector from './ColorSelector';
@@ -223,9 +223,7 @@ interface AddEditProductModalProps {
   onSwitchProduct: (product: Product) => void;
   onRequestDelete: (productId: string) => void;
   categories: string[];
-  apiKey: string | null;
-  onRequestApiKey: () => void;
-  customColors: { name: string; hex: string }[];
+  allColors: { name: string; hex: string }[];
   onAddCustomColor: (color: { name: string; hex: string }) => void;
   brands: DynamicBrand[];
 }
@@ -237,6 +235,7 @@ const initialFormState: Omit<Product, 'id'> = {
   baseImageUrl: '',
   unitsSold: 0,
   category: '',
+  subCategory: '',
   fabricType: defaultFabricType,
   description: defaultFabricInfo[defaultFabricType],
   brand: Brand.MARCA_PROPRIA,
@@ -377,37 +376,50 @@ const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> =
 };
 
 
-const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, apiKey, onRequestApiKey, customColors, onAddCustomColor, brands }) => {
+const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, allColors, onAddCustomColor, brands }) => {
+  const { theme } = useContext(ThemeContext);
+  const { isAiBusy, tryAcquireAiLock, releaseAiLock, timeLeft, apiKey, checkAndRegisterAiCall, triggerAiCooldown, openApiKeyModal } = useAi();
+  
   const [formData, setFormData] = useState<Product>(() => ({ ...initialFormState, ...product }));
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [aiGenerating, setAiGenerating] = useState<Record<string, boolean>>({});
-  const [isGeneratingShowcase, setIsGeneratingShowcase] = useState(false);
-  const [addVariationSize, setAddVariationSize] = useState<CushionSize | ''>('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [bgGenerating, setBgGenerating] = useState<Record<string, boolean>>({});
   const [isBatchColorMode, setIsBatchColorMode] = useState(false);
   const [selectedNewColors, setSelectedNewColors] = useState<{name: string, hex: string}[]>([]);
   const [isCreatingVariations, setIsCreatingVariations] = useState(false);
-  const [isNameAiLoading, setIsNameAiLoading] = useState(false);
   const [imageRotation, setImageRotation] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isVariationsVisible, setIsVariationsVisible] = useState(true);
   const [isBackgroundsVisible, setIsBackgroundsVisible] = useState(true);
+  // FIX: Declare the 'addVariationSize' state variable to hold the selected size for a new variation.
+  const [addVariationSize, setAddVariationSize] = useState<CushionSize | ''>('');
 
-  const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const noApiKeyTitle = "Adicionar chave de API da Gemini para usar IA";
+  const cooldownMessage = timeLeft > 0 ? `Aguarde ${timeLeft}s` : null;
 
-  const allColors = useMemo(() => [...PREDEFINED_COLORS, ...customColors].filter(
-    (color, index, self) => index === self.findIndex((c) => c.name.toLowerCase() === color.name.toLowerCase())
-  ), [customColors]);
-  
+  const handleAiError = useCallback((error: any) => {
+    console.error("AI Error:", error);
+    const errorMessage = error.toString();
+    let displayError = "Erro de IA: Tente novamente.";
+    if (errorMessage.includes('429')) {
+        displayError = "Cota da API excedida. Se a chave for nova, pode ser necessário habilitar o faturamento no seu projeto Google Cloud.";
+        triggerAiCooldown();
+    } else if (errorMessage.includes('API key not valid')) {
+        displayError = "Chave de API da Gemini inválida. Verifique nas Configurações.";
+    } else if (error.message && (error.message.includes('SAFETY') || error.message.includes('blockReason'))) {
+        displayError = `Bloqueado por segurança. Tente uma imagem ou prompt diferente.`;
+    } else if (error.message) {
+        displayError = error.message;
+    }
+    setSaveError(displayError);
+  }, [triggerAiCooldown]);
+
   const allBrandNames = useMemo(() => {
     const dynamicNames = brands.map(b => b.name);
     const staticNames = Object.values(Brand);
-    return [...new Set([...dynamicNames, ...staticNames])];
+    return [...new Set([...dynamicNames, ...staticNames])].sort((a,b) => String(a).localeCompare(String(b)));
   }, [brands]);
 
   const familyProducts = useMemo(() => {
@@ -436,6 +448,18 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         })
         .flatMap(p => p.colors.map(c => c.name));
   }, [familyProducts, formData.id, currentBaseName]);
+
+  const availableSubCategories = useMemo(() => {
+    if (!formData.category) return [];
+    const subCats = products
+        .filter(p => p.category === formData.category && p.subCategory)
+        .map(p => p.subCategory!);
+    const fabricTypesAsSubCats = products
+        .filter(p => p.category === formData.category && p.fabricType)
+        .map(p => p.fabricType);
+        
+    return [...new Set([...subCats, ...fabricTypesAsSubCats])].sort((a, b) => a.localeCompare(b));
+  }, [formData.category, products]);
 
 
   useEffect(() => {
@@ -481,7 +505,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             if (fabricInfo) {
                newState.description = fabricInfo[newFabricType] || '';
             }
-            // Automatically set water resistance for specific fabrics
             if (newFabricType.toLowerCase().includes('waterblock')) {
                 newState.waterResistance = WaterResistanceLevel.FULL;
             }
@@ -565,14 +588,28 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     }
   };
 
-  const handleGenerateVariationImage = async (index: number) => {
-    if (!apiKey) { onRequestApiKey(); return; }
+  const handleGenerateVariationImage = useCallback(async (index: number) => {
+    if (!apiKey) { openApiKeyModal(); return; }
+    if (!tryAcquireAiLock()) {
+        setSaveError("Outra operação de IA já está em andamento. Aguarde.");
+        return;
+    }
+    
+    const check = checkAndRegisterAiCall();
+    if (!check.allowed) {
+        setSaveError(check.message);
+        releaseAiLock();
+        return;
+    }
+
     const variation = formData.variations[index];
     if (!formData.baseImageUrl) { 
-        window.alert("Primeiro, adicione uma imagem base para o produto."); 
+        setSaveError("Primeiro, adicione uma imagem base para o produto."); 
+        releaseAiLock();
         return; 
     }
-    setAiGenerating(prev => ({ ...prev, [variation.size]: true }));
+
+    setSaveError(null);
     try {
         const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
         const ai = new GoogleGenAI({ apiKey });
@@ -596,20 +633,32 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         updatedVariations[index].imageUrl = resizedImageUrl;
         setFormData(prev => ({ ...prev, variations: updatedVariations }));
     } catch (error: any) { 
-        console.error("AI image generation failed:", error); 
-        window.alert("Aconteceu um erro! Mas não se preocupe, tente novamente agora");
+        handleAiError(error);
     } 
-    finally { setAiGenerating(prev => ({ ...prev, [variation.size]: false })); }
-  };
+    finally { releaseAiLock(); }
+  }, [apiKey, checkAndRegisterAiCall, formData, openApiKeyModal, tryAcquireAiLock, releaseAiLock, handleAiError]);
 
-  const generateShowcaseImage = async () => {
-    if (!apiKey) { onRequestApiKey(); return; }
+  const generateShowcaseImage = useCallback(async () => {
+    if (!apiKey) { openApiKeyModal(); return; }
+    if (!tryAcquireAiLock()) {
+        setSaveError("Outra operação de IA já está em andamento. Aguarde.");
+        return;
+    }
+
+    const check = checkAndRegisterAiCall();
+    if (!check.allowed) {
+        setSaveError(check.message);
+        releaseAiLock();
+        return;
+    }
+    
     if (!formData.baseImageUrl) { 
-        window.alert("Adicione uma imagem antes de gerar uma vitrine."); 
+        setSaveError("Adicione uma imagem antes de gerar uma vitrine."); 
+        releaseAiLock();
         return; 
     }
     
-    setIsGeneratingShowcase(true);
+    setSaveError(null);
     try {
         const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
         const ai = new GoogleGenAI({ apiKey });
@@ -626,11 +675,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         const resizedImageUrl = await resizeImage(newImageUrl);
         setFormData(prev => ({ ...prev, baseImageUrl: resizedImageUrl }));
     } catch (error: any) { 
-        console.error("AI showcase image generation failed:", error); 
-        window.alert("Aconteceu um erro! Mas não se preocupe, tente novamente agora");
+        handleAiError(error);
     } 
-    finally { setIsGeneratingShowcase(false); }
-  };
+    finally { releaseAiLock(); }
+  }, [apiKey, checkAndRegisterAiCall, formData.baseImageUrl, openApiKeyModal, tryAcquireAiLock, releaseAiLock, handleAiError]);
   
     const backgroundOptions = useMemo(() => {
         const options: ('Sala' | 'Quarto' | 'Varanda' | 'Piscina')[] = ['Sala', 'Quarto', 'Varanda'];
@@ -650,14 +698,27 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         return prompts[background];
     };
   
-  const handleGenerateBackgroundImage = async (background: 'Quarto' | 'Sala' | 'Varanda' | 'Piscina') => {
-    if (!apiKey) { onRequestApiKey(); return; }
+  const handleGenerateBackgroundImage = useCallback(async (background: 'Quarto' | 'Sala' | 'Varanda' | 'Piscina') => {
+    if (!apiKey) { openApiKeyModal(); return; }
+    if (!tryAcquireAiLock()) {
+        setSaveError("Outra operação de IA já está em andamento. Aguarde.");
+        return;
+    }
+
+    const check = checkAndRegisterAiCall();
+    if (!check.allowed) {
+        setSaveError(check.message);
+        releaseAiLock();
+        return;
+    }
+    
     if (!formData.baseImageUrl) { 
-        window.alert("Primeiro, adicione uma imagem base para o produto."); 
+        setSaveError("Primeiro, adicione uma imagem base para o produto."); 
+        releaseAiLock();
         return; 
     }
     const contextKey = background.toLowerCase() as 'quarto' | 'sala' | 'varanda' | 'piscina';
-    setBgGenerating(prev => ({ ...prev, [contextKey]: true }));
+    setSaveError(null);
     try {
         const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
         const ai = new GoogleGenAI({ apiKey });
@@ -674,11 +735,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         const resizedImageUrl = await resizeImage(newImageUrl);
         setFormData(prev => ({ ...prev, backgroundImages: { ...prev.backgroundImages, [contextKey]: resizedImageUrl } }));
     } catch (error: any) { 
-        console.error(`AI background generation for ${background} failed:`, error); 
-        window.alert("Aconteceu um erro! Mas não se preocupe, tente novamente agora");
+        handleAiError(error);
     } 
-    finally { setBgGenerating(prev => ({ ...prev, [contextKey]: false })); }
-  };
+    finally { releaseAiLock(); }
+  }, [apiKey, checkAndRegisterAiCall, formData.baseImageUrl, openApiKeyModal, tryAcquireAiLock, releaseAiLock, handleAiError]);
 
     const handleColorSelect = (color: { name: string; hex: string }) => {
         setFormData(prev => ({ ...prev, colors: [color] }));
@@ -696,7 +756,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                 if (currentColors.length < 3) {
                     return { ...prev, colors: [...currentColors, color] };
                 }
-                return prev; // Limit reached
+                return prev;
             }
         });
     };
@@ -722,10 +782,25 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
       return null;
   }
 
-  const handleAiCorrectName = async () => {
-    if (!apiKey) { onRequestApiKey(); return; }
-    if (!formData.name.trim()) return;
-    setIsNameAiLoading(true);
+  const handleAiCorrectName = useCallback(async () => {
+    if (!apiKey) { openApiKeyModal(); return; }
+    if (!tryAcquireAiLock()) {
+        setSaveError("Outra operação de IA já está em andamento. Aguarde.");
+        return;
+    }
+    
+    const check = checkAndRegisterAiCall();
+    if (!check.allowed) {
+        setSaveError(check.message);
+        releaseAiLock();
+        return;
+    }
+    
+    if (!formData.name.trim()) {
+        releaseAiLock();
+        return;
+    }
+
     setSaveError(null);
     try {
         const ai = new GoogleGenAI({ apiKey });
@@ -743,13 +818,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
         setFormData(prev => {
             let newState = { ...prev };
-
-            if (name) {
-                newState.name = name;
-            }
-            if (category) {
-                newState.category = category;
-            }
+            if (name) newState.name = name;
+            if (category) newState.category = category;
             if (fabricType) {
                 const matchedFabric = findMatchingFabricType(fabricType, newState.brand);
                 if (matchedFabric) {
@@ -759,19 +829,16 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             }
             if (colorName) {
                 const matchedColor = allColors.find(c => c.name.toLowerCase() === colorName.toLowerCase());
-                if (matchedColor) {
-                    newState.colors = [matchedColor];
-                }
+                if (matchedColor) newState.colors = [matchedColor];
             }
             return newState;
         });
     } catch (e: any) {
-        console.error("AI Name Correction Failed:", e);
-        window.alert("Aconteceu um erro! Mas não se preocupe, tente novamente agora");
+        handleAiError(e);
     } finally {
-        setIsNameAiLoading(false);
+        releaseAiLock();
     }
-  };
+  }, [apiKey, checkAndRegisterAiCall, formData.name, openApiKeyModal, tryAcquireAiLock, releaseAiLock, handleAiError, allColors]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -779,19 +846,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setSaveError(null);
     try {
         const productToSave = { ...formData };
-
         productToSave.category = pluralizeCategory(productToSave.category);
         if (!productToSave.isMultiColor) {
             productToSave.name = standardizeProductName(productToSave.name, productToSave.colors, allColors);
         }
-
-        const existingProductWithSameName = products.find(p => 
-            p.name.toLowerCase() === productToSave.name.toLowerCase() && p.id !== productToSave.id
-        );
-        if (existingProductWithSameName) {
-            throw new Error(`Já existe um produto com o nome exato "${productToSave.name}".`);
-        }
-
         await onSave(productToSave); 
     } catch (error: any) { 
         console.error("Failed to save product:", error);
@@ -828,17 +886,11 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setIsCreatingVariations(true);
     setSaveError(null);
     try {
-        // Step 1: Save the current product to ensure its data (especially variationGroupId) is up-to-date.
         const savedParentProduct = await onSave(formData, { closeModal: false });
-        
-        // Step 2: Call the dedicated function to create only the new variations.
         await onCreateVariations(savedParentProduct, selectedNewColors);
-
-        // Update the form with the potentially updated parent product (e.g., with a new variationGroupId)
         setFormData(savedParentProduct); 
         setSelectedNewColors([]);
         setIsBatchColorMode(false);
-
     } catch (err: any) {
         setSaveError(err.message || 'Falha ao criar variações de cor.');
     } finally {
@@ -863,9 +915,14 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const cardClasses = isDark ? "bg-black/20 border-white/10" : "bg-gray-50 border-gray-200";
   const cancelBtnClasses = isDark ? "text-gray-300 hover:bg-black/20" : "text-gray-600 hover:bg-gray-100";
   
-  const availableFabricTypes = Object.keys(BRAND_FABRIC_MAP[formData.brand] || {});
   const canCreateVariations = formData.name.trim() && formData.category.trim();
   
+  const sortedCategories = useMemo(() => [...categories].sort((a, b) => String(a).localeCompare(String(b))), [categories]);
+  const availableFabricTypes = useMemo(() => Object.keys(BRAND_FABRIC_MAP[formData.brand] || {}), [formData.brand]);
+
+  // Derived state for disabling all AI buttons
+  const isAnyAiRunning = isAiBusy || isCreatingVariations;
+
   return (
       <>
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 transition-opacity duration-300" onClick={onClose}>
@@ -879,63 +936,115 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                 </div>
 
                 <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar pr-2 -mr-2 space-y-6 pb-24">
-                    {/* Reordered Fields Start */}
+                    {timeLeft > 0 && (
+                        <div className={`p-3 mb-4 rounded-lg text-center font-semibold border text-sm ${isDark ? 'bg-amber-900/50 text-amber-300 border-amber-500/30' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
+                           Funções de IA em cooldown. Aguarde {timeLeft}s.
+                        </div>
+                    )}
+                    <FormInput 
+                        label="Nome do Produto" 
+                        name="name" 
+                        value={formData.name} 
+                        onChange={handleChange}
+                        required
+                    >
+                          <button type="button" onClick={!apiKey ? openApiKeyModal : handleAiCorrectName} disabled={isAnyAiRunning || timeLeft > 0} title={!apiKey ? noApiKeyTitle : "Corrigir Nome com IA"} className={`absolute top-1/2 right-2 -translate-y-1/2 text-xs font-bold py-2 px-3 rounded-md transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                            {isAiBusy ? <ButtonSpinner /> : 'Corrigir texto'}
+                        </button>
+                    </FormInput>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormInput 
-                            label="Nome do Produto" 
-                            name="name" 
-                            value={formData.name} 
+                      <div>
+                          <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
+                          <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(brandName => <option key={brandName} value={brandName}>{brandName}</option>)}</select>
+                      </div>
+                      <div>
+                          <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
+                          <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>
+                            {availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                          </select>
+                      </div>
+                    </div>
+                    
+                    <div>
+                        <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Categoria</label>
+                        {sortedCategories.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {sortedCategories.map(cat => (
+                                    <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({...prev, category: cat, subCategory: ''}))}
+                                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                                            formData.category === cat
+                                                ? (isDark ? 'bg-fuchsia-600 text-white' : 'bg-purple-600 text-white')
+                                                : (isDark ? 'bg-black/20 text-gray-300 hover:bg-black/40' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
+                                        }`}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        <input 
+                            name="category"
+                            value={formData.category}
                             onChange={handleChange}
                             required
-                        >
-                             <button type="button" onClick={handleAiCorrectName} disabled={isNameAiLoading || !apiKey} title="Corrigir Nome com IA" className={`absolute top-1/2 right-2 -translate-y-1/2 text-xs font-bold py-2 px-3 rounded-md transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
-                                {isNameAiLoading ? <ButtonSpinner /> : 'Corrigir texto'}
-                            </button>
-                        </FormInput>
-                        <div>
-                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Categoria</label>
-                            <input list="categories-list" name="category" value={formData.category} onChange={handleChange} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
-                            <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
-                        </div>
+                            placeholder="Selecione acima ou digite uma nova categoria"
+                            className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} 
+                        />
                     </div>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         <div>
-                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
-                            <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(brandName => <option key={brandName} value={brandName}>{brandName}</option>)}</select>
-                        </div>
-                        <div>
-                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
-                            <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
-                        </div>
+
+                    <div>
+                        <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Sub-categoria (Opcional)</label>
+                        {availableSubCategories.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {availableSubCategories.map(subCat => (
+                                    <button
+                                        key={subCat}
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({...prev, subCategory: subCat}))}
+                                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                                            formData.subCategory === subCat
+                                                ? (isDark ? 'bg-cyan-600 text-white' : 'bg-teal-500 text-white')
+                                                : (isDark ? 'bg-black/20 text-gray-300 hover:bg-black/40' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
+                                        }`}
+                                    >
+                                        {subCat}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        <input 
+                            name="subCategory"
+                            value={formData.subCategory || ''}
+                            onChange={handleChange}
+                            placeholder="Selecione acima ou digite uma nova sub-categoria"
+                            className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} 
+                        />
                     </div>
-                     <div>
+                   
+                    <div>
                         <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Proteção contra líquidos</label>
                         <div className="space-y-2">
-                             <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.NONE} checked={formData.waterResistance === WaterResistanceLevel.NONE} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>Nenhum</span></label>
+                            <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.NONE} checked={formData.waterResistance === WaterResistanceLevel.NONE} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>Nenhum</span></label>
                             <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.SEMI} checked={formData.waterResistance === WaterResistanceLevel.SEMI} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.SEMI]?.label}</span></label>
                             <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.FULL} checked={formData.waterResistance === WaterResistanceLevel.FULL} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.FULL]?.label}</span></label>
                         </div>
                     </div>
+                    
                     <div className="flex items-start gap-4">
                         <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
                             {formData.baseImageUrl ? (
                                 <img src={formData.baseImageUrl} alt="Preview" className="w-full h-full object-cover transition-transform duration-300" style={{ transform: `rotate(${imageRotation}deg)` }} /> 
                             ) : (
                                 <div className={`w-full h-full flex items-center justify-center relative ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
-                                    <img 
-                                        src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
-                                        alt="Sem Imagem" 
-                                        className="w-1/2 h-1/2 object-contain opacity-20" 
-                                    />
+                                    <img src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" alt="Sem Imagem" className="w-1/2 h-1/2 object-contain opacity-20" />
                                 </div>
                             )}
                             {formData.baseImageUrl && (
-                                <button
-                                    type="button"
-                                    onClick={handleRotateImage}
-                                    className="absolute bottom-1 right-1 w-8 h-8 rounded-full z-10 bg-black/20 hover:bg-black/40 flex items-center justify-center transition-colors"
-                                    aria-label="Girar imagem"
-                                >
+                                <button type="button" onClick={handleRotateImage} className="absolute bottom-1 right-1 w-8 h-8 rounded-full z-10 bg-black/20 hover:bg-black/40 flex items-center justify-center transition-colors" aria-label="Girar imagem">
                                     <img src="https://i.postimg.cc/C1qXzX3z/20251019-214841-0000.png" alt="Girar Imagem" className="w-6 h-6" />
                                 </button>
                             )}
@@ -943,51 +1052,29 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         <div className="flex-grow">
                              <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Imagem Principal</label>
                             <button type="button" onClick={handleOpenImagePicker} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Alterar Imagem</button>
-                            <button type="button" onClick={generateShowcaseImage} disabled={isGeneratingShowcase || !formData.baseImageUrl} title={!apiKey ? noApiKeyTitle : "Gerar imagem de vitrine com IA"} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
-                                {isGeneratingShowcase ? <ButtonSpinner /> : 'Gerar Vitrine com IA'}
+                            <button type="button" onClick={!apiKey ? openApiKeyModal : generateShowcaseImage} disabled={isAnyAiRunning || !formData.baseImageUrl || timeLeft > 0} title={!apiKey ? noApiKeyTitle : "Gerar imagem de vitrine com IA"} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
+                                {isAiBusy ? <ButtonSpinner /> : (timeLeft > 0 ? cooldownMessage : 'Gerar Vitrine com IA')}
                             </button>
                         </div>
                     </div>
                     <div>
                         <h3 className={`text-lg font-bold mb-2 ${titleClasses}`}>Cor do Produto</h3>
                          <div className="flex items-center mb-3">
-                            <input 
-                                type="checkbox" 
-                                id="isMultiColor"
-                                name="isMultiColor" 
-                                checked={!!formData.isMultiColor}
-                                onChange={handleChange}
-                                className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300 rounded"
-                            />
-                            <label htmlFor="isMultiColor" className={`ml-2 text-sm font-medium ${labelClasses}`}>
-                                É multi cor (até 3 cores)
-                            </label>
+                            <input type="checkbox" id="isMultiColor" name="isMultiColor" checked={!!formData.isMultiColor} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300 rounded"/>
+                            <label htmlFor="isMultiColor" className={`ml-2 text-sm font-medium ${labelClasses}`}>É multi cor (até 3 cores)</label>
                         </div>
-                        <ColorSelector
-                            allColors={allColors}
-                            multiSelect={!!formData.isMultiColor}
-                            selectedColors={formData.colors || []}
-                            onToggleColor={handleColorToggle}
-                            selectedColor={!formData.isMultiColor ? formData.colors?.[0] : undefined}
-                            onSelectColor={handleColorSelect}
-                            disabledColors={usedColorNamesInFamily}
-                            onAddCustomColor={onAddCustomColor}
-                        />
+                        <ColorSelector allColors={allColors} multiSelect={!!formData.isMultiColor} selectedColors={formData.colors || []} onToggleColor={handleColorToggle} selectedColor={!formData.isMultiColor ? formData.colors?.[0] : undefined} onSelectColor={handleColorSelect} disabledColors={usedColorNamesInFamily} onAddCustomColor={onAddCustomColor}/>
                     </div>
                     <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label><textarea name="description" value={formData.description} onChange={handleChange} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}></textarea></div>
-                    {/* Reordered Fields End */}
 
-                    {/* Collapsible Size Variations */}
                     <div>
                         <div className="flex justify-between items-center mb-3">
                             <h3 className={`text-lg font-bold ${titleClasses}`}>Variações de Tamanho e Estoque</h3>
-                             <button type="button" onClick={() => setIsVariationsVisible(!isVariationsVisible)} className="p-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isVariationsVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                            </button>
+                             <button type="button" onClick={() => setIsVariationsVisible(!isVariationsVisible)} className="p-1"><svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isVariationsVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></button>
                         </div>
                         <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isVariationsVisible ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
                             <div className="space-y-3 pt-2">
-                                {formData.variations.map((v, i) => (<div key={v.size} className={`p-4 rounded-xl border ${cardClasses}`}><div className="flex justify-between items-center mb-3"><h4 className="font-bold text-fuchsia-400">{v.size}</h4><button type="button" onClick={() => handleRemoveVariation(i)} className="text-red-500 hover:text-red-700 p-1"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div><div className="grid grid-cols-2 gap-4"><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label><input type="number" value={v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label><input type="number" value={v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>{STORE_NAMES.map(storeName => (<div key={storeName}><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Estoque ({storeName})</label><input type="number" value={v.stock[storeName]} onChange={e => handleVariationChange(i, `stock-${storeName}`, e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`} /></div>))}</div><div className="mt-3 flex items-center gap-4"><div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>{v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}</div><button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} title={!apiKey ? noApiKeyTitle : `Gerar imagem para variação ${v.size}`} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>{aiGenerating[v.size] ? <ButtonSpinner /> : 'Gerar Imagem IA'}</button></div></div>))}
+                                {formData.variations.map((v, i) => (<div key={v.size} className={`p-4 rounded-xl border ${cardClasses}`}><div className="flex justify-between items-center mb-3"><h4 className="font-bold text-fuchsia-400">{v.size}</h4><button type="button" onClick={() => handleRemoveVariation(i)} className="text-red-500 hover:text-red-700 p-1"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div><div className="grid grid-cols-2 gap-4"><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label><input type="number" value={v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label><input type="number" value={v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>{STORE_NAMES.map(storeName => (<div key={storeName}><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Estoque ({storeName})</label><input type="number" value={v.stock[storeName]} onChange={e => handleVariationChange(i, `stock-${storeName}`, e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`} /></div>))}</div><div className="mt-3 flex items-center gap-4"><div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>{v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}</div><button type="button" disabled={isAnyAiRunning || !formData.baseImageUrl || timeLeft > 0} onClick={() => handleGenerateVariationImage(i)} title={!apiKey ? noApiKeyTitle : `Gerar imagem para variação ${v.size}`} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>{isAiBusy ? <ButtonSpinner /> : (timeLeft > 0 ? cooldownMessage : 'Gerar Imagem IA')}</button></div></div>))}
                                 <div className={`flex gap-2 mt-4 p-2 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
                                      <select value={addVariationSize} onChange={e => setAddVariationSize(e.target.value as CushionSize)} className={`flex-grow border-2 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}><option value="" disabled>Selecione um tamanho</option>{Object.values(CushionSize).map(size => (<option key={size} value={size} disabled={formData.variations.some(v => v.size === size)}>{size}</option>))}</select>
                                     <button type="button" onClick={handleAddVariation} className="bg-fuchsia-600 text-white font-bold p-3 rounded-lg hover:bg-fuchsia-700 transition-transform transform hover:scale-105"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg></button>
@@ -996,26 +1083,22 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         </div>
                     </div>
 
-                    {/* Collapsible Backgrounds */}
                     <div>
                          <div className="flex justify-between items-center mb-3">
                             <h3 className={`text-lg font-bold ${titleClasses}`}>Fundos de Vitrine (IA)</h3>
-                             <button type="button" onClick={() => setIsBackgroundsVisible(!isBackgroundsVisible)} className="p-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isBackgroundsVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                            </button>
+                             <button type="button" onClick={() => setIsBackgroundsVisible(!isBackgroundsVisible)} className="p-1"><svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isBackgroundsVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></button>
                         </div>
                          <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isBackgroundsVisible ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                            <p className={`text-sm mb-3 ${subtitleClasses}`}>Gere imagens do produto em diferentes ambientes. Estas imagens serão salvas e exibidas na vitrine.</p>
+                            <p className={`text-sm mb-3 ${subtitleClasses}`}>Gere imagens do produto em diferentes ambientes.</p>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {backgroundOptions.map(bg => { 
                                     const contextKey = bg.toLowerCase() as 'sala' | 'quarto' | 'varanda' | 'piscina'; 
                                     const imageUrl = formData.backgroundImages?.[contextKey]; 
-                                    const isGenerating = bgGenerating[contextKey]; 
                                     return (
                                     <div key={bg} className="flex flex-col items-center">
-                                        <div className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>{isGenerating ? (<ButtonSpinner />) : imageUrl ? (<img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />) : (<span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>)}</div>
-                                        <button type="button" onClick={() => handleGenerateBackgroundImage(bg)} disabled={isGenerating || !formData.baseImageUrl} title={!apiKey ? noApiKeyTitle : `Gerar fundo de ${bg}`} className={`w-full text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
-                                            {isGenerating ? <ButtonSpinner/> : `Gerar ${bg}`}
+                                        <div className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>{isAiBusy ? (<ButtonSpinner />) : imageUrl ? (<img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />) : (<span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>)}</div>
+                                        <button type="button" onClick={() => handleGenerateBackgroundImage(bg)} disabled={isAnyAiRunning || !formData.baseImageUrl || timeLeft > 0} title={!apiKey ? noApiKeyTitle : `Gerar fundo de ${bg}`} className={`w-full text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                                            {isAiBusy ? <ButtonSpinner/> : (timeLeft > 0 ? cooldownMessage : `Gerar ${bg}`)}
                                         </button>
                                     </div>
                                     );
@@ -1025,37 +1108,21 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     </div>
 
                     <div className="border-t pt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-                        <h3 className={`text-lg font-bold mb-3 ${titleClasses}`}>Produtos Relacionados (Mesma Família)</h3>
+                        <h3 className={`text-lg font-bold mb-3 ${titleClasses}`}>Produtos Relacionados</h3>
                         {familyProducts.filter(p => p.id !== formData.id).length > 0 ? (
                             <div className="mb-4 space-y-2">
                                 {familyProducts.filter(p => p.id !== formData.id).map(p => (
                                     <div key={p.id} className={`p-2 rounded-xl flex items-center justify-between border ${isDark ? 'bg-black/20 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
                                         <div className="flex items-center gap-3 min-w-0">
                                             <div className={`w-10 h-10 rounded-lg object-cover flex-shrink-0 flex items-center justify-center overflow-hidden ${isDark ? 'bg-black/20' : 'bg-gray-200'}`}>
-                                                {p.baseImageUrl ? (
-                                                    <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover"/>
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center relative">
-                                                        <img src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" alt="Sem Imagem" className="w-1/2 h-1/2 object-contain opacity-20" />
-                                                    </div>
-                                                )}
+                                                {p.baseImageUrl ? <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center relative"><img src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" alt="Sem Imagem" className="w-1/2 h-1/2 object-contain opacity-20" /></div>}
                                             </div>
                                             <div className="flex-grow min-w-0">
                                                 <p className={`text-sm font-bold truncate ${titleClasses}`}>{p.name}</p>
-                                                <div className="flex items-center gap-2">
-                                                    <MultiColorCircle colors={p.colors} />
-                                                    <span className={`text-xs font-medium truncate ${subtitleClasses}`}>{p.colors.map(c => c.name).join(', ')}</span>
-                                                </div>
+                                                <div className="flex items-center gap-2"><MultiColorCircle colors={p.colors} /><span className={`text-xs font-medium truncate ${subtitleClasses}`}>{p.colors.map(c => c.name).join(', ')}</span></div>
                                             </div>
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleSwitch(p)}
-                                            title={`Editar ${p.name}`}
-                                            className={`flex-shrink-0 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
-                                        >
-                                            Editar esse
-                                        </button>
+                                        <button type="button" onClick={() => handleSwitch(p)} title={`Editar ${p.name}`} className={`flex-shrink-0 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Editar esse</button>
                                     </div>
                                 ))}
                             </div>
@@ -1066,26 +1133,12 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             <label htmlFor="isBatchColorMode" className={`text-sm font-semibold mr-3 ${labelClasses} ${!canCreateVariations ? 'opacity-50' : ''}`} title={!canCreateVariations ? 'Preencha o nome e a categoria para criar variações.' : ''}>Criar produtos para novas cores?</label>
                             <input type="checkbox" id="isBatchColorMode" checked={isBatchColorMode} onChange={(e) => setIsBatchColorMode(e.target.checked)} className="h-5 w-5 rounded text-fuchsia-600 focus:ring-fuchsia-500 disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canCreateVariations} />
                         </div>
-                         {!canCreateVariations && (
-                           <p className="text-xs text-amber-500 mt-1">Preencha o nome e a categoria do produto antes de criar variações de cor.</p>
-                         )}
+                         {!canCreateVariations && (<p className="text-xs text-amber-500 mt-1">Preencha o nome e a categoria do produto antes de criar variações de cor.</p>)}
 
                         {isBatchColorMode && canCreateVariations && (
                             <>
-                            <ColorSelector
-                                allColors={allColors}
-                                multiSelect
-                                selectedColors={selectedNewColors}
-                                onToggleColor={handleToggleNewColor}
-                                disabledColors={[...usedColorNamesInFamily, ...(formData.colors?.map(c => c.name) || [])].filter((name): name is string => !!name)}
-                                onAddCustomColor={onAddCustomColor}
-                            />
-                            <button 
-                                type="button" 
-                                onClick={handleCreateVariations} 
-                                disabled={isCreatingVariations || selectedNewColors.length === 0}
-                                className="w-full mt-4 bg-cyan-600 text-white font-bold py-3 rounded-lg shadow-lg shadow-cyan-600/30 hover:bg-cyan-700 transition flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:shadow-none"
-                            >
+                            <ColorSelector allColors={allColors} multiSelect selectedColors={selectedNewColors} onToggleColor={handleToggleNewColor} disabledColors={[...usedColorNamesInFamily, ...(formData.colors?.map(c => c.name) || [])].filter((name): name is string => !!name)} onAddCustomColor={onAddCustomColor}/>
+                            <button type="button" onClick={handleCreateVariations} disabled={isAnyAiRunning || selectedNewColors.length === 0} className="w-full mt-4 bg-cyan-600 text-white font-bold py-3 rounded-lg shadow-lg shadow-cyan-600/30 hover:bg-cyan-700 transition flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:shadow-none">
                                 {isCreatingVariations ? <ButtonSpinner /> : `Criar ${selectedNewColors.length} Variações de Cor`}
                             </button>
                             </>
@@ -1095,12 +1148,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                 </div>
                  <div className="flex justify-between items-center pt-6 border-t border-gray-200 dark:border-white/10 mt-auto">
                     <div className="flex items-center gap-4">
-                        {product && (
-                            <button type="button" onClick={() => onRequestDelete(formData.id)} className="text-red-500 font-bold py-3 px-4 rounded-lg transition hover:bg-red-500/10 flex items-center gap-2">
-                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                Excluir
-                            </button>
-                        )}
+                        {product && (<button type="button" onClick={() => onRequestDelete(formData.id)} className="text-red-500 font-bold py-3 px-4 rounded-lg transition hover:bg-red-500/10 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>Excluir</button>)}
                          <button type="button" onClick={onClose} className={`font-bold py-3 px-6 rounded-lg transition ${cancelBtnClasses}`}>Cancelar</button>
                     </div>
                      <div className="flex items-center gap-4">
