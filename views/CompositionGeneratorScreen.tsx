@@ -1,5 +1,5 @@
 import React, { useState, useContext, useMemo, useEffect, useRef } from 'react';
-import { Product, View, SavedComposition, CushionSize, useAi } from '../types';
+import { Product, View, SavedComposition, CushionSize } from '../types';
 // FIX: ThemeContext is exported from 'types.ts', not 'App.tsx'.
 import { ThemeContext } from '../types';
 import { GoogleGenAI, Modality } from '@google/genai';
@@ -7,15 +7,15 @@ import ProductDetailModal from '../components/ProductDetailModal';
 import ProductSelectModal from '../components/ProductSelectModal';
 import SaveCompositionModal from '../components/SaveCompositionModal';
 import { STORE_IMAGE_URLS, PREDEFINED_COLORS } from '../constants';
-import ColorSelector from '../components/ColorSelector';
 
 interface CompositionGeneratorScreenProps {
     products: Product[];
     onNavigate: (view: View) => void;
+    apiKey: string | null;
+    onRequestApiKey: () => void;
     savedCompositions: SavedComposition[];
     onSaveComposition: (composition: Omit<SavedComposition, 'id'>) => void;
     setSavedCompositions: React.Dispatch<React.SetStateAction<SavedComposition[]>>;
-    availableColors: { name: string; hex: string }[];
 }
 
 const ButtonSpinner = () => (
@@ -110,9 +110,8 @@ const loadLogos = (): Promise<[HTMLImageElement, HTMLImageElement]> => {
 };
 
 
-const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({ products, onNavigate, onSaveComposition, availableColors }) => {
+const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({ products, onNavigate, apiKey, onRequestApiKey, onSaveComposition }) => {
     const { theme } = useContext(ThemeContext);
-    const { apiKey, openApiKeyModal, timeLeft, checkAndRegisterAiCall, triggerAiCooldown, isAiBusy, tryAcquireAiLock, releaseAiLock } = useAi();
     const isDark = theme === 'dark';
 
     const [compositionSize, setCompositionSize] = useState<number | null>(null);
@@ -122,6 +121,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     
     const [isSelectModalOpen, setIsSelectModalOpen] = useState(false);
     const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
     const [isSharing, setIsSharing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
@@ -132,67 +132,18 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     const [sofaColor, setSofaColor] = useState('Bege');
     const sofaColors = ['Bege', 'Cinza', 'Branco', 'Marrom Escuro', 'Azul Marinho'];
 
-    // Color Filter State
-    const [useColorFilter, setUseColorFilter] = useState(false);
-    const [filterColors, setFilterColors] = useState<{name: string, hex: string}[]>([]);
-    
-    const cooldownMessage = timeLeft > 0 ? `Aguarde ${timeLeft}s` : null;
-
-    const handleAiError = (error: any) => {
-        console.error("AI Error:", error);
-        const errorMessage = error.toString();
-        let displayError = "Ocorreu um erro ao se comunicar com a IA. Por favor, tente novamente.";
-        if (errorMessage.includes('429')) {
-            displayError = "Cota da API excedida. Se a chave for nova, pode ser necessário habilitar o faturamento no seu projeto Google Cloud.";
-            triggerAiCooldown();
-        } else if (errorMessage.includes('API key not valid')) {
-            displayError = "Sua chave de API da Gemini não é válida. Verifique e insira novamente.";
-        } else if (error.message && (error.message.includes('SAFETY') || error.message.includes('blockReason'))) {
-            displayError = `Geração bloqueada por segurança: ${error.message}.`;
-        } else if (error.message) {
-            displayError = error.message;
-        }
-        setError(displayError);
-    };
 
     useEffect(() => {
         setSelectedProducts([]);
         setCurrentComposition(null);
         setGeneratedImageUrl(null);
         setError(null);
-        setFilterColors([]);
     }, [compositionSize]);
-
-    useEffect(() => {
-        if (!useColorFilter || !compositionSize) {
-            return;
-        }
-
-        if (filterColors.length === 0) {
-            setSelectedProducts([]);
-            return;
-        }
-
-        const matchingProducts = products.filter(p => 
-            p.colors.some(productColor => 
-                filterColors.some(filterColor => filterColor.name === productColor.name)
-            )
-        );
-
-        const shuffled = [...matchingProducts].sort(() => 0.5 - Math.random());
-        const newSelection = shuffled.slice(0, compositionSize);
-        setSelectedProducts(newSelection);
-
-    }, [filterColors, useColorFilter, compositionSize, products]);
 
     const handleConfirmSelection = (selectedIds: string[]) => {
         const newlySelected = products.filter(p => selectedIds.includes(p.id));
         setSelectedProducts(newlySelected);
         setIsSelectModalOpen(false);
-        // When user manually selects products, disable the color filter.
-        if (useColorFilter) {
-            setUseColorFilter(false);
-        }
     };
 
     const handleVisualize = () => {
@@ -221,21 +172,11 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     const handleGenerateEnvironment = async () => {
         if (!currentComposition) return;
         if (!apiKey) {
-            openApiKeyModal();
-            return;
-        }
-        if (!tryAcquireAiLock()) {
-            setError("Outra operação de IA já está em andamento. Aguarde.");
+            onRequestApiKey();
             return;
         }
 
-        const check = checkAndRegisterAiCall();
-        if (!check.allowed) {
-            setError(check.message);
-            releaseAiLock();
-            return;
-        }
-
+        setIsGenerating(true);
         setError(null);
 
         try {
@@ -268,9 +209,10 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                 throw new Error("A IA não retornou uma imagem.");
             }
         } catch (e: any) {
-            handleAiError(e);
+            console.error("Failed to generate composition image:", e);
+            window.alert("Aconteceu um erro! Mas não se preocupe, tente novamente agora");
         } finally {
-            releaseAiLock();
+            setIsGenerating(false);
         }
     };
     
@@ -393,52 +335,12 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         }
     };
     
-    const handleShuffleOrder = () => {
+    const handleShuffle = () => {
         if (currentComposition) {
             setCurrentComposition(prev => [...prev!].sort(() => Math.random() - 0.5));
         }
     };
     
-    const handleGenerateNew = () => {
-        if (!compositionSize) return;
-
-        let productPool = products;
-
-        if (useColorFilter && filterColors.length > 0) {
-            productPool = products.filter(p => 
-                p.colors.some(pc => filterColors.some(fc => fc.name === pc.name))
-            );
-        }
-        
-        if (productPool.length <= compositionSize && currentComposition) {
-            const currentIds = new Set(currentComposition.map(p => p.id));
-            const poolIds = new Set(productPool.map(p => p.id));
-            if (currentIds.size === poolIds.size && [...currentIds].every(id => poolIds.has(id))) {
-                setError("Não há outras combinações possíveis com os filtros atuais.");
-                return;
-            }
-        }
-
-        let newComposition;
-        let attempts = 0;
-        const currentIdsString = currentComposition ? currentComposition.map(p => p.id).sort().join(',') : '';
-
-        do {
-            const shuffled = [...productPool].sort(() => 0.5 - Math.random());
-            newComposition = shuffled.slice(0, compositionSize);
-            const newIdsString = newComposition.map(p => p.id).sort().join(',');
-
-            if (newIdsString !== currentIdsString) {
-                break; // Found a different composition
-            }
-            attempts++;
-        } while (attempts < 20); // Try up to 20 times
-
-        setSelectedProducts(newComposition);
-        setCurrentComposition(newComposition);
-        setGeneratedImageUrl(null); // Reset AI image
-    };
-
     const resetAll = () => {
         setCompositionSize(null);
         setSelectedProducts([]);
@@ -449,19 +351,6 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
 
     const toggleSize = (size: CushionSize) => {
         setSelectedSizes(prev => prev.includes(size) ? prev.filter(s => s !== size) : [...prev, size]);
-    };
-
-    const handleColorFilterToggle = (color: { name: string; hex: string }) => {
-        setFilterColors(prev => {
-            const isSelected = prev.some(c => c.name === color.name);
-            if (isSelected) {
-                return prev.filter(c => c.name !== color.name);
-            }
-            if (compositionSize && prev.length < compositionSize) {
-                return [...prev, color];
-            }
-            return prev;
-        });
     };
     
     const titleClasses = isDark ? "text-white" : "text-gray-900";
@@ -489,14 +378,15 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                 <div className="grid grid-cols-5 gap-2">{[2, 3, 4, 5, 6].map(size => (<button key={size} onClick={() => setCompositionSize(size)} className={`py-3 font-bold rounded-lg transition-colors text-center ${compositionSize === size ? 'bg-fuchsia-600 text-white' : (isDark ? 'bg-gray-700 text-black' : 'bg-gray-200 text-black')}`}>{size}</button>))}</div>
                             </div>
                             
+                             {/* Step 1.5: AI Options */}
                             {compositionSize !== null && (
                                 <div className="border-t pt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-                                     <div className="flex justify-between items-center mb-2">
-                                        <h3 className={`font-bold text-lg ${titleClasses}`}>1.5 Detalhes para IA (Opcional)</h3>
-                                    </div>
-                                    
-                                     <div className="mb-4">
-                                        <p className={`text-sm mb-3 font-semibold ${subtitleClasses}`}>Selecione os tamanhos para incluir na imagem:</p>
+                                     <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>
+                                        1.5 Detalhes para IA (Opcional)
+                                        <span className="text-sm font-normal text-purple-400 ml-2">(Você pode adicionar mais de um tamanho)</span>
+                                    </h3>
+                                    <div className="mb-4">
+                                        <p className={`text-sm mb-3 ${subtitleClasses}`}>Selecione os tamanhos para incluir na imagem:</p>
                                         <div className="flex flex-wrap gap-2">
                                             {Object.values(CushionSize).map(size => {
                                                 const isSelected = selectedSizes.includes(size);
@@ -504,8 +394,8 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                             })}
                                         </div>
                                     </div>
-                                    <div className="mb-4">
-                                        <p className={`text-sm mb-3 font-semibold ${subtitleClasses}`}>Cor do sofá no ambiente:</p>
+                                    <div>
+                                        <p className={`text-sm mb-3 ${subtitleClasses}`}>Cor do sofá no ambiente:</p>
                                          <div className="flex flex-wrap items-center gap-2">
                                             {sofaColors.map(color => {
                                                 const isSelected = sofaColor === color;
@@ -520,26 +410,6 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                             </div>
                                         </div>
                                     </div>
-                                     <div>
-                                        <label className={`flex items-center cursor-pointer mb-3`}>
-                                            <input type="checkbox" checked={useColorFilter} onChange={e => setUseColorFilter(e.target.checked)} className="h-4 w-4 rounded text-fuchsia-600 focus:ring-fuchsia-500" />
-                                            <span className={`ml-3 font-semibold ${subtitleClasses}`}>Deseja gerar a partir de uma cor?</span>
-                                        </label>
-                                        {useColorFilter && (
-                                            <div className="animate-fade-in-scale">
-                                                <p className={`text-sm mb-3 ${subtitleClasses}`}>Selecione até {compositionSize} cores para buscar almofadas.</p>
-                                                <ColorSelector 
-                                                    allColors={availableColors}
-                                                    multiSelect
-                                                    selectedColors={filterColors}
-                                                    onToggleColor={handleColorFilterToggle}
-                                                    maxSelection={compositionSize}
-                                                    onAddCustomColor={() => {}}
-                                                    showAddColor={false}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
                                 </div>
                             )}
 
@@ -547,13 +417,13 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                             {compositionSize !== null && (
                                 <div className="border-t pt-6 mt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
                                     <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>2. Escolha suas Almofadas</h3>
-                                    <p className={`text-sm mb-3 ${subtitleClasses}`}>{useColorFilter && filterColors.length > 0 ? 'Pré-seleção baseada nas cores. Clique para refinar.' : `Selecione até ${compositionSize} almofadas que você gosta.`}</p>
-                                    <button onClick={() => setIsSelectModalOpen(true)} className={`w-full flex items-center flex-wrap gap-3 p-2 rounded-lg min-h-[88px] text-left transition-colors ${isDark ? 'bg-black/20 hover:bg-black/30' : 'bg-gray-50 hover:bg-gray-100'}`}>
+                                    <p className={`text-sm mb-3 ${subtitleClasses}`}>Selecione até {compositionSize} almofadas que você gosta.</p>
+                                    <div className="flex items-center gap-3 p-2 rounded-lg min-h-[88px]" style={{backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.05)'}}>
                                         {selectedProducts.map(p => (<img key={p.id} src={p.baseImageUrl} alt={p.name} className="w-16 h-16 rounded-lg object-cover" />))}
                                         {selectedProducts.length < compositionSize && (
-                                             <div className={`w-16 h-16 rounded-lg border-2 border-dashed flex items-center justify-center transition-colors ${isDark ? 'border-gray-600' : 'border-gray-300'}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg></div>
+                                             <button onClick={() => setIsSelectModalOpen(true)} className={`w-16 h-16 rounded-lg border-2 border-dashed flex items-center justify-center transition-colors ${isDark ? 'border-gray-600 hover:border-fuchsia-500' : 'border-gray-300 hover:border-purple-500'}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg></button>
                                         )}
-                                    </button>
+                                    </div>
                                 </div>
                             )}
 
@@ -569,13 +439,6 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     ) : (
                         // RESULT VIEW
                         <div className="flex-grow flex flex-col items-center gap-4">
-                            <div className={`w-full p-3 rounded-xl flex items-center justify-center gap-2 flex-wrap ${cardClasses}`}>
-                                <button onClick={handleShuffleOrder} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Ordem</button>
-                                <button onClick={handleGenerateNew} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Gerar Nova</button>
-                                <button onClick={handleShare} disabled={isSharing} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>{isSharing ? <ButtonSpinner/> : "Compartilhar"}</button>
-                                <button onClick={handleSave} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Salvar</button>
-                            </div>
-
                              <div className={`w-full aspect-[4/3] rounded-xl border p-4 flex flex-col ${cardClasses}`}>
                                 <div className="flex-grow flex items-center justify-center">
                                      <div className="flex flex-wrap justify-center items-start gap-4 p-4">
@@ -589,12 +452,17 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                         ))}
                                     </div>
                                 </div>
+                                <div className="flex items-center justify-center gap-2 pt-3 mt-auto">
+                                    <button onClick={handleShuffle} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Ordem</button>
+                                    <button onClick={handleShare} disabled={isSharing} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>{isSharing ? <ButtonSpinner/> : "Compartilhar"}</button>
+                                    <button onClick={handleSave} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Salvar</button>
+                                </div>
                             </div>
                             <div className={`w-full aspect-square rounded-xl border flex flex-col items-center justify-center p-4 ${cardClasses}`}>
                                 <div className="flex-grow w-full h-full flex items-center justify-center">
-                                    {isAiBusy ? <ButtonSpinner /> : generatedImageUrl ? <img src={generatedImageUrl} alt="Composição Gerada por IA" className="max-w-full max-h-full object-contain rounded-lg" /> : <p className={subtitleClasses}>Gere uma imagem com IA.</p>}
+                                    {isGenerating ? <ButtonSpinner /> : generatedImageUrl ? <img src={generatedImageUrl} alt="Composição Gerada por IA" className="max-w-full max-h-full object-contain rounded-lg" /> : <p className={subtitleClasses}>Gere uma imagem com IA.</p>}
                                 </div>
-                                 <button onClick={handleGenerateEnvironment} disabled={isAiBusy || timeLeft > 0} className="mt-4 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-500">{isAiBusy ? <ButtonSpinner /> : (cooldownMessage ? cooldownMessage : 'Gerar Ambiente (IA)')}</button>
+                                 <button onClick={handleGenerateEnvironment} disabled={isGenerating} className="mt-4 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-500">{isGenerating ? <ButtonSpinner /> : 'Gerar Ambiente (IA)'}</button>
                             </div>
                              {error && <p className="text-center text-red-500 mt-2">{error}</p>}
                             <button onClick={resetAll} className="w-full max-w-sm mt-4 bg-fuchsia-600 text-white font-bold py-3 rounded-lg">Criar Nova Composição</button>
@@ -627,6 +495,8 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     canManageStock={false}
                     onEditProduct={() => {}}
                     onSwitchProduct={setViewingProduct}
+                    apiKey={apiKey}
+                    onRequestApiKey={onRequestApiKey}
                     savedCompositions={[]}
                     onViewComposition={() => {}}
                 />

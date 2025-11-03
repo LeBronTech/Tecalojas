@@ -1,20 +1,23 @@
 import React, { useState, useContext, useMemo } from 'react';
 import { ThemeContext } from '../types';
 import { SavedComposition, View, Product } from '../types';
-import { CompositionViewerModal } from '../components/CompositionViewerModal';
+import CompositionViewerModal from '../components/CompositionViewerModal';
 import ProductDetailModal from '../components/ProductDetailModal';
 
 interface CompositionsScreenProps {
   savedCompositions: SavedComposition[];
   setSavedCompositions: React.Dispatch<React.SetStateAction<SavedComposition[]>>;
   onNavigate: (view: View) => void;
+  // New props for AI generation and product details
+  apiKey: string | null;
+  onRequestApiKey: () => void;
   products: Product[];
   onEditProduct: (product: Product) => void;
   onSaveComposition: (composition: Omit<SavedComposition, 'id'>) => void;
 }
 
 const CompositionsScreen: React.FC<CompositionsScreenProps> = ({ 
-  savedCompositions, setSavedCompositions, onNavigate, products, onEditProduct, onSaveComposition
+  savedCompositions, setSavedCompositions, onNavigate, apiKey, onRequestApiKey, products, onEditProduct, onSaveComposition 
 }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -37,6 +40,7 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
   };
 
   const openViewer = (index: number) => {
+    // Find the original index in the unfiltered list
     const originalIndex = savedCompositions.findIndex(c => c.id === filteredCompositions[index].id);
     setViewerState({ open: true, startIndex: originalIndex });
   };
@@ -126,6 +130,8 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
             compositions={savedCompositions}
             startIndex={viewerState.startIndex}
             onClose={() => setViewerState({ open: false, startIndex: 0 })}
+            apiKey={apiKey}
+            onRequestApiKey={onRequestApiKey}
             onViewProduct={handleViewProduct}
             onSaveComposition={onSaveComposition}
         />
@@ -141,10 +147,13 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
                   onEditProduct(productToEdit);
               }}
               onSwitchProduct={setViewingProduct}
+              apiKey={apiKey}
+              onRequestApiKey={onRequestApiKey}
               savedCompositions={savedCompositions}
               onViewComposition={(compositions, startIndex) => {
                   setViewingProduct(null);
                   setTimeout(() => {
+                      // We need to find the correct start index from the main `savedCompositions` list
                       const originalIndex = savedCompositions.findIndex(c => c.id === compositions[startIndex].id);
                       setViewerState({ open: true, startIndex: originalIndex > -1 ? originalIndex : 0 });
                   }, 150)

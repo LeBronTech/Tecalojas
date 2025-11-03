@@ -5,12 +5,11 @@ import { BRAND_LOGOS } from '../constants';
 interface ReplacementItemProps {
   product: Product;
   onDelete: (productId: string) => void;
-  onEdit: (product: Product) => void;
   theme: 'light' | 'dark';
   index: number;
 }
 
-const ReplacementItem: React.FC<ReplacementItemProps> = ({ product, onDelete, onEdit, theme, index }) => {
+const ReplacementItem: React.FC<ReplacementItemProps> = ({ product, onDelete, theme, index }) => {
   const isDark = theme === 'dark';
   const [isDiscontinued, setIsDiscontinued] = useState(false);
   
@@ -22,8 +21,7 @@ const ReplacementItem: React.FC<ReplacementItemProps> = ({ product, onDelete, on
 
   return (
     <div 
-      onClick={() => onEdit(product)}
-      className={`rounded-3xl p-5 shadow-lg transition-all duration-300 border cursor-pointer hover:bg-black/10 dark:hover:bg-white/5 ${cardClasses}`}
+      className={`rounded-3xl p-5 shadow-lg transition-all duration-300 border ${cardClasses}`}
       style={{ animation: `float-in 0.3s ease-out forwards`, animationDelay: `${index * 50}ms`, opacity: 0 }}
     >
       <div className="flex items-start space-x-4">
@@ -51,7 +49,7 @@ const ReplacementItem: React.FC<ReplacementItemProps> = ({ product, onDelete, on
         </div>
       </div>
       <div className={`mt-4 pt-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4 ${isDark ? 'border-white/10' : 'border-gray-200/80'}`}>
-        <label className="flex items-center cursor-pointer" onClick={e => e.stopPropagation()}>
+        <label className="flex items-center cursor-pointer">
           <input 
             type="checkbox" 
             checked={isDiscontinued} 
@@ -64,7 +62,7 @@ const ReplacementItem: React.FC<ReplacementItemProps> = ({ product, onDelete, on
           <div className="flex items-center gap-2 animate-fade-in">
             <p className={`text-sm font-semibold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>Deseja excluir?</p>
             <button 
-              onClick={(e) => { e.stopPropagation(); onDelete(product.id); }} 
+              onClick={() => onDelete(product.id)} 
               className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg shadow-red-600/20 hover:bg-red-700 transition"
             >
               Sim, excluir

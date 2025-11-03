@@ -15,9 +15,6 @@
 //    da constante `firebaseConfig` abaixo.
 // ================================================================= 
 
-// IMPORTANTE: A `apiKey` abaixo é para os serviços do Firebase (autenticação, banco de dados).
-// NÃO é a chave de API da Gemini para os recursos de Inteligência Artificial.
-// A chave da Gemini é gerenciada separadamente dentro do aplicativo.
 export const firebaseConfig = {
 apiKey: "AIzaSyAvP0EoCS5ePCQIb2qNxD2Ek-UOTGcXaO0",
   authDomain: "teca-54f58.firebaseapp.com",

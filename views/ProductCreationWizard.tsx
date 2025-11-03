@@ -1,6 +1,6 @@
 import React, { useState, useContext, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Product, Brand, CushionSize, StoreName, WaterResistanceLevel, DynamicBrand, ThemeContext, Variation } from '../types';
-import { BRAND_FABRIC_MAP, PREDEFINED_COLORS, VARIATION_DEFAULTS, BRANDS } from '../constants';
+import { BRAND_FABRIC_MAP, PREDEFINED_COLORS, VARIATION_DEFAULTS } from '../constants';
 import ColorSelector from '../components/ColorSelector';
 
 // --- Cordova/TypeScript Declarations ---
@@ -273,14 +273,14 @@ const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, 
 interface ProductCreationWizardProps {
   onClose: () => void;
   onConfigure: (productsToCreate: Omit<Product, 'id'>[], productToConfigure: Omit<Product, 'id'>) => Promise<void>;
-  allColors: { name: string; hex: string }[];
+  customColors: { name: string; hex: string }[];
   onAddCustomColor: (color: { name: string; hex: string }) => void;
   categories: string[];
   products: Product[];
   brands: DynamicBrand[];
 }
 
-export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ onClose, onConfigure, allColors, onAddCustomColor, categories, products, brands }) => {
+export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ onClose, onConfigure, customColors, onAddCustomColor, categories, products, brands }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
@@ -291,7 +291,6 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
     // Form state
     const [baseName, setBaseName] = useState('');
     const [category, setCategory] = useState('');
-    const [subCategory, setSubCategory] = useState('');
     const [brand, setBrand] = useState<Brand | string>(Brand.MARCA_PROPRIA);
     const [fabricType, setFabricType] = useState('');
     const [baseImageUrl, setBaseImageUrl] = useState('');
@@ -302,31 +301,22 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
     const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     
+    const allColors = useMemo(() => [...PREDEFINED_COLORS, ...customColors].filter(
+        (color, index, self) => index === self.findIndex((c) => c.name.toLowerCase() === color.name.toLowerCase())
+    ), [customColors]);
+  
     const allBrandNames = useMemo(() => {
         const dynamicNames = brands.map(b => b.name);
         const staticNames = Object.values(Brand);
-        return [...new Set([...dynamicNames, ...staticNames])].sort((a,b) => String(a).localeCompare(String(b)));
+        return [...new Set([...dynamicNames, ...staticNames])];
     }, [brands]);
-    
-    const availableFabricTypes = useMemo(() => Object.keys(BRAND_FABRIC_MAP[brand] || {}), [brand]);
-    
-    const sortedCategories = useMemo(() => [...categories].sort((a, b) => String(a).localeCompare(String(b))), [categories]);
 
-    const availableSubCategories = useMemo(() => {
-        if (!category) return [];
-        const subCats = products
-            .filter(p => p.category === category && p.subCategory)
-            .map(p => p.subCategory!);
-        const fabricTypesAsSubCats = products
-            .filter(p => p.category === category && p.fabricType)
-            .map(p => p.fabricType);
-        return [...new Set([...subCats, ...fabricTypesAsSubCats])].sort((a, b) => a.localeCompare(b));
-    }, [category, products]);
+    const availableFabricTypes = useMemo(() => Object.keys(BRAND_FABRIC_MAP[brand] || {}), [brand]);
 
     useEffect(() => {
-        if (availableFabricTypes.length > 0 && !availableFabricTypes.includes(fabricType)) {
+        if (availableFabricTypes.length > 0) {
             setFabricType(availableFabricTypes[0]);
-        } else if (availableFabricTypes.length === 0) {
+        } else {
             setFabricType('');
         }
     }, [brand, availableFabricTypes]);
@@ -416,7 +406,6 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
                     name: newName,
                     baseImageUrl,
                     category: pluralizeCategory(category),
-                    subCategory: subCategory.trim() || undefined,
                     brand,
                     fabricType,
                     description: BRAND_FABRIC_MAP[brand]?.[fabricType] || '',
@@ -467,71 +456,18 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
+                                    <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Categoria</label>
+                                    <input list="categories-list" value={category} onChange={e => setCategory(e.target.value)} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
+                                    <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
+                                </div>
+                                <div>
                                     <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
                                     <select value={brand} onChange={e => setBrand(e.target.value)} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(b => <option key={b} value={b}>{b}</option>)}</select>
                                 </div>
-                                 <div>
-                                    <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
-                                    <select value={fabricType} onChange={e => setFabricType(e.target.value)} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>
-                                      <option value="" disabled>Selecione um tecido</option>
-                                      {availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}
-                                    </select>
-                                </div>
                             </div>
                             <div>
-                                <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Categoria</label>
-                                {sortedCategories.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {sortedCategories.map(cat => (
-                                            <button
-                                                key={cat}
-                                                type="button"
-                                                onClick={() => { setCategory(cat); setSubCategory(''); }}
-                                                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                                                    category === cat
-                                                        ? (isDark ? 'bg-fuchsia-600 text-white' : 'bg-purple-600 text-white')
-                                                        : (isDark ? 'bg-black/20 text-gray-300 hover:bg-black/40' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
-                                                }`}
-                                            >
-                                                {cat}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                                <input 
-                                    value={category}
-                                    onChange={e => setCategory(e.target.value)}
-                                    required
-                                    placeholder="Selecione acima ou digite uma nova categoria"
-                                    className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} 
-                                />
-                            </div>
-                             <div>
-                                <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Sub-categoria (Opcional)</label>
-                                {availableSubCategories.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {availableSubCategories.map(subCat => (
-                                            <button
-                                                key={subCat}
-                                                type="button"
-                                                onClick={() => setSubCategory(subCat)}
-                                                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                                                    subCategory === subCat
-                                                        ? (isDark ? 'bg-cyan-600 text-white' : 'bg-teal-500 text-white')
-                                                        : (isDark ? 'bg-black/20 text-gray-300 hover:bg-black/40' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
-                                                }`}
-                                            >
-                                                {subCat}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                                <input 
-                                    value={subCategory}
-                                    onChange={e => setSubCategory(e.target.value)}
-                                    placeholder="Selecione acima ou digite uma nova sub-categoria"
-                                    className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} 
-                                />
+                                <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
+                                <select value={fabricType} onChange={e => setFabricType(e.target.value)} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
                             </div>
                             <div className="flex items-start gap-4">
                                 <div className={`relative w-24 h-24 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>

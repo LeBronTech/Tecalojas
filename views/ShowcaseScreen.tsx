@@ -1,8 +1,8 @@
 import React, { useState, useContext, useEffect, useMemo } from 'react';
-import { Product, View, DynamicBrand, SavedComposition, ThemeContext, ShowcaseScreenProps } from '../types';
+import { Product, View, DynamicBrand, SavedComposition, ThemeContext } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO } from '../constants';
-import { CompositionViewerModal } from '../components/CompositionViewerModal';
+import CompositionViewerModal from '../components/CompositionViewerModal';
 
 type ProductGroup = Product[];
 
@@ -160,16 +160,20 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
 };
 
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ 
-    products, 
-    onMenuClick, 
-    hasFetchError, 
-    canManageStock, 
-    onEditProduct, 
-    onNavigate, 
-    savedCompositions,
-    onSaveComposition
-}) => {
+interface ShowcaseScreenProps {
+  products: Product[];
+  onMenuClick: () => void;
+  hasFetchError: boolean;
+  canManageStock: boolean;
+  onEditProduct: (product: Product) => void;
+  brands: DynamicBrand[];
+  apiKey: string | null;
+  onRequestApiKey: () => void;
+  onNavigate: (view: View) => void;
+  savedCompositions: SavedComposition[];
+}
+
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, hasFetchError, canManageStock, onEditProduct, brands, apiKey, onRequestApiKey, onNavigate, savedCompositions }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedFabric, setSelectedFabric] = useState<string>('Todos os Tecidos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -219,6 +223,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
     if (selectedCategory === 'Todas') {
       filtered = groupedProducts;
     } else {
+      // When a category is selected, we show individual products, not groups.
       let categoryProducts: Product[] = products.filter(p => p.category === selectedCategory);
       if (selectedFabric !== 'Todos os Tecidos') {
           categoryProducts = categoryProducts.filter(p => p.fabricType === selectedFabric);
@@ -226,6 +231,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
       filtered = categoryProducts;
     }
 
+    // Apply sorting
     const sorted = [...filtered].sort((a, b) => {
         const itemA = Array.isArray(a) ? a[0] : a;
         const itemB = Array.isArray(b) ? b[0] : b;
@@ -235,7 +241,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
             const nameA = Array.isArray(a) ? itemA.category : itemA.name;
             const nameB = Array.isArray(b) ? itemB.category : itemB.name;
             return nameA.localeCompare(nameB);
-        } else {
+        } else { // 'recent'
             const timeA = parseInt(itemA.id.split('-')[0], 10) || 0;
             const timeB = parseInt(itemB.id.split('-')[0], 10) || 0;
             return timeB - timeA;
@@ -246,25 +252,18 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
   }, [selectedCategory, selectedFabric, products, groupedProducts, sortOrder]);
 
   const handleEdit = (product: Product) => {
-    setSelectedProduct(null);
-    onEditProduct(product);
+    setSelectedProduct(null); // Close detail modal
+    onEditProduct(product); // Open edit modal
   };
 
   const handleSwitchProduct = (product: Product) => {
-    setSelectedProduct(product);
+    setSelectedProduct(product); // Switch to another product variation in the detail modal
   };
 
   const handleViewComposition = (compositions: SavedComposition[], startIndex: number) => {
       setCompositionToView({ compositions, startIndex });
-      setSelectedProduct(null);
+      setSelectedProduct(null); // Close product detail modal if open
   }
-  
-  const handleViewProductFromComposition = (product: Product) => {
-    setCompositionToView(null);
-    setTimeout(() => {
-        setSelectedProduct(product);
-    }, 150);
-  };
 
   const searchInputClasses = isDark 
     ? "bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400"
@@ -401,6 +400,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
               canManageStock={canManageStock}
               onEditProduct={handleEdit}
               onSwitchProduct={handleSwitchProduct}
+              apiKey={apiKey}
+              onRequestApiKey={onRequestApiKey}
               savedCompositions={savedCompositions}
               onViewComposition={handleViewComposition}
           />
@@ -410,8 +411,10 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
               compositions={compositionToView.compositions}
               startIndex={compositionToView.startIndex}
               onClose={() => setCompositionToView(null)}
-              onViewProduct={handleViewProductFromComposition}
-              onSaveComposition={onSaveComposition}
+              apiKey={apiKey}
+              onRequestApiKey={onRequestApiKey}
+              onViewProduct={() => {}}
+              onSaveComposition={() => {}}
           />
       )}
     </>
