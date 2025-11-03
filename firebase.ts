@@ -282,6 +282,7 @@ export const onProductsUpdate = (
             ...data,
             variations: data.variations || [],
             colors: data.colors && Array.isArray(data.colors) && data.colors.length > 0 ? data.colors : [{ name: 'Indefinida', hex: '#808080' }],
+            subCategory: data.subCategory || '',
           } as Product;
         }
       );

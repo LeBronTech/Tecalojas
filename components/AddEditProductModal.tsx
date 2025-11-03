@@ -227,6 +227,7 @@ interface AddEditProductModalProps {
   onRequestApiKey: () => void;
   allColors: { name: string; hex: string }[];
   onAddColor: (color: { name: string; hex: string }) => void;
+  onDeleteColor: (colorName: string) => void;
   brands: DynamicBrand[];
 }
 
@@ -377,7 +378,7 @@ const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> =
 };
 
 
-const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, apiKey, onRequestApiKey, allColors, onAddColor, brands }) => {
+const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, apiKey, onRequestApiKey, allColors, onAddColor, onDeleteColor, brands }) => {
   const [formData, setFormData] = useState<Product>(() => ({ ...initialFormState, ...product }));
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -395,7 +396,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isVariationsVisible, setIsVariationsVisible] = useState(true);
   const [isBackgroundsVisible, setIsBackgroundsVisible] = useState(true);
-  const [isCategoryVisible, setIsCategoryVisible] = useState(false);
 
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -448,7 +448,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setIsBatchColorMode(false);
     setSelectedNewColors([]);
     setImageRotation(0);
-    setIsCategoryVisible(false);
   }, [product]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -867,96 +866,262 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   return (
       <>
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 transition-opacity duration-300" onClick={onClose}>
-            <form onSubmit={handleSubmit} className={`border rounded-3xl shadow-2xl w-full max-w-lg p-6 relative transform transition-all duration-300 scale-95 opacity-0 animate-fade-in-scale flex flex-col ${modalBgClasses}`} 
-                onClick={e => e.stopPropagation()}
-                style={{ maxHeight: '90vh' }}
-            >
-                <style>{`
-                    @keyframes fade-in-scale { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-                    .animate-fade-in-scale { animation: fade-in-scale 0.3s forwards; }
-                `}</style>
-                <div className="flex justify-between items-center mb-4 flex-shrink-0">
-                    <h2 className={`text-2xl font-bold ${titleClasses}`}>{product.id ? "Editar Produto" : "Adicionar Produto"}</h2>
+            <form onSubmit={handleSubmit} className={`border rounded-3xl shadow-2xl w-full max-w-lg p-6 relative transform transition-all duration-300 scale-95 opacity-0 animate-fade-in-scale flex flex-col ${modalBgClasses}`} onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh' }}>
+                <style>{` @keyframes fade-in-scale { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } } .animate-fade-in-scale { animation: fade-in-scale 0.3s forwards; } `}</style>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className={`text-2xl font-bold ${titleClasses}`}>Editar Produto</h2>
                     <button type="button" onClick={onClose} className={`rounded-full p-2 transition-colors z-10 ${closeBtnClasses}`}>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
 
-                <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar pr-4 -mr-4">
-                    <div className="space-y-6">
-
-                        {/* Image Section */}
-                        <div className="flex items-start gap-4">
-                            <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
-                                {formData.baseImageUrl ? (
-                                    <img src={formData.baseImageUrl} alt="Preview do Produto" className="w-full h-full object-cover transition-transform duration-300" style={{ transform: `rotate(${imageRotation}deg)` }} />
-                                ) : (
-                                    <div className="text-center text-xs text-gray-500">Sem Imagem</div>
-                                )}
-                                <button type="button" onClick={handleRotateImage} title="Girar Imagem" className="absolute bottom-1 right-1 w-8 h-8 rounded-full z-10 bg-black/30 backdrop-blur-sm hover:bg-black/50 flex items-center justify-center transition-colors">
-                                     <img src="https://i.postimg.cc/C1qXzX3z/20251019-214841-0000.png" alt="Girar" className="w-6 h-6" />
-                                </button>
-                            </div>
-                            <div className="flex-grow space-y-2">
-                                <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Imagem Principal</label>
-                                <button type="button" onClick={handleOpenImagePicker} className={`w-full text-center font-bold py-2.5 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
-                                    Alterar Imagem
-                                </button>
-                                <button type="button" onClick={generateShowcaseImage} disabled={!apiKey || isGeneratingShowcase} title={!apiKey ? noApiKeyTitle : "Gerar imagem de vitrine com IA"} className={`w-full text-center font-bold py-2.5 px-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>
-                                    {isGeneratingShowcase ? <ButtonSpinner /> : 'Vitrine (IA)'}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Main Details Section */}
-                        <div className="space-y-4">
-                           <FormInput label="Nome do Produto" name="name" value={formData.name} onChange={handleChange} required>
-                                <button type="button" onClick={handleAiCorrectName} disabled={!apiKey || isNameAiLoading} title={!apiKey ? noApiKeyTitle : "Corrigir/Padronizar com IA"} className="absolute top-1/2 right-2 -translate-y-1/2 bg-fuchsia-600 text-white font-bold py-2 px-3 text-sm rounded-md hover:bg-fuchsia-700 transition-colors disabled:opacity-50">
-                                     {isNameAiLoading ? <ButtonSpinner /> : 'Corrigir (IA)'}
-                                </button>
-                           </FormInput>
-                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Categoria</label>
-                                    <div className="relative">
-                                    <input list="categories-list" value={formData.category} onChange={(e) => setFormData(prev => ({...prev, category: e.target.value}))} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition pr-10 ${inputClasses}`} />
-                                    <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
-                                    <button type="button" onClick={() => setIsCategoryVisible(!isCategoryVisible)} className="absolute top-1/2 right-3 -translate-y-1/2 text-gray-400">
-                                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${isCategoryVisible ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                                    </button>
-                                    </div>
-                                    {isCategoryVisible && <div className="p-2 mt-1 rounded-md max-h-32 overflow-y-auto bg-black/10">{categories.map(c => <div key={c} onClick={() => { setFormData(p => ({...p, category: c})); setIsCategoryVisible(false);}} className="p-1.5 rounded hover:bg-fuchsia-500/20 cursor-pointer">{c}</div>)}</div>}
+                <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar pr-2 -mr-2 space-y-6 pb-24">
+                    <div className="flex items-start gap-4">
+                        <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
+                            {formData.baseImageUrl ? (
+                                <img src={formData.baseImageUrl} alt="Preview" className="w-full h-full object-cover transition-transform duration-300" style={{ transform: `rotate(${imageRotation}deg)` }} /> 
+                            ) : (
+                                <div className={`w-full h-full flex items-center justify-center relative ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+                                    <img 
+                                        src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
+                                        alt="Sem Imagem" 
+                                        className="w-1/2 h-1/2 object-contain opacity-20" 
+                                    />
                                 </div>
-                                <div>
-                                    <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
-                                    <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(b => <option key={b} value={b}>{b}</option>)}</select>
-                                </div>
-                            </div>
+                            )}
+                            {formData.baseImageUrl && (
+                                <button
+                                    type="button"
+                                    onClick={handleRotateImage}
+                                    className="absolute bottom-1 right-1 w-8 h-8 rounded-full z-10 bg-black/20 hover:bg-black/40 flex items-center justify-center transition-colors"
+                                    aria-label="Girar imagem"
+                                >
+                                    <img src="https://i.postimg.cc/C1qXzX3z/20251019-214841-0000.png" alt="Girar Imagem" className="w-6 h-6" />
+                                </button>
+                            )}
                         </div>
-
-                        {/* Variations Section */}
+                        <div className="flex-grow">
+                             <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Imagem Principal</label>
+                            <button type="button" onClick={handleOpenImagePicker} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Alterar Imagem</button>
+                            <button type="button" onClick={generateShowcaseImage} disabled={isGeneratingShowcase || !formData.baseImageUrl} title={!apiKey ? noApiKeyTitle : "Gerar imagem de vitrine com IA"} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
+                                {isGeneratingShowcase ? <ButtonSpinner /> : 'Gerar Vitrine com IA'}
+                            </button>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormInput 
+                            label="Nome do Produto" 
+                            name="name" 
+                            value={formData.name} 
+                            onChange={handleChange}
+                            required
+                        >
+                             <button type="button" onClick={handleAiCorrectName} disabled={isNameAiLoading || !apiKey} title="Corrigir Nome com IA" className={`absolute top-1/2 right-2 -translate-y-1/2 text-xs font-bold py-2 px-3 rounded-md transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                                {isNameAiLoading ? <ButtonSpinner /> : 'Corrigir texto'}
+                            </button>
+                        </FormInput>
                         <div>
-                          {/* ... more JSX ... */}
+                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Categoria</label>
+                             <div className="flex flex-wrap gap-2 mb-2">
+                                {categories.map(cat => (
+                                    <button
+                                        type="button"
+                                        key={cat}
+                                        onClick={() => setFormData(prev => ({ ...prev, category: cat }))}
+                                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${formData.category === cat ? (isDark ? 'bg-fuchsia-600 text-white' : 'bg-purple-600 text-white') : (isDark ? 'bg-black/30 text-gray-300' : 'bg-gray-200 text-gray-700')}`}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
+                            <input list="categories-list" name="category" value={formData.category} onChange={handleChange} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
+                            <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
                         </div>
                     </div>
-                </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div>
+                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
+                            <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(brandName => <option key={brandName} value={brandName}>{brandName}</option>)}</select>
+                        </div>
+                        <div>
+                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
+                            <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
+                        </div>
+                    </div>
+                     <div>
+                        <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Proteção contra líquidos</label>
+                        <div className="space-y-2">
+                             <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.NONE} checked={formData.waterResistance === WaterResistanceLevel.NONE} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>Nenhum</span></label>
+                            <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.SEMI} checked={formData.waterResistance === WaterResistanceLevel.SEMI} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.SEMI]?.label}</span></label>
+                            <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.FULL} checked={formData.waterResistance === WaterResistanceLevel.FULL} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.FULL]?.label}</span></label>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 className={`text-lg font-bold mb-2 ${titleClasses}`}>Cor do Produto</h3>
+                         <div className="flex items-center mb-3">
+                            <input 
+                                type="checkbox" 
+                                id="isMultiColor"
+                                name="isMultiColor" 
+                                checked={!!formData.isMultiColor}
+                                onChange={handleChange}
+                                className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300 rounded"
+                            />
+                            <label htmlFor="isMultiColor" className={`ml-2 text-sm font-medium ${labelClasses}`}>
+                                É multi cor (até 3 cores)
+                            </label>
+                        </div>
+                        <ColorSelector
+                            allColors={allColors}
+                            multiSelect={!!formData.isMultiColor}
+                            selectedColors={formData.colors || []}
+                            onToggleColor={handleColorToggle}
+                            selectedColor={!formData.isMultiColor ? formData.colors?.[0] : undefined}
+                            onSelectColor={handleColorSelect}
+                            disabledColors={usedColorNamesInFamily}
+                            onAddCustomColor={onAddColor}
+                            onDeleteColor={onDeleteColor}
+                        />
+                    </div>
+                    <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label><textarea name="description" value={formData.description} onChange={handleChange} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}></textarea></div>
+                    
+                    {/* Collapsible Size Variations */}
+                    <div>
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className={`text-lg font-bold ${titleClasses}`}>Variações de Tamanho e Estoque</h3>
+                             <button type="button" onClick={() => setIsVariationsVisible(!isVariationsVisible)} className="p-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isVariationsVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                        </div>
+                        <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isVariationsVisible ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <div className="space-y-3 pt-2">
+                                {formData.variations.map((v, i) => (<div key={v.size} className={`p-4 rounded-xl border ${cardClasses}`}><div className="flex justify-between items-center mb-3"><h4 className="font-bold text-fuchsia-400">{v.size}</h4><button type="button" onClick={() => handleRemoveVariation(i)} className="text-red-500 hover:text-red-700 p-1"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div><div className="grid grid-cols-2 gap-4"><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label><input type="number" value={v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div><div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label><input type="number" value={v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>{STORE_NAMES.map(storeName => (<div key={storeName}><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Estoque ({storeName})</label><input type="number" value={v.stock[storeName]} onChange={e => handleVariationChange(i, `stock-${storeName}`, e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`} /></div>))}</div><div className="mt-3 flex items-center gap-4"><div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>{v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}</div><button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} title={!apiKey ? noApiKeyTitle : `Gerar imagem para variação ${v.size}`} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>{aiGenerating[v.size] ? <ButtonSpinner /> : 'Gerar Imagem IA'}</button></div></div>))}
+                                <div className={`flex gap-2 mt-4 p-2 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+                                     <select value={addVariationSize} onChange={e => setAddVariationSize(e.target.value as CushionSize)} className={`flex-grow border-2 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}><option value="" disabled>Selecione um tamanho</option>{Object.values(CushionSize).map(size => (<option key={size} value={size} disabled={formData.variations.some(v => v.size === size)}>{size}</option>))}</select>
+                                    <button type="button" onClick={handleAddVariation} className="bg-fuchsia-600 text-white font-bold p-3 rounded-lg hover:bg-fuchsia-700 transition-transform transform hover:scale-105"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                 <div className="flex justify-between items-center pt-4 mt-auto border-t flex-shrink-0" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-                    <button type="button" onClick={() => onRequestDelete(formData.id)} className="text-red-500 font-bold py-3 px-6 rounded-lg hover:bg-red-500/10 transition">Excluir</button>
-                    <div className="flex gap-4">
-                        <button type="button" onClick={onClose} className={`font-bold py-3 px-6 rounded-lg transition ${cancelBtnClasses}`}>Cancelar</button>
-                        <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-fuchsia-700 disabled:bg-gray-400 flex items-center gap-2">
-                          {isSaving && <ButtonSpinner />}
-                          {isSaving ? 'Salvando...' : 'Salvar'}
-                        </button>
+                    {/* Collapsible Backgrounds */}
+                    <div>
+                         <div className="flex justify-between items-center mb-3">
+                            <h3 className={`text-lg font-bold ${titleClasses}`}>Fundos de Vitrine (IA)</h3>
+                             <button type="button" onClick={() => setIsBackgroundsVisible(!isBackgroundsVisible)} className="p-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isBackgroundsVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                        </div>
+                         <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isBackgroundsVisible ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <p className={`text-sm mb-3 ${subtitleClasses}`}>Gere imagens do produto em diferentes ambientes. Estas imagens serão salvas e exibidas na vitrine.</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {backgroundOptions.map(bg => { 
+                                    const contextKey = bg.toLowerCase() as 'sala' | 'quarto' | 'varanda' | 'piscina'; 
+                                    const imageUrl = formData.backgroundImages?.[contextKey]; 
+                                    const isGenerating = bgGenerating[contextKey]; 
+                                    return (
+                                    <div key={bg} className="flex flex-col items-center">
+                                        <div className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>{isGenerating ? (<ButtonSpinner />) : imageUrl ? (<img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />) : (<span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>)}</div>
+                                        <button type="button" onClick={() => handleGenerateBackgroundImage(bg)} disabled={isGenerating || !formData.baseImageUrl} title={!apiKey ? noApiKeyTitle : `Gerar fundo de ${bg}`} className={`w-full text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                                            {isGenerating ? <ButtonSpinner/> : `Gerar ${bg}`}
+                                        </button>
+                                    </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="border-t pt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+                        <h3 className={`text-lg font-bold mb-3 ${titleClasses}`}>Produtos Relacionados (Mesma Família)</h3>
+                        {familyProducts.filter(p => p.id !== formData.id).length > 0 ? (
+                            <div className="mb-4 space-y-2">
+                                {familyProducts.filter(p => p.id !== formData.id).map(p => (
+                                    <div key={p.id} className={`p-2 rounded-xl flex items-center justify-between border ${isDark ? 'bg-black/20 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`w-10 h-10 rounded-lg object-cover flex-shrink-0 flex items-center justify-center overflow-hidden ${isDark ? 'bg-black/20' : 'bg-gray-200'}`}>
+                                                {p.baseImageUrl ? (
+                                                    <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover"/>
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center relative">
+                                                        <img src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" alt="Sem Imagem" className="w-1/2 h-1/2 object-contain opacity-20" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-grow min-w-0">
+                                                <p className={`text-sm font-bold truncate ${titleClasses}`}>{p.name}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <MultiColorCircle colors={p.colors} />
+                                                    <span className={`text-xs font-medium truncate ${subtitleClasses}`}>{p.colors.map(c => c.name).join(', ')}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSwitch(p)}
+                                            title={`Editar ${p.name}`}
+                                            className={`flex-shrink-0 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+                                        >
+                                            Editar esse
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                             <p className={`text-sm mb-3 ${subtitleClasses}`}>Nenhum outro produto encontrado nesta família.</p>
+                        )}
+                        <div className="flex items-center">
+                            <label htmlFor="isBatchColorMode" className={`text-sm font-semibold mr-3 ${labelClasses} ${!canCreateVariations ? 'opacity-50' : ''}`} title={!canCreateVariations ? 'Preencha o nome e a categoria para criar variações.' : ''}>Criar produtos para novas cores?</label>
+                            <input type="checkbox" id="isBatchColorMode" checked={isBatchColorMode} onChange={(e) => setIsBatchColorMode(e.target.checked)} className="h-5 w-5 rounded text-fuchsia-600 focus:ring-fuchsia-500 disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canCreateVariations} />
+                        </div>
+                         {!canCreateVariations && (
+                           <p className="text-xs text-amber-500 mt-1">Preencha o nome e a categoria do produto antes de criar variações de cor.</p>
+                         )}
+
+                        {isBatchColorMode && canCreateVariations && (
+                            <>
+                            <ColorSelector
+                                allColors={allColors}
+                                multiSelect
+                                selectedColors={selectedNewColors}
+                                onToggleColor={handleToggleNewColor}
+                                disabledColors={[...usedColorNamesInFamily, ...(formData.colors?.map(c => c.name) || [])].filter((name): name is string => !!name)}
+                                onAddCustomColor={onAddColor}
+                                onDeleteColor={onDeleteColor}
+                            />
+                            <button 
+                                type="button" 
+                                onClick={handleCreateVariations} 
+                                disabled={isCreatingVariations || selectedNewColors.length === 0}
+                                className="w-full mt-4 bg-cyan-600 text-white font-bold py-3 rounded-lg shadow-lg shadow-cyan-600/30 hover:bg-cyan-700 transition flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:shadow-none"
+                            >
+                                {isCreatingVariations ? <ButtonSpinner /> : `Criar ${selectedNewColors.length} Variações de Cor`}
+                            </button>
+                            </>
+                        )}
+                    </div>
+
+                </div>
+                 <div className="flex justify-between items-center pt-6 border-t border-gray-200 dark:border-white/10 mt-auto">
+                    <div className="flex items-center gap-4">
+                        {product && (
+                            <button type="button" onClick={() => onRequestDelete(formData.id)} className="text-red-500 font-bold py-3 px-4 rounded-lg transition hover:bg-red-500/10 flex items-center gap-2">
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                Excluir
+                            </button>
+                        )}
+                         <button type="button" onClick={onClose} className={`font-bold py-3 px-6 rounded-lg transition ${cancelBtnClasses}`}>Cancelar</button>
+                    </div>
+                     <div className="flex items-center gap-4">
+                         {saveError && <p className="text-sm text-red-500 font-semibold">{saveError}</p>}
+                         <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100">{isSaving ? 'Salvando...' : 'Salvar'}</button>
                     </div>
                 </div>
-                {saveError && <p className="text-sm text-center text-red-500 font-semibold mt-2">{saveError}</p>}
             </form>
         </div>
         {isImagePickerOpen && <ImagePickerModal onSelect={handleImageSelect} onClose={() => setIsImagePickerOpen(false)} onTakePhoto={handleTakePhoto} />}
         {isCameraOpen && <CameraView onCapture={handleImageSelect} onClose={() => setIsCameraOpen(false)} />}
-      </>
+    </>
   );
 };
 

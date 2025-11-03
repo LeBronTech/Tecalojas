@@ -334,6 +334,7 @@ export const INITIAL_PRODUCTS: Product[] = rawProductsData.map((p, index) => {
         baseImageUrl: '', // IMAGE_BANK_URLS[index % IMAGE_BANK_URLS.length],
         unitsSold: Math.floor(Math.random() * 75) + 5, // Random units sold: 5-79
         category: p.category,
+        subCategory: '',
         fabricType: defaultFabricType,
         description: fabricInfo[defaultFabricType] || '',
         waterResistance: WaterResistanceLevel.NONE, // Default value

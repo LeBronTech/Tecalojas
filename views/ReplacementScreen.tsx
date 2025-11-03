@@ -5,12 +5,11 @@ import { BRAND_LOGOS } from '../constants';
 interface ReplacementItemProps {
   product: Product;
   onDelete: (productId: string) => void;
-  onEdit: (product: Product) => void;
   theme: 'light' | 'dark';
   index: number;
 }
 
-const ReplacementItem: React.FC<ReplacementItemProps> = ({ product, onDelete, onEdit, theme, index }) => {
+const ReplacementItem: React.FC<ReplacementItemProps> = ({ product, onDelete, theme, index }) => {
   const isDark = theme === 'dark';
   const [isDiscontinued, setIsDiscontinued] = useState(false);
   
@@ -22,8 +21,7 @@ const ReplacementItem: React.FC<ReplacementItemProps> = ({ product, onDelete, on
 
   return (
     <div 
-      onClick={() => onEdit(product)}
-      className={`rounded-3xl p-5 shadow-lg transition-all duration-300 border cursor-pointer ${cardClasses}`}
+      className={`rounded-3xl p-5 shadow-lg transition-all duration-300 border ${cardClasses}`}
       style={{ animation: `float-in 0.3s ease-out forwards`, animationDelay: `${index * 50}ms`, opacity: 0 }}
     >
       <div className="flex items-start space-x-4">
@@ -50,7 +48,7 @@ const ReplacementItem: React.FC<ReplacementItemProps> = ({ product, onDelete, on
           </div>
         </div>
       </div>
-      <div className={`mt-4 pt-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4 ${isDark ? 'border-white/10' : 'border-gray-200/80'}`} onClick={e => e.stopPropagation()}>
+      <div className={`mt-4 pt-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4 ${isDark ? 'border-white/10' : 'border-gray-200/80'}`}>
         <label className="flex items-center cursor-pointer">
           <input 
             type="checkbox" 

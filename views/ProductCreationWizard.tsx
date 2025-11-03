@@ -291,6 +291,7 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
     // Form state
     const [baseName, setBaseName] = useState('');
     const [category, setCategory] = useState('');
+    const [subCategory, setSubCategory] = useState('');
     const [brand, setBrand] = useState<Brand | string>(Brand.MARCA_PROPRIA);
     const [fabricType, setFabricType] = useState('');
     const [baseImageUrl, setBaseImageUrl] = useState('');
@@ -300,7 +301,7 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
     // UI State
     const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
     const [isCameraOpen, setIsCameraOpen] = useState(false);
-  
+    
     const allBrandNames = useMemo(() => {
         const dynamicNames = brands.map(b => b.name);
         const staticNames = Object.values(Brand);
@@ -402,6 +403,7 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
                     name: newName,
                     baseImageUrl,
                     category: pluralizeCategory(category),
+                    subCategory: pluralizeCategory(subCategory),
                     brand,
                     fabricType,
                     description: BRAND_FABRIC_MAP[brand]?.[fabricType] || '',
@@ -456,15 +458,20 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
                                     <input list="categories-list" value={category} onChange={e => setCategory(e.target.value)} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
                                     <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
                                 </div>
+                                 <div>
+                                    <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Sub-categoria (Opcional)</label>
+                                    <input type="text" value={subCategory} onChange={e => setSubCategory(e.target.value)} placeholder="Ex: Lisas, Florais" className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
+                                </div>
                                 <div>
                                     <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
                                     <select value={brand} onChange={e => setBrand(e.target.value)} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(b => <option key={b} value={b}>{b}</option>)}</select>
                                 </div>
+                                <div>
+                                    <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
+                                    <select value={fabricType} onChange={e => setFabricType(e.target.value)} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
+                                </div>
                             </div>
-                            <div>
-                                <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
-                                <select value={fabricType} onChange={e => setFabricType(e.target.value)} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
-                            </div>
+                           
                             <div className="flex items-start gap-4">
                                 <div className={`relative w-24 h-24 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
                                     {baseImageUrl ? <img src={baseImageUrl} alt="Preview" className="w-full h-full object-cover" /> : <span className="text-xs text-gray-500">Sem Imagem</span>}
@@ -485,7 +492,7 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
                                 multiSelect
                                 selectedColors={selectedColors}
                                 onToggleColor={handleToggleColor}
-                                onAddColor={onAddColor}
+                                onAddCustomColor={onAddColor}
                             />
                         </div>
                     )}

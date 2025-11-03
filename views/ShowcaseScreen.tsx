@@ -308,7 +308,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
                         className={`w-full text-center font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-3 text-md shadow-lg transform hover:scale-105 ${isDark ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-fuchsia-600/20' : 'bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white shadow-purple-500/20'}`}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v1.073a1 1 0 01.09.313l.483 1.834a6.953 6.953 0 011.698 1.112l1.72-.69a1 1 0 011.155.44l.44 1.155a1 1 0 01-.44 1.155l-1.72.69a6.953 6.953 0 010 2.224l1.72.69a1 1 0 01.44 1.155l-.44 1.155a1 1 0 01-1.155.44l-1.72-.69a6.953 6.953 0 01-1.698 1.112l-.483 1.834a1 1 0 01-.09.313V18a1 1 0 01-1.4.954l-1.715-.572a.5.5 0 00-.57 0L6.6 18.954A1 1 0 015.2 18v-1.073a1 1 0 01-.09-.313l-.483-1.834a6.953 6.953 0 01-1.698-1.112l-1.72.69a1 1 0 01-1.155-.44l-.44-1.155a1 1 0 01.44-1.155l1.72-.69a6.953 6.953 0 010-2.224l-1.72-.69a1 1 0 01-.44-1.155l.44-1.155a1 1 0 011.155-.44l1.72.69A6.953 6.953 0 018.7 5.234l.483-1.834A1 1 0 019.277 3.09V2a1 1 0 01.7-1.046l1.323-.448zM9 10a1 1 0 112 0 1 1 0 01-2 0z" clipRule="evenodd" />
+                           <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                           <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
                         </svg>
                         Criar Composição com IA
                     </button>

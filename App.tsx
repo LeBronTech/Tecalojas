@@ -39,7 +39,7 @@ declare global {
 // --- Constants for localStorage keys ---
 const THEME_STORAGE_KEY = 'pillow-oasis-theme';
 const API_KEY_STORAGE_KEY = 'pillow-oasis-api-key';
-const COLORS_STORAGE_KEY = 'pillow-oasis-colors';
+const ALL_COLORS_STORAGE_KEY = 'pillow-oasis-all-colors';
 const SAVED_COMPOSITIONS_STORAGE_KEY = 'pillow-oasis-saved-compositions';
 
 // --- Configuration Required Modal ---
@@ -313,25 +313,23 @@ export default function App() {
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyCq8roeLwkCxFR8_HBlsVOHkM-LQiYNtto");
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
-  const [allColors, setAllColors] = useState<{ name: string; hex: string }[]>(() => {
-    try {
-        const storedColors = localStorage.getItem(COLORS_STORAGE_KEY);
-        if (storedColors) {
-            return JSON.parse(storedColors);
-        }
-    } catch (error) {
-        console.error("Failed to load colors from localStorage:", error);
-    }
-    return PREDEFINED_COLORS;
-  });
+  const [allColors, setAllColors] = useState<{ name: string; hex: string }[]>([]);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
 
 
-  // Effect for loading compositions from localStorage on initial load
+  // Effect for loading colors and compositions from localStorage
   useEffect(() => {
     try {
+      const storedColors = localStorage.getItem(ALL_COLORS_STORAGE_KEY);
+      if (storedColors) {
+        setAllColors(JSON.parse(storedColors));
+      } else {
+        setAllColors(PREDEFINED_COLORS);
+        localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(PREDEFINED_COLORS));
+      }
+
       const storedCompositions = localStorage.getItem(SAVED_COMPOSITIONS_STORAGE_KEY);
       if (storedCompositions) {
         setSavedCompositions(JSON.parse(storedCompositions));
@@ -367,21 +365,22 @@ export default function App() {
     });
   }, []);
 
-  // Effect for saving all colors to localStorage
-  useEffect(() => {
-    try {
-        localStorage.setItem(COLORS_STORAGE_KEY, JSON.stringify(allColors));
-    } catch (error) {
-        console.error("Failed to save colors to localStorage:", error);
-    }
-  }, [allColors]);
-
-  const addColor = useCallback((color: { name: string; hex: string }) => {
-    setAllColors(prev => [...prev, color]);
+  const handleAddColor = useCallback((color: { name: string; hex: string }) => {
+    setAllColors(prev => {
+      const newColors = [...prev, color];
+      localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
+      return newColors;
+    });
   }, []);
-
-  const deleteColor = useCallback((colorNameToDelete: string) => {
-      setAllColors(prev => prev.filter(c => c.name.toLowerCase() !== colorNameToDelete.toLowerCase()));
+  
+  const handleDeleteColor = useCallback((colorName: string) => {
+    setAllColors(prev => {
+        const newColors = prev.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
+        localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
+        // Note: This doesn't update products that might be using the deleted color.
+        // They will retain the color data but it won't be available in the selector anymore.
+        return newColors;
+    });
   }, []);
   
   // Check if the Firebase config is valid. If not, the app will be blocked.
@@ -803,8 +802,8 @@ export default function App() {
                     canManageStock={!!canManageStock}
                     brands={brands}
                     allColors={allColors}
-                    onAddColor={addColor}
-                    onDeleteColor={deleteColor}
+                    onAddColor={handleAddColor}
+                    onDeleteColor={handleDeleteColor}
                     {...mainScreenProps}
                 />;
        case View.CATALOG:
@@ -892,7 +891,7 @@ export default function App() {
                     onClose={() => setIsWizardOpen(false)}
                     onConfigure={handleCreateProductsFromWizard}
                     allColors={allColors}
-                    onAddColor={addColor}
+                    onAddColor={handleAddColor}
                     categories={uniqueCategories}
                     products={products}
                     brands={brands}
@@ -912,7 +911,8 @@ export default function App() {
                     apiKey={apiKey}
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
                     allColors={allColors}
-                    onAddColor={addColor}
+                    onAddColor={handleAddColor}
+                    onDeleteColor={handleDeleteColor}
                     brands={brands}
                 />
             )}

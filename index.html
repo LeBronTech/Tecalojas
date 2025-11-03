@@ -48,6 +48,27 @@
     .blinking-dot {
       animation: blink 1.2s infinite;
     }
+    input[type="color"].rainbow-bg {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-color: transparent;
+        border: none;
+        cursor: pointer;
+    }
+    input[type="color"].rainbow-bg::-webkit-color-swatch-wrapper {
+        padding: 0;
+    }
+    input[type="color"].rainbow-bg::-webkit-color-swatch {
+        border-radius: 6px;
+        border: none;
+        background-image: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+    }
+    input[type="color"].rainbow-bg::-moz-color-swatch {
+        border-radius: 6px;
+        border: none;
+        background-image: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+    }
   </style>
 </head>
   <body>
