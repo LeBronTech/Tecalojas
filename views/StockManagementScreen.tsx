@@ -3,6 +3,24 @@ import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { Product, StoreName, View, Brand, CushionSize, DynamicBrand, ThemeContext } from '../types';
 import { BRAND_LOGOS } from '../constants';
 
+const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> = ({ colors, size = 4 }) => {
+    const className = `w-${size} h-${size}`;
+    const gradient = useMemo(() => {
+        if (!colors || colors.length === 0) return 'transparent';
+        if (colors.length === 1) return colors[0].hex;
+        const step = 100 / colors.length;
+        const stops = colors.map((color, i) => `${color.hex} ${i * step}% ${(i + 1) * step}%`).join(', ');
+        return `conic-gradient(${stops})`;
+    }, [colors]);
+
+    return (
+        <div
+            className={`${className} rounded-full border border-black/20 flex-shrink-0`}
+            style={{ background: gradient }}
+        />
+    );
+};
+
 // --- StockControl Sub-component ---
 const StockControl: React.FC<{
     store: StoreName;
@@ -118,9 +136,12 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
                                     <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px" />
                                     <span className={`text-xs font-semibold ${textMetaClasses}`}>{product.brand}</span>
                                 </div>
-                                <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
-                                    {product.fabricType}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <MultiColorCircle colors={product.colors} size={4} />
+                                    <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
+                                        {product.fabricType}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                         <div className="flex items-center space-x-1 flex-shrink-0">

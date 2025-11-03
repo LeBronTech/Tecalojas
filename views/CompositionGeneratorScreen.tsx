@@ -1,4 +1,4 @@
-import React, { useState, useContext, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useContext, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Product, View, SavedComposition, CushionSize } from '../types';
 // FIX: ThemeContext is exported from 'types.ts', not 'App.tsx'.
 import { ThemeContext } from '../types';
@@ -7,6 +7,7 @@ import ProductDetailModal from '../components/ProductDetailModal';
 import ProductSelectModal from '../components/ProductSelectModal';
 import SaveCompositionModal from '../components/SaveCompositionModal';
 import { STORE_IMAGE_URLS, PREDEFINED_COLORS } from '../constants';
+import ColorSelector from '../components/ColorSelector';
 
 interface CompositionGeneratorScreenProps {
     products: Product[];
@@ -24,6 +25,12 @@ const ButtonSpinner = () => (
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
+
+const ShuffleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>);
+const ShareIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>);
+const SaveIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6a1 1 0 10-2 0v5.586L7.707 10.293zM3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" /></svg>);
+const StarIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>);
+
 
 const generateCompositionName = (products: Product[]): string => {
     if (!products || products.length === 0) return 'Nova Composição';
@@ -131,6 +138,10 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     const [selectedSizes, setSelectedSizes] = useState<CushionSize[]>([]);
     const [sofaColor, setSofaColor] = useState('Bege');
     const sofaColors = ['Bege', 'Cinza', 'Branco', 'Marrom Escuro', 'Azul Marinho'];
+    
+    // New state for color filtering
+    const [useColorFilter, setUseColorFilter] = useState(false);
+    const [selectedFilterColors, setSelectedFilterColors] = useState<{name: string, hex: string}[]>([]);
 
 
     useEffect(() => {
@@ -138,7 +149,58 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         setCurrentComposition(null);
         setGeneratedImageUrl(null);
         setError(null);
+        setUseColorFilter(false);
+        setSelectedFilterColors([]);
     }, [compositionSize]);
+    
+    const selectRandomProducts = useCallback((
+        targetSize: number, 
+        colors: {name: string, hex: string}[]
+    ): Product[] => {
+        if (colors.length === 0 || targetSize === 0) return [];
+
+        const productsByColor = colors.map(color => {
+            return products.filter(p => p.colors.some(c => c.name === color.name));
+        });
+
+        let newSelection: Product[] = [];
+        let availableSlots = targetSize;
+        const usedProductIds = new Set<string>();
+
+        for (const colorGroup of productsByColor) {
+            if (availableSlots > 0 && colorGroup.length > 0) {
+                const availableInGroup = colorGroup.filter(p => !usedProductIds.has(p.id));
+                if (availableInGroup.length > 0) {
+                    const randomProduct = availableInGroup[Math.floor(Math.random() * availableInGroup.length)];
+                    newSelection.push(randomProduct);
+                    usedProductIds.add(randomProduct.id);
+                    availableSlots--;
+                }
+            }
+        }
+        
+        const allMatchingProducts = productsByColor.flat().filter(p => !usedProductIds.has(p.id));
+        while (availableSlots > 0 && allMatchingProducts.length > 0) {
+            const randomIndex = Math.floor(Math.random() * allMatchingProducts.length);
+            const randomProduct = allMatchingProducts.splice(randomIndex, 1)[0];
+            newSelection.push(randomProduct);
+            usedProductIds.add(randomProduct.id);
+            availableSlots--;
+        }
+
+        return newSelection;
+    }, [products]);
+
+
+    useEffect(() => {
+        if (!useColorFilter || selectedFilterColors.length === 0 || !compositionSize) {
+            if(!useColorFilter) { setSelectedProducts([]); }
+            return;
+        }
+        const newSelection = selectRandomProducts(compositionSize, selectedFilterColors);
+        setSelectedProducts(newSelection);
+    }, [useColorFilter, selectedFilterColors, products, compositionSize, selectRandomProducts]);
+
 
     const handleConfirmSelection = (selectedIds: string[]) => {
         const newlySelected = products.filter(p => selectedIds.includes(p.id));
@@ -216,7 +278,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         }
     };
     
-    const handleShare = async () => {
+    const drawAndShare = async () => {
         if (!currentComposition || isSharing || !canvasRef.current) return;
         setIsSharing(true);
         setError(null);
@@ -341,6 +403,19 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         }
     };
     
+    const handleGenerateNewCombination = () => {
+        if (!compositionSize) return;
+        let newSelection: Product[] = [];
+        if (useColorFilter && selectedFilterColors.length > 0) {
+            newSelection = selectRandomProducts(compositionSize, selectedFilterColors);
+        } else if (currentComposition) {
+            const currentColors = Array.from(new Set(currentComposition.flatMap(p => p.colors)));
+            newSelection = selectRandomProducts(compositionSize, currentColors);
+        }
+        setCurrentComposition(newSelection);
+        setGeneratedImageUrl(null);
+    };
+
     const resetAll = () => {
         setCompositionSize(null);
         setSelectedProducts([]);
@@ -375,7 +450,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                             <div className="mb-6">
                                 <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>1. Tamanho da Composição</h3>
                                 <p className={`text-sm mb-3 ${subtitleClasses}`}>Quantas almofadas você quer na sua composição?</p>
-                                <div className="grid grid-cols-5 gap-2">{[2, 3, 4, 5, 6].map(size => (<button key={size} onClick={() => setCompositionSize(size)} className={`py-3 font-bold rounded-lg transition-colors text-center ${compositionSize === size ? 'bg-fuchsia-600 text-white' : (isDark ? 'bg-gray-700 text-black' : 'bg-gray-200 text-black')}`}>{size}</button>))}</div>
+                                <div className="grid grid-cols-5 gap-2">{[2, 3, 4, 5, 6].map(size => (<button key={size} onClick={() => setCompositionSize(size)} className={`py-3 font-bold rounded-lg transition-colors text-center ${compositionSize === size ? 'bg-fuchsia-600 text-white' : (isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-800')}`}>{size}</button>))}</div>
                             </div>
                             
                              {/* Step 1.5: AI Options */}
@@ -390,7 +465,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                         <div className="flex flex-wrap gap-2">
                                             {Object.values(CushionSize).map(size => {
                                                 const isSelected = selectedSizes.includes(size);
-                                                return <button key={size} onClick={() => toggleSize(size)} className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isSelected ? 'bg-cyan-600 text-white' : (isDark ? 'bg-gray-700 text-black' : 'bg-gray-200 text-black')}`}>{size}</button>;
+                                                return <button key={size} onClick={() => toggleSize(size)} className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isSelected ? 'bg-cyan-600 text-white' : (isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-800')}`}>{size}</button>;
                                             })}
                                         </div>
                                     </div>
@@ -399,13 +474,13 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                          <div className="flex flex-wrap items-center gap-2">
                                             {sofaColors.map(color => {
                                                 const isSelected = sofaColor === color;
-                                                return <button key={color} onClick={() => setSofaColor(color)} className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isSelected ? 'bg-cyan-600 text-white' : (isDark ? 'bg-gray-700 text-black' : 'bg-gray-200 text-black')}`}>{color}</button>;
+                                                return <button key={color} onClick={() => setSofaColor(color)} className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isSelected ? 'bg-cyan-600 text-white' : (isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-800')}`}>{color}</button>;
                                             })}
                                              <div className="relative flex items-center">
-                                                <input type="text" value={sofaColor} onChange={e => setSofaColor(e.target.value)} placeholder="Cor customizada" className={`text-xs p-1.5 rounded-md w-28 border-2 ${isDark ? 'bg-black/20 border-purple-500/80 focus:border-purple-400' : 'bg-white border-purple-400 focus:border-purple-600'} focus:ring-0 outline-none border-purple-500`} />
+                                                <input type="text" value={sofaColor} onChange={e => setSofaColor(e.target.value)} placeholder="Cor customizada" className={`text-xs p-1.5 rounded-md w-28 border-2 ${isDark ? 'bg-black/20 border-purple-500/80 focus:border-purple-400' : 'bg-white border-purple-400 focus:border-purple-600'} focus:ring-0 outline-none`} />
                                                 <div className="absolute left-full ml-2 flex items-center whitespace-nowrap text-purple-400 text-xs pointer-events-none">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 transform -scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-                                                    <span>digite a cor que deseja</span>
+                                                    <span>digite a cor</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -413,11 +488,43 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                 </div>
                             )}
 
+                            {compositionSize !== null && (
+                                <div className="border-t pt-6 mt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>1.7 Escolher por Cor (Opcional)</h3>
+                                    <div className="flex items-center mb-3">
+                                        <input type="checkbox" id="useColorFilter" checked={useColorFilter} onChange={(e) => { setUseColorFilter(e.target.checked); if (!e.target.checked) setSelectedFilterColors([]); }} className={`h-4 w-4 rounded text-fuchsia-500 focus:ring-fuchsia-500 border-gray-300 ${isDark ? 'bg-gray-700 border-gray-600' : ''}`} />
+                                        <label htmlFor="useColorFilter" className={`ml-2 text-sm ${subtitleClasses}`}>Ativar seleção de almofadas por cor</label>
+                                    </div>
+                                    {useColorFilter && (
+                                        <div>
+                                            <p className={`text-sm mb-3 ${subtitleClasses}`}>Selecione até {compositionSize} cores. As almofadas serão escolhidas aleatoriamente.</p>
+                                            <ColorSelector 
+                                                allColors={PREDEFINED_COLORS}
+                                                multiSelect
+                                                selectedColors={selectedFilterColors}
+                                                onToggleColor={(color) => {
+                                                    setSelectedFilterColors(prev => {
+                                                        if (prev.some(c => c.name === color.name)) {
+                                                            return prev.filter(c => c.name !== color.name);
+                                                        }
+                                                        if (prev.length < compositionSize) {
+                                                            return [...prev, color];
+                                                        }
+                                                        return prev;
+                                                    })
+                                                }}
+                                                onAddCustomColor={() => {}}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Step 2: Selection */}
                             {compositionSize !== null && (
                                 <div className="border-t pt-6 mt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
                                     <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>2. Escolha suas Almofadas</h3>
-                                    <p className={`text-sm mb-3 ${subtitleClasses}`}>Selecione até {compositionSize} almofadas que você gosta.</p>
+                                    <p className={`text-sm mb-3 ${subtitleClasses}`}>{useColorFilter ? `Almofadas sugeridas (${selectedProducts.length}/${compositionSize})` : `Selecione até ${compositionSize} almofadas`}</p>
                                     <div className="flex items-center gap-3 p-2 rounded-lg min-h-[88px]" style={{backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.05)'}}>
                                         {selectedProducts.map(p => (<img key={p.id} src={p.baseImageUrl} alt={p.name} className="w-16 h-16 rounded-lg object-cover" />))}
                                         {selectedProducts.length < compositionSize && (
@@ -440,6 +547,12 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                         // RESULT VIEW
                         <div className="flex-grow flex flex-col items-center gap-4">
                              <div className={`w-full aspect-[4/3] rounded-xl border p-4 flex flex-col ${cardClasses}`}>
+                                 <div className="flex items-center justify-center gap-2 mb-3">
+                                    <button onClick={handleShuffle} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}><ShuffleIcon /> Ordem</button>
+                                    <button onClick={handleGenerateNewCombination} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}><StarIcon /> Gerar Nova</button>
+                                    <button onClick={drawAndShare} disabled={isSharing} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>{isSharing ? <ButtonSpinner/> : <ShareIcon />} Compartilhar</button>
+                                    <button onClick={handleSave} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}><SaveIcon /> Salvar</button>
+                                </div>
                                 <div className="flex-grow flex items-center justify-center">
                                      <div className="flex flex-wrap justify-center items-start gap-4 p-4">
                                         {currentComposition.map((p) => (
@@ -452,11 +565,6 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                         ))}
                                     </div>
                                 </div>
-                                <div className="flex items-center justify-center gap-2 pt-3 mt-auto">
-                                    <button onClick={handleShuffle} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Ordem</button>
-                                    <button onClick={handleShare} disabled={isSharing} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>{isSharing ? <ButtonSpinner/> : "Compartilhar"}</button>
-                                    <button onClick={handleSave} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Salvar</button>
-                                </div>
                             </div>
                             <div className={`w-full aspect-square rounded-xl border flex flex-col items-center justify-center p-4 ${cardClasses}`}>
                                 <div className="flex-grow w-full h-full flex items-center justify-center">
@@ -465,7 +573,10 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                  <button onClick={handleGenerateEnvironment} disabled={isGenerating} className="mt-4 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-500">{isGenerating ? <ButtonSpinner /> : 'Gerar Ambiente (IA)'}</button>
                             </div>
                              {error && <p className="text-center text-red-500 mt-2">{error}</p>}
-                            <button onClick={resetAll} className="w-full max-w-sm mt-4 bg-fuchsia-600 text-white font-bold py-3 rounded-lg">Criar Nova Composição</button>
+                            <div className="w-full max-w-sm mt-4 space-y-3">
+                                <button onClick={handleSave} className={`w-full font-bold py-3 rounded-lg text-lg flex items-center justify-center gap-2 transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}><SaveIcon /> Salvar Composição</button>
+                                <button onClick={resetAll} className="w-full bg-fuchsia-600 text-white font-bold py-3 rounded-lg">Criar Nova Composição</button>
+                            </div>
                         </div>
                     )}
                 </main>

@@ -236,7 +236,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
     }
 
     // Apply sorting
-    const sorted = [...filtered].sort((a, b) => {
+    const sorted = ([...filtered] as (Product | ProductGroup)[]).sort((a, b) => {
         const itemA = Array.isArray(a) ? a[0] : a;
         const itemB = Array.isArray(b) ? b[0] : b;
         if (!itemA || !itemB) return 0;
@@ -244,8 +244,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
         if (sortOrder === 'alpha') {
             const nameA = Array.isArray(a) ? itemA.category : itemA.name;
             const nameB = Array.isArray(b) ? itemB.category : itemB.name;
-            // FIX: Explicitly cast to string to prevent `unknown` type error.
-            return String(nameA).localeCompare(String(nameB));
+            // FIX: By casting the array before sorting, TypeScript correctly infers `nameA` and `nameB` as strings, resolving the 'unknown' type error.
+            return nameA.localeCompare(nameB);
         } else { // 'recent'
             const timeA = parseInt(itemA.id.split('-')[0], 10) || 0;
             const timeB = parseInt(itemB.id.split('-')[0], 10) || 0;

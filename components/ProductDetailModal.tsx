@@ -317,7 +317,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                             )}
                         </div>
                         
-                        <div className="flex items-center space-x-2 overflow-x-auto pb-2 -ml-2 pl-2">
+                        <div className="flex items-center space-x-2 overflow-x-auto pb-2 -ml-2 pl-2 purple-scrollbar">
                            {galleryImages.map((image) => (
                                 <div key={image.url} className="relative">
                                 <button
@@ -373,7 +373,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                      {relatedProducts.length > 0 && (
                         <div className="mt-6">
                             <h3 className={`font-bold mb-2 ${titleClasses}`}>Outras Cores</h3>
-                            <div className="flex items-center space-x-2 overflow-x-auto pb-2 -ml-2 pl-2">
+                            <div className="flex items-center space-x-2 overflow-x-auto pb-2 -ml-2 pl-2 purple-scrollbar">
                                 {relatedProducts.map(p => (
                                     <button 
                                         key={p.id}
@@ -400,7 +400,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                     {compositionsWithThisProduct.length > 0 && (
                         <div className="mt-6">
                             <h3 className={`font-bold mb-2 ${titleClasses}`}>Composições com esta almofada</h3>
-                             <div className="flex items-center space-x-3 overflow-x-auto pb-2 -ml-2 pl-2">
+                             <div className="flex items-center space-x-3 overflow-x-auto pb-2 -ml-2 pl-2 purple-scrollbar">
                                 {compositionsWithThisProduct.map((comp, index) => (
                                     <button 
                                         key={comp.id}

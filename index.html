@@ -69,6 +69,21 @@
         border: none;
         background-image: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
     }
+    .purple-scrollbar::-webkit-scrollbar {
+      height: 6px; /* For horizontal scrollbar */
+      width: 6px; /* For vertical scrollbar */
+    }
+    .purple-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .purple-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #8B5CF6; /* A nice purple */
+      border-radius: 10px;
+    }
+    .purple-scrollbar {
+      scrollbar-width: thin;  /* Firefox */
+      scrollbar-color: #8B5CF6 transparent; /* Firefox */
+    }
   </style>
 </head>
   <body>
