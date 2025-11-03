@@ -1,9 +1,9 @@
 import React, { useState, useContext, useEffect, useMemo, useRef } from 'react';
-import { Product, Variation, WaterResistanceLevel, SavedComposition, ThemeContext, AiRateLimitProps } from '../types';
+import { Product, Variation, WaterResistanceLevel, SavedComposition, ThemeContext } from '../types';
 import { WATER_RESISTANCE_INFO, BRAND_LOGOS } from '../constants';
 import { GoogleGenAI, Modality } from '@google/genai';
 
-interface ProductDetailModalProps extends AiRateLimitProps {
+interface ProductDetailModalProps {
     product: Product;
     products: Product[];
     onClose: () => void;
@@ -82,7 +82,7 @@ const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> =
 };
 
 
-const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct, apiKey, onRequestApiKey, savedCompositions, onViewComposition, aiCooldownUntil, checkAndRegisterAiCall, triggerAiCooldown }) => {
+const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct, apiKey, onRequestApiKey, savedCompositions, onViewComposition }) => {
     const { theme } = useContext(ThemeContext);
     const [variationIndex, setVariationIndex] = useState(0);
     const [displayImageUrl, setDisplayImageUrl] = useState(product.baseImageUrl);
@@ -93,9 +93,6 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     const [genError, setGenError] = useState<string | null>(null);
     const colorButtonRef = useRef<HTMLButtonElement>(null);
 
-    const cooldownActive = aiCooldownUntil && Date.now() < aiCooldownUntil;
-    const cooldownTimeLeft = cooldownActive ? Math.ceil((aiCooldownUntil! - Date.now()) / 1000) : 0;
-    const cooldownMessage = cooldownActive ? `Aguarde ${cooldownTimeLeft}s` : null;
 
     useEffect(() => {
         setDisplayImageUrl(product.baseImageUrl);
@@ -178,13 +175,6 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         const type = popover.type;
         setPopover(p => ({ ...p, open: false }));
         if (!apiKey) { onRequestApiKey(); return; }
-        
-        const check = checkAndRegisterAiCall();
-        if (!check.allowed) {
-            setGenError(check.message);
-            return;
-        }
-
         if (!product.baseImageUrl) { setGenError("Produto sem imagem base."); return; }
 
         setIsGenerating(type);
@@ -204,11 +194,11 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
             });
 
             const candidate = aiResponse.candidates?.[0];
-            if (candidate?.finishReason === 'SAFETY' || aiResponse.promptFeedback?.blockReason) {
-                const reason = candidate?.finishReason || aiResponse.promptFeedback?.blockReason;
-                throw new Error(`Geração bloqueada por segurança: ${reason}.`);
-            }
+            if (candidate?.finishReason === 'NO_IMAGE') { throw new Error('A IA não conseguiu gerar uma imagem. Tente usar uma imagem base ou cor diferente.'); }
+            if (candidate?.finishReason === 'SAFETY') { throw new Error('Geração bloqueada por políticas de segurança. Tente uma imagem ou cor diferente.'); }
             if (!candidate) {
+                const blockReason = aiResponse.promptFeedback?.blockReason;
+                if (blockReason) { throw new Error(`Geração bloqueada: ${blockReason}.`); }
                 throw new Error('A IA não retornou uma resposta. Tente novamente.');
             }
             if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'FINISH_REASON_UNSPECIFIED') {
@@ -226,19 +216,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
             setDisplayImageUrl(newImageUrl);
         } catch (error: any) {
             console.error("AI image generation failed:", error);
-            const errorMessage = error.toString();
-            let displayError;
-            if (errorMessage.includes('429')) {
-                displayError = "Cota da API excedida. Aguarde 60s.";
-                triggerAiCooldown();
-            } else if (errorMessage.includes('API key not valid')) {
-                displayError = "Chave de API da Gemini inválida.";
-            } else if (error.message) {
-                displayError = error.message;
-            } else {
-                displayError = "Erro inesperado na geração da imagem.";
-            }
-            setGenError(displayError);
+            window.alert("Aconteceu um erro! Mas não se preocupe, tente novamente agora");
         } finally {
             setIsGenerating(null);
         }
@@ -326,10 +304,9 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                     <button 
                                         ref={colorButtonRef}
                                         onClick={(e) => handleOpenPopover(e, currentImageInfo.type as 'sala'|'quarto')} 
-                                        disabled={cooldownActive || isGenerating === currentImageInfo.type}
-                                        className={`w-full font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 backdrop-blur-sm shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? 'bg-black/40 text-fuchsia-300 hover:bg-black/60' : 'bg-white/60 text-fuchsia-700 hover:bg-white/80'}`}
+                                        className={`w-full font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 backdrop-blur-sm shadow-lg ${isDark ? 'bg-black/40 text-fuchsia-300 hover:bg-black/60' : 'bg-white/60 text-fuchsia-700 hover:bg-white/80'}`}
                                     >
-                                        {cooldownMessage ? cooldownMessage : isGenerating === currentImageInfo.type ? <ButtonSpinner /> : (
+                                        {isGenerating === currentImageInfo.type ? <ButtonSpinner /> : (
                                             <>
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
                                             {currentImageInfo.type === 'sala' ? 'Escolher cor do sofá' : 'Escolher cor da cama'}

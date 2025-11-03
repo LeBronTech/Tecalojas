@@ -61,7 +61,6 @@ export interface Product {
   baseImageUrl: string;
   unitsSold: number;
   category: string;
-  subCategory?: string;
   fabricType: string;
   description: string;
   waterResistance: WaterResistanceLevel;
@@ -104,13 +103,7 @@ export interface User {
   role?: 'admin' | 'user';
 }
 
-export interface AiRateLimitProps {
-    aiCooldownUntil: number | null;
-    checkAndRegisterAiCall: () => { allowed: boolean; message: string };
-    triggerAiCooldown: () => void;
-}
-
-export interface CompositionViewerModalProps extends AiRateLimitProps {
+export interface CompositionViewerModalProps {
     compositions: SavedComposition[];
     startIndex: number;
     onClose: () => void;

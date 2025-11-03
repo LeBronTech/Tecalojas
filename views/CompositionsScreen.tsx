@@ -1,11 +1,10 @@
 import React, { useState, useContext, useMemo } from 'react';
 import { ThemeContext } from '../types';
-import { SavedComposition, View, Product, AiRateLimitProps } from '../types';
-// FIX: Changed to a named import as CompositionViewerModal does not have a default export.
-import { CompositionViewerModal } from '../components/CompositionViewerModal';
+import { SavedComposition, View, Product } from '../types';
+import CompositionViewerModal from '../components/CompositionViewerModal';
 import ProductDetailModal from '../components/ProductDetailModal';
 
-interface CompositionsScreenProps extends AiRateLimitProps {
+interface CompositionsScreenProps {
   savedCompositions: SavedComposition[];
   setSavedCompositions: React.Dispatch<React.SetStateAction<SavedComposition[]>>;
   onNavigate: (view: View) => void;
@@ -18,7 +17,7 @@ interface CompositionsScreenProps extends AiRateLimitProps {
 }
 
 const CompositionsScreen: React.FC<CompositionsScreenProps> = ({ 
-  savedCompositions, setSavedCompositions, onNavigate, apiKey, onRequestApiKey, products, onEditProduct, onSaveComposition, aiCooldownUntil, checkAndRegisterAiCall, triggerAiCooldown
+  savedCompositions, setSavedCompositions, onNavigate, apiKey, onRequestApiKey, products, onEditProduct, onSaveComposition 
 }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -135,9 +134,6 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
             onRequestApiKey={onRequestApiKey}
             onViewProduct={handleViewProduct}
             onSaveComposition={onSaveComposition}
-            aiCooldownUntil={aiCooldownUntil}
-            checkAndRegisterAiCall={checkAndRegisterAiCall}
-            triggerAiCooldown={triggerAiCooldown}
         />
       )}
       {viewingProduct && (
@@ -154,9 +150,6 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
               apiKey={apiKey}
               onRequestApiKey={onRequestApiKey}
               savedCompositions={savedCompositions}
-              aiCooldownUntil={aiCooldownUntil}
-              checkAndRegisterAiCall={checkAndRegisterAiCall}
-              triggerAiCooldown={triggerAiCooldown}
               onViewComposition={(compositions, startIndex) => {
                   setViewingProduct(null);
                   setTimeout(() => {

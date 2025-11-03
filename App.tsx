@@ -20,7 +20,6 @@ import ConfirmationModal from './components/ConfirmationModal';
 import { ProductCreationWizard } from './views/ProductCreationWizard'; // Import the new wizard
 import * as api from './firebase';
 import { firebaseConfig } from './firebaseConfig';
-import { GoogleGenAI } from '@google/genai';
 
 // --- Cordova/TypeScript Declarations ---
 declare global {
@@ -41,7 +40,6 @@ declare global {
 const THEME_STORAGE_KEY = 'pillow-oasis-theme';
 const API_KEY_STORAGE_KEY = 'pillow-oasis-api-key';
 const CUSTOM_COLORS_STORAGE_KEY = 'pillow-oasis-custom-colors';
-const DELETED_PREDEFINED_COLORS_KEY = 'pillow-oasis-deleted-predefined-colors';
 const SAVED_COMPOSITIONS_STORAGE_KEY = 'pillow-oasis-saved-compositions';
 
 // --- Configuration Required Modal ---
@@ -151,7 +149,7 @@ const InventoryIcon = () => (
 
 const SettingsIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
 );
@@ -296,11 +294,6 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginC
 };
 
 
-// --- Rate Limiter constants ---
-const AI_CALLS_LIMIT = 15; // Generous limit for free tier (often 15 RPM)
-const AI_CALLS_WINDOW_MS = 60 * 1000; // 60 seconds
-const AI_COOLDOWN_MS = 60 * 1000; // 60 second hard cooldown on 429 error
-
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -318,79 +311,29 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPixModalOpen, setIsPixModalOpen] = useState(false);
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyAMH2xOKl2DRmWG4T9A7upmPGx6DeY2yRI");
+  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyCq8roeLwkCxFR8_HBlsVOHkM-LQiYNtto");
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [customColors, setCustomColors] = useState<{ name: string; hex: string }[]>([]);
-  const [deletedPredefinedColorNames, setDeletedPredefinedColorNames] = useState<string[]>([]);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
-  
-  // --- AI Rate Limiting State ---
-  const [aiCallTimestamps, setAiCallTimestamps] = useState<number[]>([]);
-  const [aiCooldownUntil, setAiCooldownUntil] = useState<number | null>(null);
 
-  // Effect to manage cooldown timer display
-  useEffect(() => {
-    if (!aiCooldownUntil) return;
-    const now = Date.now();
-    if (now >= aiCooldownUntil) {
-        setAiCooldownUntil(null);
-        return;
-    }
-    const timer = setTimeout(() => {
-        setAiCooldownUntil(prev => (prev ? (Date.now() >= prev ? null : prev) : null));
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [aiCooldownUntil]);
-
-  // --- AI Rate Limiting Logic ---
-  const triggerAiCooldown = useCallback(() => {
-    const cooldownEndTime = Date.now() + AI_COOLDOWN_MS;
-    setAiCooldownUntil(cooldownEndTime);
-    console.warn(`AI Cooldown triggered. UI locked until ${new Date(cooldownEndTime).toLocaleTimeString()}`);
-  }, []);
-
-  const checkAndRegisterAiCall = useCallback(() => {
-    const now = Date.now();
-    if (aiCooldownUntil && now < aiCooldownUntil) {
-        const timeLeft = Math.ceil((aiCooldownUntil - now) / 1000);
-        return { allowed: false, message: `Limite de API excedido. Aguarde ${timeLeft} segundos.` };
-    }
-    const recentTimestamps = aiCallTimestamps.filter(ts => now - ts < AI_CALLS_WINDOW_MS);
-    if (recentTimestamps.length >= AI_CALLS_LIMIT) {
-        triggerAiCooldown();
-        const timeLeft = Math.ceil(AI_COOLDOWN_MS / 1000);
-        return { allowed: false, message: `Muitas requisições. Aguarde ${timeLeft} segundos.` };
-    }
-    setAiCallTimestamps([...recentTimestamps, now]);
-    return { allowed: true, message: '' };
-  }, [aiCallTimestamps, aiCooldownUntil, triggerAiCooldown]);
 
   // Effect for loading custom colors from localStorage on initial load
   useEffect(() => {
     try {
       const storedColors = localStorage.getItem(CUSTOM_COLORS_STORAGE_KEY);
-      if (storedColors) setCustomColors(JSON.parse(storedColors));
-
-      const storedDeleted = localStorage.getItem(DELETED_PREDEFINED_COLORS_KEY);
-      if (storedDeleted) setDeletedPredefinedColorNames(JSON.parse(storedDeleted));
-      
+      if (storedColors) {
+        setCustomColors(JSON.parse(storedColors));
+      }
       const storedCompositions = localStorage.getItem(SAVED_COMPOSITIONS_STORAGE_KEY);
-      if (storedCompositions) setSavedCompositions(JSON.parse(storedCompositions));
-
+      if (storedCompositions) {
+        setSavedCompositions(JSON.parse(storedCompositions));
+      }
     } catch (error) {
       console.error("Failed to load from localStorage:", error);
     }
   }, []);
-
-  useEffect(() => {
-      try {
-          localStorage.setItem(DELETED_PREDEFINED_COLORS_KEY, JSON.stringify(deletedPredefinedColorNames));
-      } catch (error) {
-          console.error("Failed to save deleted predefined colors to localStorage:", error);
-      }
-  }, [deletedPredefinedColorNames]);
   
   // Effect for saving compositions to localStorage
   useEffect(() => {
@@ -429,35 +372,6 @@ export default function App() {
       return newColors;
     });
   }, []);
-  
-  const deleteCustomColor = useCallback((colorNameToDelete: string) => {
-    setCustomColors(prev => {
-      const newColors = prev.filter(c => c.name.toLowerCase() !== colorNameToDelete.toLowerCase());
-      try {
-        localStorage.setItem(CUSTOM_COLORS_STORAGE_KEY, JSON.stringify(newColors));
-      } catch (error) {
-        console.error("Failed to save custom colors to localStorage:", error);
-      }
-      return newColors;
-    });
-  }, []);
-
-  const deletePredefinedColor = useCallback((colorNameToDelete: string) => {
-    setDeletedPredefinedColorNames(prev => {
-        if (prev.includes(colorNameToDelete)) {
-            return prev;
-        }
-        return [...prev, colorNameToDelete];
-    });
-  }, []);
-
-  const allAppColors = useMemo(() => {
-    const activePredefined = PREDEFINED_COLORS.filter(c => !deletedPredefinedColorNames.includes(c.name));
-    const uniqueCustom = customColors.filter(
-        (cc, index, self) => index === self.findIndex(c => c.name.toLowerCase() === cc.name.toLowerCase())
-    );
-    return [...activePredefined, ...uniqueCustom];
-  }, [customColors, deletedPredefinedColorNames]);
   
   // Check if the Firebase config is valid. If not, the app will be blocked.
   const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_REAL_API_KEY_HERE";
@@ -574,44 +488,11 @@ export default function App() {
     setView(View.SHOWCASE); // Go back to showcase on logout
   }, []);
 
-  const handleSaveApiKey = useCallback(async (key: string) => {
-    if (!key.trim()) {
-        throw new Error("A chave de API não pode ser vazia.");
-    }
-
-    const check = checkAndRegisterAiCall();
-    if (!check.allowed) {
-        throw new Error(check.message);
-    }
-    
-    try {
-        // Attempt a simple API call to validate the key
-        const ai = new GoogleGenAI({ apiKey: key });
-        // Using a very simple, low-cost model and prompt for validation
-        await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: 'olá',
-        });
-        
-        // If the call succeeds, save the key
-        setApiKey(key);
-        localStorage.setItem(API_KEY_STORAGE_KEY, key);
-
-    } catch (error: any) {
-        console.error("API Key validation failed:", error);
-        const errorMessage = error.toString();
-        
-        if (errorMessage.includes('429')) {
-             triggerAiCooldown(); // Trigger hard cooldown
-             throw new Error('Cota da API excedida. Aguarde 60 segundos e tente novamente.');
-        } else if (errorMessage.includes('API key not valid')) {
-            throw new Error('A chave de API fornecida não é válida. Verifique se copiou corretamente.');
-        } else if (errorMessage.includes('400')) {
-             throw new Error('A chave de API parece estar mal formatada. Verifique se copiou corretamente.');
-        }
-        throw new Error('Não foi possível validar a chave. Verifique a chave e sua conexão.');
-    }
-  }, [checkAndRegisterAiCall, triggerAiCooldown]);
+  const handleSaveApiKey = useCallback((key: string) => {
+    setApiKey(key);
+    localStorage.setItem(API_KEY_STORAGE_KEY, key);
+    setIsApiKeyModalOpen(false);
+  }, []);
 
     const handleSaveProduct = useCallback(async (productToSave: Product, options?: { closeModal?: boolean }): Promise<Product> => {
         try {
@@ -888,9 +769,6 @@ export default function App() {
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
                     onNavigate={handleNavigate}
                     savedCompositions={savedCompositions}
-                    aiCooldownUntil={aiCooldownUntil}
-                    checkAndRegisterAiCall={checkAndRegisterAiCall}
-                    triggerAiCooldown={triggerAiCooldown}
                     {...mainScreenProps} 
                 />;
       case View.STOCK:
@@ -913,10 +791,6 @@ export default function App() {
                     onAddNewBrand={handleAddNewBrand}
                     canManageStock={!!canManageStock}
                     brands={brands}
-                    customColors={customColors}
-                    onAddCustomColor={addCustomColor}
-                    onDeleteCustomColor={deleteCustomColor}
-                    onDeletePredefinedColor={deletePredefinedColor}
                     {...mainScreenProps}
                 />;
        case View.CATALOG:
@@ -944,10 +818,6 @@ export default function App() {
                     savedCompositions={savedCompositions}
                     onSaveComposition={handleSaveComposition}
                     setSavedCompositions={setSavedCompositions}
-                    availableColors={allAppColors}
-                    aiCooldownUntil={aiCooldownUntil}
-                    checkAndRegisterAiCall={checkAndRegisterAiCall}
-                    triggerAiCooldown={triggerAiCooldown}
                 />;
       case View.COMPOSITIONS:
         return <CompositionsScreen
@@ -959,9 +829,6 @@ export default function App() {
                     products={products}
                     onEditProduct={setEditingProduct}
                     onSaveComposition={handleSaveComposition}
-                    aiCooldownUntil={aiCooldownUntil}
-                    checkAndRegisterAiCall={checkAndRegisterAiCall}
-                    triggerAiCooldown={triggerAiCooldown}
                 />
       default:
         return <ShowcaseScreen 
@@ -974,9 +841,6 @@ export default function App() {
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
                     onNavigate={handleNavigate}
                     savedCompositions={savedCompositions}
-                    aiCooldownUntil={aiCooldownUntil}
-                    checkAndRegisterAiCall={checkAndRegisterAiCall}
-                    triggerAiCooldown={triggerAiCooldown}
                     {...mainScreenProps} 
                 />;
     }
@@ -1013,7 +877,7 @@ export default function App() {
                 <ProductCreationWizard
                     onClose={() => setIsWizardOpen(false)}
                     onConfigure={handleCreateProductsFromWizard}
-                    allColors={allAppColors}
+                    customColors={customColors}
                     onAddCustomColor={addCustomColor}
                     categories={uniqueCategories}
                     products={products}
@@ -1033,12 +897,9 @@ export default function App() {
                     categories={uniqueCategories}
                     apiKey={apiKey}
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
-                    allColors={allAppColors}
+                    customColors={customColors}
                     onAddCustomColor={addCustomColor}
                     brands={brands}
-                    aiCooldownUntil={aiCooldownUntil}
-                    checkAndRegisterAiCall={checkAndRegisterAiCall}
-                    triggerAiCooldown={triggerAiCooldown}
                 />
             )}
             {isSignUpModalOpen && (
