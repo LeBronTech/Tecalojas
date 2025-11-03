@@ -237,16 +237,28 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
 
     // Apply sorting
     const sorted = ([...filtered] as (Product | ProductGroup)[]).sort((a, b) => {
-        const itemA = Array.isArray(a) ? a[0] : a;
-        const itemB = Array.isArray(b) ? b[0] : b;
-        if (!itemA || !itemB) return 0;
-        
         if (sortOrder === 'alpha') {
-            const nameA = Array.isArray(a) ? itemA.category : itemA.name;
-            const nameB = Array.isArray(b) ? itemB.category : itemB.name;
-            // FIX: By casting the array before sorting, TypeScript correctly infers `nameA` and `nameB` as strings, resolving the 'unknown' type error.
+            // FIX: Replaced the implementation with if/else blocks for clearer type inference. This resolves the 'unknown' type error on `localeCompare` by allowing TypeScript to correctly narrow the types of `a` and `b`.
+            let nameA: string;
+            if (Array.isArray(a)) {
+                nameA = a[0].category;
+            } else {
+                nameA = a.name;
+            }
+            
+            let nameB: string;
+            if (Array.isArray(b)) {
+                nameB = b[0].category;
+            } else {
+                nameB = b.name;
+            }
+            
             return nameA.localeCompare(nameB);
         } else { // 'recent'
+            const itemA = Array.isArray(a) ? a[0] : a;
+            const itemB = Array.isArray(b) ? b[0] : b;
+            if (!itemA || !itemB) return 0;
+            
             const timeA = parseInt(itemA.id.split('-')[0], 10) || 0;
             const timeB = parseInt(itemB.id.split('-')[0], 10) || 0;
             return timeB - timeA;

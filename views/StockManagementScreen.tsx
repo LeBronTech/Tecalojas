@@ -291,20 +291,24 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
     const categories = useMemo(() => ['Todas', ...Array.from(new Set(products.map(p => p.category)))], [products]);
     
     const filteredProducts = useMemo(() => {
-        return products
-            .filter(product =>
-                product.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-                (selectedCategory === 'Todas' || product.category === selectedCategory)
-            )
-            .sort((a, b) => {
-                if (sortOrder === 'alpha') {
-                    return a.name.localeCompare(b.name);
-                } else { // 'recent'
-                    const timeA = parseInt(a.id.split('-')[0], 10) || 0;
-                    const timeB = parseInt(b.id.split('-')[0], 10) || 0;
-                    return timeB - timeA;
-                }
-            });
+        let tempProducts = [...products];
+
+        // Apply existing text search and category filters
+        tempProducts = tempProducts.filter(product =>
+            product.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+            (selectedCategory === 'Todas' || product.category === selectedCategory)
+        );
+
+        // Apply sorting
+        return tempProducts.sort((a, b) => {
+            if (sortOrder === 'alpha') {
+                return a.name.localeCompare(b.name);
+            } else { // 'recent'
+                const timeA = parseInt(a.id.split('-')[0], 10) || 0;
+                const timeB = parseInt(b.id.split('-')[0], 10) || 0;
+                return timeB - timeA;
+            }
+        });
     }, [products, searchQuery, selectedCategory, sortOrder]);
 
   return (
@@ -371,6 +375,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                     </div>
                     
                     <div className="px-4 flex flex-wrap gap-2 mt-4">
+                         <h3 className={`w-full text-xs font-bold uppercase mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Filtros de Categoria</h3>
                         {categories.map(category => {
                             const isActive = selectedCategory === category;
                             const activeClasses = isDark 

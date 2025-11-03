@@ -26,7 +26,11 @@ const ButtonSpinner = () => (
     </svg>
 );
 
-const ShuffleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>);
+const ShuffleIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+    </svg>
+);
 const ShareIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>);
 const SaveIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6a1 1 0 10-2 0v5.586L7.707 10.293zM3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" /></svg>);
 const StarIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>);
@@ -155,51 +159,52 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     
     const selectRandomProducts = useCallback((
         targetSize: number, 
-        colors: {name: string, hex: string}[]
+        colors: {name: string, hex: string}[],
+        fuzzyMatch = false
     ): Product[] => {
         if (colors.length === 0 || targetSize === 0) return [];
-
-        const productsByColor = colors.map(color => {
-            return products.filter(p => p.colors.some(c => c.name === color.name));
-        });
-
-        let newSelection: Product[] = [];
-        let availableSlots = targetSize;
-        const usedProductIds = new Set<string>();
-
-        for (const colorGroup of productsByColor) {
-            if (availableSlots > 0 && colorGroup.length > 0) {
-                const availableInGroup = colorGroup.filter(p => !usedProductIds.has(p.id));
-                if (availableInGroup.length > 0) {
-                    const randomProduct = availableInGroup[Math.floor(Math.random() * availableInGroup.length)];
-                    newSelection.push(randomProduct);
-                    usedProductIds.add(randomProduct.id);
-                    availableSlots--;
-                }
-            }
+    
+        const colorNames = colors.map(c => c.name.toLowerCase());
+        let allMatchingProducts: Product[];
+    
+        if (fuzzyMatch) {
+            // Fuzzy matching: 'verde' should match 'verde claro'
+            allMatchingProducts = products.filter(p => 
+                p.colors.some(productColor => 
+                    colorNames.some(baseColorName => 
+                        productColor.name.toLowerCase().includes(baseColorName)
+                    )
+                )
+            );
+        } else {
+            // Exact matching for initial selection
+            allMatchingProducts = products.filter(p =>
+                p.colors.some(productColor => colorNames.includes(productColor.name.toLowerCase()))
+            );
         }
         
-        const allMatchingProducts = productsByColor.flat().filter(p => !usedProductIds.has(p.id));
-        while (availableSlots > 0 && allMatchingProducts.length > 0) {
-            const randomIndex = Math.floor(Math.random() * allMatchingProducts.length);
-            const randomProduct = allMatchingProducts.splice(randomIndex, 1)[0];
-            newSelection.push(randomProduct);
-            usedProductIds.add(randomProduct.id);
-            availableSlots--;
-        }
-
-        return newSelection;
+        // De-duplicate products (a product might match multiple colors)
+        const uniqueMatchingProducts = Array.from(new Map(allMatchingProducts.map(p => [p.id, p])).values());
+    
+        // Randomly select `targetSize` products from the matching pool.
+        const shuffled = uniqueMatchingProducts.sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, targetSize);
     }, [products]);
 
 
     useEffect(() => {
-        if (!useColorFilter || selectedFilterColors.length === 0 || !compositionSize) {
+        if (!useColorFilter || !compositionSize) {
             if(!useColorFilter) { setSelectedProducts([]); }
             return;
         }
-        const newSelection = selectRandomProducts(compositionSize, selectedFilterColors);
-        setSelectedProducts(newSelection);
-    }, [useColorFilter, selectedFilterColors, products, compositionSize, selectRandomProducts]);
+        // Only trigger if colors are selected, otherwise we might get a random assortment
+        if (selectedFilterColors.length > 0) {
+            const newSelection = selectRandomProducts(compositionSize, selectedFilterColors);
+            setSelectedProducts(newSelection);
+        } else {
+            setSelectedProducts([]);
+        }
+    }, [useColorFilter, selectedFilterColors, compositionSize, selectRandomProducts]);
 
 
     const handleConfirmSelection = (selectedIds: string[]) => {
@@ -397,24 +402,31 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         }
     };
     
-    const handleShuffle = () => {
-        if (currentComposition) {
-            setCurrentComposition(prev => [...prev!].sort(() => Math.random() - 0.5));
-        }
-    };
+    const handleShuffle = useCallback(() => {
+        setCurrentComposition(prev => {
+            if (!prev) return null;
+            return [...prev].sort(() => Math.random() - 0.5);
+        });
+    }, []);
     
-    const handleGenerateNewCombination = () => {
-        if (!compositionSize) return;
-        let newSelection: Product[] = [];
-        if (useColorFilter && selectedFilterColors.length > 0) {
-            newSelection = selectRandomProducts(compositionSize, selectedFilterColors);
-        } else if (currentComposition) {
-            const currentColors = Array.from(new Set(currentComposition.flatMap(p => p.colors)));
-            newSelection = selectRandomProducts(compositionSize, currentColors);
+    const handleGenerateNewCombination = useCallback(() => {
+        if (!compositionSize || !currentComposition) return;
+    
+        const currentColors = currentComposition.flatMap(p => p.colors);
+        // Extract base colors (e.g., "Verde" from "Verde Claro").
+        const baseColorNames = [...new Set(currentColors.map(c => c.name.split(' ')[0]))];
+        const baseColorsForSelection = baseColorNames.map(name => ({ name, hex: '' })); // The hex doesn't matter for matching
+        
+        const newSelection = selectRandomProducts(compositionSize, baseColorsForSelection, true);
+        
+        if (newSelection.length > 0) {
+          setCurrentComposition(newSelection);
+          setGeneratedImageUrl(null); // Reset AI image
+        } else {
+          setError("Não foram encontradas novas almofadas com as cores atuais.");
+          setTimeout(() => setError(null), 3000);
         }
-        setCurrentComposition(newSelection);
-        setGeneratedImageUrl(null);
-    };
+    }, [compositionSize, currentComposition, selectRandomProducts]);
 
     const resetAll = () => {
         setCompositionSize(null);

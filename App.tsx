@@ -9,7 +9,7 @@ import SettingsScreen from './views/SettingsScreen';
 import CatalogScreen from './views/CatalogScreen';
 import CompositionGeneratorScreen from './views/CompositionGeneratorScreen';
 import CompositionsScreen from './views/CompositionsScreen';
-import ReplacementScreen from './views/ReplacementScreen';
+import AssistantScreen from './views/ReplacementScreen';
 import AddEditProductModal from './components/AddEditProductModal';
 import SignUpModal from './SignUpModal';
 import Header from './components/Header';
@@ -224,8 +224,8 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginC
             <NavItem label="Composições" view={View.COMPOSITIONS} icon={<CompositionIcon />} />
             <NavItem label="Estoque" view={View.STOCK} icon={<InventoryIcon />} />
             <NavItem 
-                label="Reposição" 
-                view={View.REPLACEMENT} 
+                label="Assistente" 
+                view={View.ASSISTANT} 
                 icon={
                     <div className="relative">
                         <ReplacementIcon />
@@ -743,7 +743,12 @@ export default function App() {
   const hasItemsToRestock = useMemo(() => {
     return products.some(p => {
         const totalStock = p.variations.reduce((sum, v) => sum + (v.stock[StoreName.TECA] || 0) + (v.stock[StoreName.IONE] || 0), 0);
-        return totalStock <= 1;
+        if (totalStock <= 1) return true;
+        if (!p.colors || p.colors.length === 0 || p.colors.some(c => c.name === 'Indefinida')) return true;
+        if (!p.variations || p.variations.length === 0) return true;
+        if (!p.baseImageUrl) return true;
+        if (p.variations.some(v => v.priceFull <= 0)) return true;
+        return false;
     });
   }, [products]);
 
@@ -752,7 +757,7 @@ export default function App() {
       return <div className="flex-grow flex items-center justify-center"><p className={theme === 'dark' ? 'text-white' : 'text-gray-800'}>Carregando...</p></div>
     }
 
-    const isStockViewAttempt = view === View.STOCK || view === View.SETTINGS || view === View.CATALOG || view === View.REPLACEMENT;
+    const isStockViewAttempt = view === View.STOCK || view === View.SETTINGS || view === View.CATALOG || view === View.ASSISTANT;
     const needsLogin = isStockViewAttempt && !currentUser;
 
     if (needsLogin) {
@@ -814,8 +819,8 @@ export default function App() {
                     brands={brands}
                     {...mainScreenProps}
                 />;
-      case View.REPLACEMENT:
-        return <ReplacementScreen
+      case View.ASSISTANT:
+        return <AssistantScreen
                     products={products}
                     onEditProduct={setEditingProduct}
                     onDeleteProduct={requestDeleteProduct}

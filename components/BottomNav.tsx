@@ -94,7 +94,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsT
        <NavButton label="Estoque" view={View.STOCK} isActive={activeView === View.STOCK} onNavigate={onNavigate}>
         <InventoryIcon />
       </NavButton>
-       <NavButton label="Reposição" view={View.REPLACEMENT} isActive={activeView === View.REPLACEMENT} onNavigate={onNavigate}>
+       <NavButton label="Assistente" view={View.ASSISTANT} isActive={activeView === View.ASSISTANT} onNavigate={onNavigate}>
         <div className="relative">
             <ReplacementIcon />
             {hasItemsToRestock && (
