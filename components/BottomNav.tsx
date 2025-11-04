@@ -25,6 +25,12 @@ const ReplacementIcon = () => (
     </svg>
 );
 
+const DiagnosticsIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    </svg>
+);
+
 
 interface BottomNavProps {
   activeView: View;
@@ -93,6 +99,9 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsT
       </NavButton>
        <NavButton label="Estoque" view={View.STOCK} isActive={activeView === View.STOCK} onNavigate={onNavigate}>
         <InventoryIcon />
+      </NavButton>
+      <NavButton label="Diagnóstico" view={View.DIAGNOSTICS} isActive={activeView === View.DIAGNOSTICS} onNavigate={onNavigate}>
+        <DiagnosticsIcon />
       </NavButton>
        <NavButton label="Assistente" view={View.ASSISTANT} isActive={activeView === View.ASSISTANT} onNavigate={onNavigate}>
         <div className="relative">

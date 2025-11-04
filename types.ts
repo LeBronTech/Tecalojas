@@ -94,6 +94,7 @@ export enum View {
   CATALOG,
   COMPOSITION_GENERATOR,
   COMPOSITIONS,
+  DIAGNOSTICS,
 }
 
 export type Theme = 'light' | 'dark';

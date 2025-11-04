@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useCallback, createContext, useContext, useEffect, useMemo } from 'react';
 import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType } from './types';
 // FIX: Import PREDEFINED_COLORS to be used when creating color variations for products.
@@ -12,6 +13,7 @@ import CatalogScreen from './views/CatalogScreen';
 import CompositionGeneratorScreen from './views/CompositionGeneratorScreen';
 import CompositionsScreen from './views/CompositionsScreen';
 import AssistantScreen from './views/ReplacementScreen';
+import DiagnosticsScreen from './views/DiagnosticsScreen';
 import AddEditProductModal from './components/AddEditProductModal';
 import SignUpModal from './SignUpModal';
 import Header from './components/Header';
@@ -179,6 +181,12 @@ const ReplacementIcon = () => (
     </svg>
 );
 
+const DiagnosticsIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    </svg>
+);
+
 
 // --- Side Menu Component ---
 interface SideMenuProps {
@@ -229,6 +237,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginC
           <nav className="flex flex-col space-y-2">
             <NavItem label="Vitrine" view={View.SHOWCASE} icon={<HomeIcon />} />
             <NavItem label="Composições" view={View.COMPOSITIONS} icon={<CompositionIcon />} />
+            <NavItem label="Diagnóstico" view={View.DIAGNOSTICS} icon={<DiagnosticsIcon />} />
             <NavItem label="Estoque" view={View.STOCK} icon={<InventoryIcon />} />
             <NavItem 
                 label="Assistente" 
@@ -764,7 +773,7 @@ export default function App() {
       return <div className="flex-grow flex items-center justify-center"><p className={theme === 'dark' ? 'text-white' : 'text-gray-800'}>Carregando...</p></div>
     }
 
-    const isStockViewAttempt = view === View.STOCK || view === View.SETTINGS || view === View.CATALOG || view === View.ASSISTANT;
+    const isStockViewAttempt = view === View.STOCK || view === View.SETTINGS || view === View.CATALOG || view === View.ASSISTANT || view === View.DIAGNOSTICS;
     const needsLogin = isStockViewAttempt && !currentUser;
 
     if (needsLogin) {
@@ -855,6 +864,11 @@ export default function App() {
                     onEditProduct={setEditingProduct}
                     onSaveComposition={handleSaveComposition}
                 />
+      case View.DIAGNOSTICS:
+        return <DiagnosticsScreen
+                  products={products}
+                  {...mainScreenProps}
+               />;
       default:
         return <ShowcaseScreen 
                     products={products} 
