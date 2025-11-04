@@ -49,9 +49,20 @@ const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ products }) => {
             totalUnitsSold
         };
     }, [products]);
+
+    const totalRevenue = useMemo(() => {
+        return products.reduce((total, product) => {
+            if (!product.variations || product.variations.length === 0) {
+                return total;
+            }
+            const averagePrice = product.variations.reduce((sum, v) => sum + v.priceFull, 0) / product.variations.length;
+            const productRevenue = (product.unitsSold || 0) * averagePrice;
+            return total + productRevenue;
+        }, 0);
+    }, [products]);
     
     const salesEvolutionData = useMemo(() => {
-        const totalSales = summary.totalUnitsSold;
+        const totalSalesValue = totalRevenue;
         const emptyData = {
             monthly: Array(12).fill(0).map((_, i) => ({ label: `M-${i + 1}`, value: 0 })),
             weekly: Array(8).fill(0).map((_, i) => ({ label: `S-${i + 1}`, value: 0 })),
@@ -59,26 +70,22 @@ const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ products }) => {
             maxWeekly: 0,
         };
 
-        if (totalSales === 0) return emptyData;
+        if (totalSalesValue === 0) return emptyData;
 
         // Simulate Monthly Data
         const monthWeights = Array.from({ length: 12 }, () => Math.random() * 0.8 + 0.2);
         const totalMonthWeight = monthWeights.reduce((sum, w) => sum + w, 0);
-        const monthlySales = monthWeights.map(w => Math.round((w / totalMonthWeight) * totalSales));
-        const monthSum = monthlySales.reduce((s, v) => s + v, 0);
-        if (monthSum !== totalSales) monthlySales[0] += totalSales - monthSum;
+        const monthlySales = monthWeights.map(w => (w / totalMonthWeight) * totalSalesValue);
 
         const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
         const currentMonth = new Date().getMonth();
         const orderedMonthLabels = [...monthLabels.slice(currentMonth + 1), ...monthLabels.slice(0, currentMonth + 1)];
 
         // Simulate Weekly Data
-        const weeklyTotal = Math.round(totalSales * (8 / 52));
+        const weeklyTotalValue = totalSalesValue * (8 / 52); // Approximate revenue of last 8 weeks
         const weekWeights = Array.from({ length: 8 }, () => Math.random() * 0.8 + 0.2);
         const totalWeekWeight = weekWeights.reduce((sum, w) => sum + w, 0);
-        const weeklySales = weekWeights.map(w => Math.round((w / totalWeekWeight) * weeklyTotal));
-        const weekSum = weeklySales.reduce((s, v) => s + v, 0);
-        if (weekSum !== weeklyTotal) weeklySales[0] += weeklyTotal - weekSum;
+        const weeklySales = weekWeights.map(w => (w / totalWeekWeight) * weeklyTotalValue);
 
         return {
             monthly: orderedMonthLabels.map((label, i) => ({ label, value: monthlySales[i] || 0 })),
@@ -86,7 +93,7 @@ const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ products }) => {
             maxMonthly: Math.max(...monthlySales, 1), // Avoid division by zero
             maxWeekly: Math.max(...weeklySales, 1), // Avoid division by zero
         };
-    }, [summary.totalUnitsSold]);
+    }, [totalRevenue]);
 
 
     const favoriteColor = useMemo(() => {
@@ -139,6 +146,11 @@ const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ products }) => {
             <p className={`text-2xl font-bold ${valueClasses}`}>{value}</p>
         </div>
     );
+    
+    const currentChartData = salesPeriod === 'monthly' ? salesEvolutionData.monthly : salesEvolutionData.weekly;
+    const currentTotalValue = currentChartData.reduce((sum, data) => sum + data.value, 0);
+    const formattedTotalValue = currentTotalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
 
     return (
         <div className="h-full w-full flex flex-col relative overflow-hidden">
@@ -156,25 +168,31 @@ const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ products }) => {
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <Card className="lg:col-span-2">
-                             <div className="flex justify-between items-center mb-4">
-                                <h3 className={`font-bold text-lg ${titleClasses}`}>Evolução de Vendas</h3>
+                             <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 className={`font-bold text-lg ${titleClasses}`}>Evolução de Vendas</h3>
+                                    <p className={`text-sm ${subtitleClasses}`}>
+                                        Total {salesPeriod === 'monthly' ? 'Anual (Simulado)' : '8 Semanas (Simulado)'}: <span className="font-bold">{formattedTotalValue}</span>
+                                    </p>
+                                </div>
                                 <div className={`flex gap-2 p-1 rounded-lg ${isDark ? 'bg-black/30' : 'bg-gray-100'}`}>
                                     <button onClick={() => setSalesPeriod('monthly')} className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${salesPeriod === 'monthly' ? 'bg-fuchsia-600 text-white' : (isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200')}`}>Mensal</button>
                                     <button onClick={() => setSalesPeriod('weekly')} className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${salesPeriod === 'weekly' ? 'bg-fuchsia-600 text-white' : (isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200')}`}>Semanal</button>
                                 </div>
                             </div>
                             <div className="h-64 flex items-end justify-between gap-2">
-                               { (salesPeriod === 'monthly' ? salesEvolutionData.monthly : salesEvolutionData.weekly).map((data, index) => {
+                               { currentChartData.map((data, index) => {
                                     const maxValue = salesPeriod === 'monthly' ? salesEvolutionData.maxMonthly : salesEvolutionData.maxWeekly;
                                     const height = maxValue > 0 ? (data.value / maxValue) * 100 : 0;
+                                    const formattedValue = data.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
                                     return (
                                         <div key={index} className="flex-1 flex flex-col items-center group relative h-full justify-end">
                                             <div 
                                                 className="w-full bg-gradient-to-t from-purple-500 to-fuchsia-500 rounded-t-md transition-all duration-300" 
                                                 style={{ height: `${height}%` }}
-                                                title={`Vendas: ${data.value}`}
+                                                title={`Vendas: ${formattedValue}`}
                                             >
-                                               <div className={`absolute -top-6 left-1/2 -translate-x-1/2 hidden group-hover:block px-2 py-1 rounded-md text-xs font-bold text-white shadow-lg ${isDark ? 'bg-black' : 'bg-gray-900'}`}>{data.value}</div>
+                                               <div className={`absolute -top-6 left-1/2 -translate-x-1/2 hidden group-hover:block px-2 py-1 rounded-md text-xs font-bold text-white shadow-lg ${isDark ? 'bg-black' : 'bg-gray-900'}`}>{formattedValue}</div>
                                             </div>
                                             <span className={`text-xs mt-2 ${subtitleClasses}`}>{data.label}</span>
                                         </div>
@@ -198,7 +216,7 @@ const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ products }) => {
                                 {topSellers.map((product, index) => (
                                     <li key={product.id} className="flex items-center gap-4">
                                         <span className={`font-bold text-lg w-6 text-center ${subtitleClasses}`}>{index + 1}</span>
-                                        <img src={product.baseImageUrl} alt={product.name} className="w-12 h-12 rounded-lg object-cover" />
+                                        <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-12 h-12 rounded-lg object-cover" />
                                         <div className="flex-grow">
                                             <p className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{product.name}</p>
                                             <p className="text-sm text-fuchsia-500">{product.unitsSold} vendidos</p>
