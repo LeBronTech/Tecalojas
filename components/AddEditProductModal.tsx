@@ -4,9 +4,24 @@ import { VARIATION_DEFAULTS, BRAND_FABRIC_MAP, STORE_NAMES, BRANDS, WATER_RESIST
 import { GoogleGenAI, Modality } from '@google/genai';
 import ColorSelector from './ColorSelector';
 
-// --- Cordova/TypeScript Declarations ---
-declare var navigator: any;
-declare var Camera: any;
+// --- Moved Helper Component ---
+const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> = ({ colors, size = 4 }) => {
+    const className = `w-${size} h-${size}`;
+    const gradient = useMemo(() => {
+        if (!colors || colors.length === 0) return 'transparent';
+        if (colors.length === 1) return colors[0].hex;
+        const step = 100 / colors.length;
+        const stops = colors.map((color, i) => `${color.hex} ${i * step}% ${(i + 1) * step}%`).join(', ');
+        return `conic-gradient(${stops})`;
+    }, [colors]);
+
+    return (
+        <div
+            className={`${className} rounded-full border border-black/20 flex-shrink-0`}
+            style={{ background: gradient }}
+        />
+    );
+};
 
 
 // --- CameraView Component ---
@@ -358,25 +373,6 @@ const standardizeProductName = (name: string, productColors: {name: string, hex:
     
     return baseName;
 };
-
-const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> = ({ colors, size = 4 }) => {
-    const className = `w-${size} h-${size}`;
-    const gradient = useMemo(() => {
-        if (!colors || colors.length === 0) return 'transparent';
-        if (colors.length === 1) return colors[0].hex;
-        const step = 100 / colors.length;
-        const stops = colors.map((color, i) => `${color.hex} ${i * step}% ${(i + 1) * step}%`).join(', ');
-        return `conic-gradient(${stops})`;
-    }, [colors]);
-
-    return (
-        <div
-            className={`${className} rounded-full border border-black/20 flex-shrink-0`}
-            style={{ background: gradient }}
-        />
-    );
-};
-
 
 const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, apiKey, onRequestApiKey, allColors, onAddColor, onDeleteColor, brands }) => {
   const [formData, setFormData] = useState<Product>(() => ({ ...initialFormState, ...product }));

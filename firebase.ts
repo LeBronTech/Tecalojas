@@ -1,12 +1,4 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-
-// Explicitly import modules for their side-effects to ensure components are registered.
-// This is a robust way to prevent "Component ... has not been registered yet" errors
-// that can occur due to race conditions in module loading.
-import "firebase/auth";
-import "firebase/firestore";
-import "firebase/storage";
-
 import { 
     getAuth,
     setPersistence,
@@ -35,20 +27,7 @@ import {
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 import { User, Product, DynamicBrand, CatalogPDF } from './types';
-import { firebaseConfig, googleCordovaWebClientId } from './firebaseConfig';
-
-// TypeScript declarations for Cordova plugins and Kodular/AppInventor communication
-declare global {
-  interface Window {
-    cordova?: any;
-    plugins?: any;
-    AppInventor?: {
-      setWebViewString: (message: string) => void;
-    };
-    completeGoogleSignIn?: (idToken: string | null, errorMsg: string | null) => void;
-    handleLoginToken?: (idToken: string) => void;
-  }
-}
+import { firebaseConfig } from './firebaseConfig';
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();

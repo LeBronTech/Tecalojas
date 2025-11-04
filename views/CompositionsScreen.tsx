@@ -151,12 +151,14 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
               onRequestApiKey={onRequestApiKey}
               savedCompositions={savedCompositions}
               onViewComposition={(compositions, startIndex) => {
-                  setViewingProduct(null);
-                  setTimeout(() => {
-                      // We need to find the correct start index from the main `savedCompositions` list
-                      const originalIndex = savedCompositions.findIndex(c => c.id === compositions[startIndex].id);
-                      setViewerState({ open: true, startIndex: originalIndex > -1 ? originalIndex : 0 });
-                  }, 150)
+                  const compositionToView = compositions[startIndex];
+                  if (!compositionToView) return;
+
+                  const originalIndex = savedCompositions.findIndex(c => c.id === compositionToView.id);
+                  if (originalIndex > -1) {
+                      setViewingProduct(null); // Close current modal
+                      setViewerState({ open: true, startIndex: originalIndex });
+                  }
               }}
           />
       )}

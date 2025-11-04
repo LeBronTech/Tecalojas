@@ -9,7 +9,7 @@ type ProductGroup = Product[];
 const FireIcon = ({ className }: { className: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
         <path fillRule="evenodd" d="M11.828 6.065c.348-.348.348-.913 0-1.261a.89.89 0 0 0-1.261 0c-1.121 1.121-1.859 2.62-1.859 4.289 0 .548.152 1.07.42 1.536l-.805 1.209a.89.89 0 0 0 1.503 1.002l.805-1.209c.466.268.988.42 1.536.42 1.668 0 3.167-.738 4.288-1.86a.89.89 0 0 0 0-1.26c-.347-.348-.912-.348-1.26 0l-1.06 1.06c-.495-.713-.88-1.52-1.077-2.389.336-.264.63-.578.875-.923l1.06 1.061Z" clipRule="evenodd" />
-        <path d="M4.172 13.935c-.348.348-.348.913 0 1.261a.89.89 0 0 0 1.261 0c1.121-1.121 1.859-2.62-1.859-4.289 0-.548-.152-1.07-.42-1.536l.805-1.209a.89.89 0 0 0-1.503-1.002l-.805 1.209c-.466-.268-.988-.42-1.536-.42-1.668 0-3.167.738-4.288 1.86a.89.89 0 0 0 0 1.26c.347.348.912.348 1.26 0l1.06-1.06c.495.713.88 1.52 1.077 2.389-.336-.264-.63-.578-.875-.923l-1.06 1.061Z" />
+        <path d="M4.172 13.935c-.348.348-.348.913 0 1.261a.89.89 0 0 0 1.261 0c1.121-1.121 1.859-2.62-1.859-4.289 0-.548-.152-1.07-.42-1.536l.805-1.209a.89.89 0 0 0-1.503-1.002l-.805 1.209c-.466-.268-.988-.42-1.536-.42-1.668 0-3.167.738-4.288 1.86a.89.89 0 0 0 0 1.26c.347.348.912-.348 1.26 0l1.06-1.06c.495.713.88 1.52 1.077 2.389-.336-.264-.63-.578-.875-.923l-1.06 1.061Z" />
     </svg>
 );
 
@@ -186,7 +186,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
   const categories = useMemo(() => {
     const allCategoryValues = products.flatMap(p => [p.category, p.subCategory]).filter((c): c is string => !!c && c.trim() !== '');
     const uniqueCategories = [...new Set(allCategoryValues)];
-    return ['Todas', ...uniqueCategories.sort((a, b) => a.localeCompare(b))];
+    // FIX: Explicitly cast to string to prevent `unknown` type error in sort.
+    return ['Todas', ...uniqueCategories.sort((a, b) => String(a).localeCompare(String(b)))];
   }, [products]);
 
   const availableFabrics = useMemo(() => {
@@ -222,7 +223,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
   }, [products]);
 
   const displayedProducts = useMemo(() => {
-    let filtered: (Product | ProductGroup)[] | Product[];
+    let filtered: (Product | ProductGroup)[];
     
     if (selectedCategory === 'Todas') {
       filtered = groupedProducts;
@@ -236,24 +237,11 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
     }
 
     // Apply sorting
-    const sorted = ([...filtered] as (Product | ProductGroup)[]).sort((a, b) => {
+    const sorted = [...filtered].sort((a, b) => {
         if (sortOrder === 'alpha') {
-            // FIX: Replaced the implementation with if/else blocks for clearer type inference. This resolves the 'unknown' type error on `localeCompare` by allowing TypeScript to correctly narrow the types of `a` and `b`.
-            let nameA: string;
-            if (Array.isArray(a)) {
-                nameA = a[0].category;
-            } else {
-                nameA = a.name;
-            }
-            
-            let nameB: string;
-            if (Array.isArray(b)) {
-                nameB = b[0].category;
-            } else {
-                nameB = b.name;
-            }
-            
-            return nameA.localeCompare(nameB);
+            const nameA = Array.isArray(a) ? a[0]?.category : a.name;
+            const nameB = Array.isArray(b) ? b[0]?.category : b.name;
+            return String(nameA || '').localeCompare(String(nameB || ''));
         } else { // 'recent'
             const itemA = Array.isArray(a) ? a[0] : a;
             const itemB = Array.isArray(b) ? b[0] : b;

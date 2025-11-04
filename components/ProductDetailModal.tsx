@@ -41,10 +41,14 @@ const FurnitureColorPopover: React.FC<FurnitureColorPopoverProps> = ({ isOpen, o
     const rect = anchorEl.getBoundingClientRect();
 
     return (
-        <div className="fixed inset-0 z-[60]" onClick={onClose}>
+        <div className="fixed inset-0 z-[120]" onClick={onClose}>
             <div 
                 className={`absolute w-48 p-2 rounded-xl shadow-lg border transition-all duration-200 ${isDark ? 'bg-[#2D1F49] border-white/10' : 'bg-white border-gray-200'}`}
-                style={{ top: rect.bottom + 8, left: '50%', transform: 'translateX(-50%)' }}
+                style={{ 
+                    top: rect.bottom + 8, 
+                    left: rect.left + rect.width / 2, 
+                    transform: 'translateX(-50%)' 
+                }}
                 onClick={e => e.stopPropagation()}
             >
                 <p className={`text-xs font-bold px-2 pb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Mudar cor do móvel</p>
@@ -115,13 +119,27 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         return savedCompositions.filter(comp => comp.products.some(p => p.variationGroupId ? p.variationGroupId === product.variationGroupId : p.id === product.id));
     }, [savedCompositions, product]);
     
-    const galleryImages = useMemo(() => [
-        { url: product.baseImageUrl, label: 'Principal', type: 'principal' },
-        ...(product.backgroundImages?.sala || tempBackgrounds.sala ? [{ url: tempBackgrounds.sala || product.backgroundImages!.sala, label: 'Sala', type: 'sala' }] : []),
-        ...(product.backgroundImages?.quarto || tempBackgrounds.quarto ? [{ url: tempBackgrounds.quarto || product.backgroundImages!.quarto, label: 'Quarto', type: 'quarto' }] : []),
-        ...(product.backgroundImages?.varanda ? [{ url: product.backgroundImages.varanda, label: 'Varanda', type: 'varanda' }] : []),
-        ...(product.backgroundImages?.piscina ? [{ url: product.backgroundImages.piscina, label: 'Piscina', type: 'piscina' }] : []),
-    ].filter(image => image.url), [product, tempBackgrounds]);
+    const galleryImages = useMemo(() => {
+        const images = [];
+        if (product.baseImageUrl) {
+            images.push({ url: product.baseImageUrl, label: 'Principal', type: 'principal' });
+        }
+        const salaUrl = tempBackgrounds.sala || product.backgroundImages?.sala;
+        if (salaUrl) {
+            images.push({ url: salaUrl, label: 'Sala', type: 'sala' });
+        }
+        const quartoUrl = tempBackgrounds.quarto || product.backgroundImages?.quarto;
+        if (quartoUrl) {
+            images.push({ url: quartoUrl, label: 'Quarto', type: 'quarto' });
+        }
+        if (product.backgroundImages?.varanda) {
+            images.push({ url: product.backgroundImages.varanda, label: 'Varanda', type: 'varanda' });
+        }
+        if (product.backgroundImages?.piscina) {
+            images.push({ url: product.backgroundImages.piscina, label: 'Piscina', type: 'piscina' });
+        }
+        return images;
+    }, [product, tempBackgrounds]);
 
     const currentImageInfo = useMemo(() => galleryImages.find(img => img.url === displayImageUrl), [galleryImages, displayImageUrl]);
 
@@ -167,7 +185,8 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                 reader.onerror = reject;
                 reader.readAsDataURL(blob);
             });
-            return { mimeType: blob.type, base64Data };
+            // FIX: The property name 'data' was incorrect. It should be 'base64Data' to match the return type of the function.
+            return { mimeType: blob.type, base64Data: base64Data };
         }
     };
 
@@ -480,7 +499,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
             onClose={() => setPopover(p => ({...p, open: false}))}
             onSelectColor={handleGenerateNewBackground}
             colors={furnitureColors[popover.type]}
-            anchorEl={colorButtonRef.current}
+            anchorEl={popover.anchorEl}
         />
         </>
     );

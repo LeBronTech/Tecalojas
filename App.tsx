@@ -1,3 +1,5 @@
+
+
 import React, { useState, useCallback, createContext, useContext, useEffect, useMemo } from 'react';
 import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType } from './types';
 // FIX: Import PREDEFINED_COLORS to be used when creating color variations for products.
@@ -16,7 +18,7 @@ import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import ApiKeyModal from './components/ApiKeyModal';
 import ConfirmationModal from './components/ConfirmationModal';
-// FIX: Changed to a named import for ProductCreationWizard as it does not have a default export.
+// FIX: Changed to a named import for ProductCreationWizard as it is a named export.
 import { ProductCreationWizard } from './views/ProductCreationWizard'; // Import the new wizard
 import * as api from './firebase';
 import { firebaseConfig } from './firebaseConfig';
@@ -26,10 +28,15 @@ declare global {
   interface Window {
     cordova?: any;
     plugins?: any;
+    AppInventor?: {
+      setWebViewString: (message: string) => void;
+    };
+    completeGoogleSignIn?: (idToken: string | null, errorMsg: string | null) => void;
+    handleLoginToken?: (idToken: string) => void;
   }
-  // FIX: Extend the Navigator interface to include the 'connection' property for the Cordova network plugin, instead of redeclaring the 'navigator' variable which caused a type conflict.
   interface Navigator {
     connection: any;
+    camera: any;
   }
   var Connection: any;
   var Camera: any;

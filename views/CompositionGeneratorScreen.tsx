@@ -1,6 +1,5 @@
 import React, { useState, useContext, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Product, View, SavedComposition, CushionSize } from '../types';
-// FIX: ThemeContext is exported from 'types.ts', not 'App.tsx'.
 import { ThemeContext } from '../types';
 import { GoogleGenAI, Modality } from '@google/genai';
 import ProductDetailModal from '../components/ProductDetailModal';

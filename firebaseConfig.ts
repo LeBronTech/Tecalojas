@@ -16,10 +16,10 @@
 // ================================================================= 
 
 export const firebaseConfig = {
-apiKey: "AIzaSyAvP0EoCS5ePCQIb2qNxD2Ek-UOTGcXaO0",
+  apiKey: "AIzaSyAvP0EoCS5ePCQIb2qNxD2Ek-UOTGcXaO0",
   authDomain: "teca-54f58.firebaseapp.com",
   projectId: "teca-54f58",
-  storageBucket: "teca-54f58.firebasestorage.app",
+  storageBucket: "teca-54f58.appspot.com",
   messagingSenderId: "463169842239",
   appId: "1:463169842239:web:87ed9019f9758502635c8a",
   measurementId: "G-JRDNC9K02"
