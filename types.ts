@@ -143,6 +143,7 @@ export enum View {
   CART,
   PAYMENT,
   SALES,
+  QR_CODES,
 }
 
 export type Theme = 'light' | 'dark';
@@ -172,3 +173,9 @@ export const ThemeContext = createContext<ThemeContextType>({
   theme: 'light',
   toggleTheme: () => {},
 });
+
+// Global declarations for external libraries
+declare global {
+    var QRCode: any;
+    var jsQR: any;
+}

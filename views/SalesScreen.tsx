@@ -1,5 +1,5 @@
-import React, { useState, useContext, useEffect, useMemo } from 'react';
-import { SaleRequest, View, ThemeContext, Product, PosCartItem, Variation } from '../types';
+import React, { useState, useContext, useEffect, useMemo, useRef } from 'react';
+import { SaleRequest, View, ThemeContext, Product, PosCartItem, Variation, CushionSize } from '../types';
 import ProductSelectModal from '../components/ProductSelectModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import * as api from '../firebase';
@@ -15,6 +15,87 @@ interface SalesScreenProps {
 
 type ActiveTab = 'requests' | 'calculator';
 type TimeFilter = 'all' | 'today' | 'week' | 'month';
+
+const ScannerModal: React.FC<{ onClose: () => void; onScanSuccess: (productId: string, variationSize: string) => void; }> = ({ onClose, onScanSuccess }) => {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [error, setError] = useState('');
+    
+    useEffect(() => {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        if (!video || !canvas) return;
+
+        const context = canvas.getContext('2d');
+        if (!context) return;
+
+        let stream: MediaStream;
+        let animationFrameId: number;
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(s => {
+                stream = s;
+                video.srcObject = s;
+                video.setAttribute("playsinline", "true"); // Required for iOS
+                video.play();
+                animationFrameId = requestAnimationFrame(tick);
+            }).catch(err => {
+                console.error("Camera Error:", err);
+                setError("Não foi possível acessar a câmera. Verifique as permissões.");
+            });
+        
+        const tick = () => {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth;
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+                
+                if (code) {
+                    try {
+                        const data = JSON.parse(code.data);
+                        if (data.productId && data.variationSize) {
+                            onScanSuccess(data.productId, data.variationSize);
+                            // Cleanup is handled by the return function
+                            return; // Stop the loop
+                        }
+                    } catch (e) {
+                        // Not valid JSON, just keep scanning
+                    }
+                }
+            }
+            animationFrameId = requestAnimationFrame(tick);
+        };
+
+        return () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+        };
+    }, [onScanSuccess]);
+
+    return (
+        <div className="fixed inset-0 bg-black z-[140] flex flex-col items-center justify-center" onClick={onClose}>
+            <video ref={videoRef} className="absolute top-0 left-0 w-full h-full object-cover"></video>
+            <canvas ref={canvasRef} className="hidden"></canvas>
+            <div className="absolute inset-0 border-8 border-white/20 m-8 rounded-lg pointer-events-none"></div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 max-w-[400px]">
+                <div className="relative w-full" style={{paddingTop: '100%'}}>
+                    <div className="absolute inset-0 border-4 border-red-500 rounded-lg animate-pulse"></div>
+                </div>
+            </div>
+            <p className="absolute bottom-8 text-white bg-black/50 px-4 py-2 rounded-lg">Aponte a câmera para um QR code</p>
+            {error && <p className="absolute top-8 text-red-500 bg-white/80 p-4 rounded">{error}</p>}
+             <button onClick={onClose} className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        </div>
+    );
+};
 
 const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleRequest, products, onMenuClick, error }) => {
     const { theme } = useContext(ThemeContext);
@@ -33,6 +114,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const [isFinalizeSaleModalOpen, setIsFinalizeSaleModalOpen] = useState(false);
     const [posCart, setPosCart] = useState<PosCartItem[]>([]); 
     const [productForVariationSelect, setProductForVariationSelect] = useState<Product | null>(null);
+    const [isScannerOpen, setIsScannerOpen] = useState(false);
 
 
     const finalPrice = useMemo(() => {
@@ -113,6 +195,29 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
         }
         setIsProductSelectOpen(false);
     };
+
+    const handleAddScannedProductToPos = (scannedProduct: Product, scannedVariation: Variation) => {
+        const newItem: PosCartItem = {
+            id: `${scannedProduct.id}-${scannedVariation.size}`,
+            name: `${scannedProduct.name} (${scannedVariation.size})`,
+            price: scannedVariation.priceFull, // Default to full price
+            quantity: 1,
+            product: scannedProduct,
+            variation: scannedVariation,
+            isCustom: false,
+        };
+        setPosCart(prev => {
+            const existingItem = prev.find(item => item.id === newItem.id);
+            if (existingItem) {
+                return prev.map(item => item.id === newItem.id ? { ...item, quantity: item.quantity + 1 } : item);
+            }
+            return [...prev, newItem];
+        });
+        if (navigator.vibrate) {
+            navigator.vibrate(200);
+        }
+    };
+
 
     const handleVariationSelected = (product: Product, variation: Variation) => {
         const newItem: PosCartItem = {
@@ -304,6 +409,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                                         <p className={isDark ? 'text-fuchsia-400' : 'text-purple-600'}>R$ {posTotal.toFixed(2)}</p>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
+                                        <button onClick={() => setIsScannerOpen(true)} className={`col-span-2 w-full py-3 rounded-lg font-semibold ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-700'}`}>Escanear QR Code</button>
                                         <button onClick={() => setIsProductSelectOpen(true)} className={`w-full py-3 rounded-lg font-semibold ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>Adicionar Produto</button>
                                         <button onClick={() => setIsCustomValueModalOpen(true)} className={`w-full py-3 rounded-lg font-semibold ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>Valor Avulso</button>
                                         <button onClick={() => setPosCart([])} className={`w-full py-3 rounded-lg font-semibold ${isDark ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700'}`}>Limpar</button>
@@ -366,6 +472,21 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                         </div>
                     </div>
                  </div>
+            )}
+            {isScannerOpen && (
+                <ScannerModal
+                    onClose={() => setIsScannerOpen(false)}
+                    onScanSuccess={(productId, variationSize) => {
+                        const product = products.find(p => p.id === productId);
+                        const variation = product?.variations.find(v => v.size === variationSize);
+                        if (product && variation) {
+                            handleAddScannedProductToPos(product, variation);
+                            setIsScannerOpen(false); // Close on success
+                        } else {
+                            alert('Produto ou variação não encontrado.');
+                        }
+                    }}
+                />
             )}
             {isProductSelectOpen && (
                 <ProductSelectModal

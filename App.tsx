@@ -14,6 +14,7 @@ import DiagnosticsScreen from './views/DiagnosticsScreen';
 import CartScreen from './views/CartScreen';
 import PaymentScreen from './views/PaymentScreen';
 import SalesScreen from './views/SalesScreen';
+import QrCodeScreen from './views/QrCodeScreen';
 import AddEditProductModal from './components/AddEditProductModal';
 import SignUpModal from './SignUpModal';
 import Header from './components/Header';
@@ -300,7 +301,7 @@ const InventoryIcon = () => (
 
 const SettingsIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066 2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
 );
@@ -332,6 +333,13 @@ const DiagnosticsIcon = () => (
 const SalesIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+);
+
+const QrCodeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6.5 6.5v1m-6.5-17.5l-1.5 1.5M4 12H3m1.5 6.5l-1.5 1.5M12 20v1m6-11h2m-6.5 6.5v1m-6.5-17.5l-1.5 1.5M4 12H3m1.5 6.5l-1.5 1.5M21 12h-1" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 5h3v3H5zM16 5h3v3h-3zM5 16h3v3H5zM16 16h3v3h-3z" />
     </svg>
 );
 
@@ -419,6 +427,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginC
                 />
             )}
             {isAdmin && <NavItem label="Catálogo" view={View.CATALOG} icon={<CatalogIcon />} />}
+            {isAdmin && <NavItem label="QR Codes" view={View.QR_CODES} icon={<QrCodeIcon />} />}
             {isAdmin && <NavItem label="Configurações" view={View.SETTINGS} icon={<SettingsIcon />} />}
           </nav>
 
@@ -789,7 +798,9 @@ export default function App() {
         return; 
     }
     
-    const isProtectedView = [View.STOCK, View.SETTINGS, View.CATALOG, View.ASSISTANT, View.DIAGNOSTICS, View.SALES, View.PAYMENT].includes(newView);
+    const protectedViews = [View.STOCK, View.SETTINGS, View.CATALOG, View.ASSISTANT, View.DIAGNOSTICS, View.SALES, View.PAYMENT, View.QR_CODES];
+    const isProtectedView = protectedViews.includes(newView);
+
     if (isProtectedView && !currentUser) {
         loginRedirect.current = newView;
     } else {
@@ -1084,7 +1095,9 @@ export default function App() {
       return <div className="flex-grow flex items-center justify-center"><p className={theme === 'dark' ? 'text-white' : 'text-gray-800'}>Carregando...</p></div>
     }
 
-    const isProtectedView = [View.STOCK, View.SETTINGS, View.CATALOG, View.ASSISTANT, View.DIAGNOSTICS, View.SALES, View.PAYMENT].includes(view);
+    const protectedViews = [View.STOCK, View.SETTINGS, View.CATALOG, View.ASSISTANT, View.DIAGNOSTICS, View.SALES, View.PAYMENT, View.QR_CODES];
+    const isProtectedView = protectedViews.includes(view);
+
     const needsLogin = isProtectedView && !currentUser;
 
     if (needsLogin) {
@@ -1240,6 +1253,8 @@ export default function App() {
                   onMenuClick={handleMenuClick}
                   error={saleRequestError}
                />;
+      case View.QR_CODES:
+        return <QrCodeScreen products={products} />;
       default:
         return <ShowcaseScreen 
                     products={products} 
@@ -1269,6 +1284,8 @@ export default function App() {
                     cartItemCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
                     onCartClick={() => handleNavigate(view === View.CART ? View.SHOWCASE : View.CART)}
                     activeView={view}
+                    isAdmin={isAdmin}
+                    onNavigate={handleNavigate}
                 />
                 {renderView()}
 
