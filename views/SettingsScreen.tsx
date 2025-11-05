@@ -70,11 +70,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
   const [feesSaved, setFeesSaved] = useState(false);
 
   useEffect(() => {
+     // When the initial cardFees prop changes, update the local state.
+     // This handles the initial load from localStorage in App.tsx.
      setFees(cardFees);
   }, [cardFees]);
 
+
   const handleFeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const { name, value } = e.target;
+     // Allow the input to be empty, but store 0 in the state if so.
      setFees(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
      if(feesSaved) setFeesSaved(false);
  };
@@ -164,7 +168,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
                      <p className={`text-sm text-center ${subtitleClasses}`}>ou</p>
                      <input type="file" accept="image/*" onChange={handleFileChange} ref={fileInputRef} className={`w-full text-sm rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold ${isDark ? 'text-gray-400 file:bg-gray-700 file:text-gray-200' : 'text-gray-600 file:bg-gray-100 file:text-gray-800'}`} />
                      {brandError && <p className="text-sm text-red-500">{brandError}</p>}
-                     <button type="submit" disabled={isSavingBrand} className="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-700 transition disabled:bg-gray-500">
+                     <button type="submit" disabled={isSavingBrand} className="bg-fuchsia-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition disabled:bg-gray-500">
                          {isSavingBrand ? 'Salvando...' : 'Adicionar Marca'}
                      </button>
                  </form>
@@ -192,7 +196,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
                          <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Cor</label>
                          <input type="color" value={newColor.hex} onChange={e => setNewColor(prev => ({...prev, hex: e.target.value}))} className="w-12 h-12 p-1 rounded-lg bg-transparent border-0 cursor-pointer" />
                      </div>
-                     <button onClick={handleAddColor} className="bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-cyan-700 transition">Adicionar</button>
+                     <button onClick={handleAddColor} className="bg-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar</button>
                  </div>
                   {colorNameError && <p className="text-sm text-red-500 mt-2">{colorNameError}</p>}
              </Card>
@@ -202,19 +206,19 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
                  <div className="grid grid-cols-2 gap-4">
                      <div>
                          <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Débito</label>
-                         <Input type="number" name="debit" value={fees.debit} onChange={handleFeeChange} />
+                         <Input type="number" name="debit" value={fees.debit || ''} onChange={handleFeeChange} placeholder="0.00" />
                      </div>
                      <div>
                           <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Crédito 1x</label>
-                         <Input type="number" name="credit1x" value={fees.credit1x} onChange={handleFeeChange} />
+                         <Input type="number" name="credit1x" value={fees.credit1x || ''} onChange={handleFeeChange} placeholder="0.00" />
                      </div>
                      <div>
                           <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Crédito 2x</label>
-                         <Input type="number" name="credit2x" value={fees.credit2x} onChange={handleFeeChange} />
+                         <Input type="number" name="credit2x" value={fees.credit2x || ''} onChange={handleFeeChange} placeholder="0.00" />
                      </div>
                       <div>
                           <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Crédito 3x</label>
-                         <Input type="number" name="credit3x" value={fees.credit3x} onChange={handleFeeChange} />
+                         <Input type="number" name="credit3x" value={fees.credit3x || ''} onChange={handleFeeChange} placeholder="0.00" />
                      </div>
                  </div>
                  <div className="flex items-center gap-4 mt-4">

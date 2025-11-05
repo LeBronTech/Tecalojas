@@ -155,18 +155,18 @@ const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ onClose }) => {
                     <div className="w-full">
                          <div className="mb-4">
                             <p className={`text-center text-sm font-semibold mb-2 ${subtitleClasses}`}>PIX Copia e Cola:</p>
-                            <div className={`relative p-3 pr-10 rounded-lg text-xs break-all ${isDark ? 'bg-black/30' : 'bg-gray-100'}`}>
+                            <div className={`relative p-3 pr-12 rounded-lg text-xs break-all ${isDark ? 'bg-black/30' : 'bg-gray-100'}`}>
                                 <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{pixKey}</span>
                                 <button
                                     onClick={copyToClipboard}
-                                    className={`absolute top-1/2 right-2 -translate-y-1/2 p-2 rounded-full transition-colors ${isDark ? 'bg-purple-600 text-white' : 'bg-purple-500 text-white'}`}
+                                    className={`absolute top-1/2 right-1 -translate-y-1/2 p-2 rounded-lg transition-colors ${isDark ? 'bg-purple-600 text-white' : 'bg-purple-500 text-white'}`}
                                 >
                                     {copySuccess ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                         </svg>
                                     ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                         </svg>
                                     )}
@@ -590,21 +590,24 @@ export default function App() {
     });
   }, []);
 
-  const handleAddColor = useCallback((color: { name: string; hex: string }) => {
+  const handleAddColor = (color: { name: string; hex: string }) => {
     setAllColors(prevColors => {
+        if (prevColors.some(c => c.name.toLowerCase() === color.name.toLowerCase())) {
+            return prevColors;
+        }
         const newColors = [...prevColors, color];
         localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
         return newColors;
     });
-  }, []);
+  };
 
-  const handleDeleteColor = useCallback((colorName: string) => {
-    setAllColors(prevColors => {
-        const newColors = prevColors.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
-        localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
-        return newColors;
-    });
-  }, []);
+  const handleDeleteColor = (colorName: string) => {
+      setAllColors(prevColors => {
+          const newColors = prevColors.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
+          localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
+          return newColors;
+      });
+  };
   
   const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_REAL_API_KEY_HERE";
 
