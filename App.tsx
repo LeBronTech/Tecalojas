@@ -241,6 +241,51 @@ const CustomerNameModal: React.FC<CustomerNameModalProps> = ({ onClose, onConfir
     );
 };
 
+// --- Info Modal ---
+interface InfoModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  message: string;
+  buttonText?: string;
+  onConfirm?: () => void;
+}
+
+const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose, title, message, buttonText = "OK", onConfirm }) => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+
+    if (!isOpen) return null;
+
+    const handleConfirm = () => {
+        if (onConfirm) onConfirm();
+        onClose();
+    };
+
+    const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
+    const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
+    const messageClasses = isDark ? "text-gray-400" : "text-gray-500";
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[130] p-4" onClick={onClose}>
+            <div 
+                className={`border rounded-3xl shadow-2xl w-full max-w-sm p-8 relative transform transition-all duration-300 scale-95 opacity-0 animate-fade-in-scale text-center ${modalBgClasses}`} 
+                onClick={e => e.stopPropagation()}
+            >
+                <style>{`
+                    @keyframes fade-in-scale { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+                    .animate-fade-in-scale { animation: fade-in-scale 0.3s forwards; }
+                `}</style>
+                <h2 className={`text-2xl font-bold mb-2 ${titleClasses}`}>{title}</h2>
+                <p className={`mb-6 ${messageClasses}`}>{message}</p>
+                <button onClick={handleConfirm} className="w-full bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">
+                    {buttonText}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 const HomeIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -468,6 +513,12 @@ export default function App() {
 
   const [isCustomerNameModalOpen, setIsCustomerNameModalOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
+  const [infoModalState, setInfoModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({ isOpen: false, title: '', message: '' });
 
   const isAdmin = useMemo(() => currentUser?.role === 'admin', [currentUser]);
 
@@ -1145,22 +1196,38 @@ export default function App() {
         return <PaymentScreen
                   cart={cart}
                   totalPrice={totalPrice}
-                  onPlaceOrder={async (paymentMethod, successMessage) => {
-                    if (!currentUser) { throw new Error("Usuário não está logado."); }
-                    try {
-                      await api.addSaleRequest({ items: cart, totalPrice, paymentMethod, customerName });
-                      handleClearCart();
-                      alert(successMessage);
-                      handleNavigate(View.SHOWCASE);
-                    } catch (err: any) {
-                       console.error("Failed to place order:", err);
-                       if (err.message.includes('permission-denied') || err.message.includes('insufficient permissions')) {
-                         alert("Erro de permissão. Certifique-se de que sua conta está configurada corretamente.");
-                       } else {
-                         alert(`Falha ao enviar o pedido: ${err.message}`);
-                       }
+                  onPlaceOrder={async (paymentMethod, successMessage, onSuccess) => {
+                    if (!currentUser) { 
+                        setInfoModalState({ isOpen: true, title: "Erro", message: "Usuário não está logado." });
+                        return; 
                     }
-                  }}
+                    try {
+                        await api.addSaleRequest({ items: cart, totalPrice, paymentMethod, customerName });
+                        handleClearCart();
+                        
+                        setInfoModalState({
+                            isOpen: true,
+                            title: "Pedido Registrado",
+                            message: successMessage,
+                            onConfirm: () => {
+                                if (onSuccess) onSuccess(); // This will open WhatsApp for the 'online' case
+                                handleNavigate(View.SHOWCASE);
+                            }
+                        });
+                
+                    } catch (err: any) {
+                        console.error("Failed to place order:", err);
+                        const errorMessage = (err.message.includes('permission-denied') || err.message.includes('insufficient permissions'))
+                            ? "Erro de permissão. Certifique-se de que sua conta está configurada corretamente."
+                            : `Falha ao enviar o pedido: ${err.message}`;
+                        
+                        setInfoModalState({
+                            isOpen: true,
+                            title: "Erro no Pedido",
+                            message: errorMessage
+                        });
+                    }
+                }}
                   onNavigate={handleNavigate}
                   onPixClick={() => setIsPixModalOpen(true)}
                   customerName={customerName}
@@ -1291,6 +1358,13 @@ export default function App() {
                     }}
                 />
             )}
+             <InfoModal
+                isOpen={infoModalState.isOpen}
+                onClose={() => setInfoModalState({ ...infoModalState, isOpen: false })}
+                title={infoModalState.title}
+                message={infoModalState.message}
+                onConfirm={infoModalState.onConfirm}
+            />
         </div>
     </ThemeContext.Provider>
   );

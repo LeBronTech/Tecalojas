@@ -4,7 +4,7 @@ import { CartItem, View, ThemeContext } from '../types';
 interface PaymentScreenProps {
     cart: CartItem[];
     totalPrice: number;
-    onPlaceOrder: (paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Cartão (Online)', successMessage: string) => Promise<void>;
+    onPlaceOrder: (paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Cartão (Online)', successMessage: string, onSuccess?: () => void) => Promise<void>;
     onNavigate: (view: View) => void;
     onPixClick: () => void;
     customerName: string;
@@ -102,10 +102,13 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
         const message = `Olá sou a ${customerName}, fiz o pedido no site de ${itemsText}, no valor total de R$ ${totalPrice.toFixed(2).replace('.', ',')} como posso prosseguir com o pagamento ?`;
         
         const whatsappUrl = `https://wa.me/5561991434805?text=${encodeURIComponent(message)}`;
+        
+        const successMessage = "Seu pedido foi registrado! Conclua o pagamento no WhatsApp clicando em OK.";
 
         try {
-            await onPlaceOrder('Cartão (Online)', 'Seu pedido foi registrado! Conclua o pagamento no WhatsApp que se abriu.');
-            window.open(whatsappUrl, '_blank');
+            await onPlaceOrder('Cartão (Online)', successMessage, () => {
+                window.open(whatsappUrl, '_blank');
+            });
         } catch (error) {
             console.error("Failed to place online order:", error);
             alert("Ocorreu um erro ao registrar seu pedido. Tente novamente.");
