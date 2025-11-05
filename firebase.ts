@@ -281,7 +281,7 @@ export const deleteProduct = (productId: string): Promise<void> => {
         allow create: if request.auth != null;
         
         // Permite que APENAS administradores leiam, listem e atualizem pedidos.
-        allow read, list, update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        allow read, list, update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       }
 
       // ... (suas outras regras)
@@ -381,6 +381,31 @@ export const completeSaleRequest = async (requestId: string, details: { discount
         status: "completed",
         ...details
     });
+};
+
+export const deleteSaleRequest = (requestId: string): Promise<void> => {
+    const saleRequestDoc = doc(db, "saleRequests", requestId);
+    return deleteDoc(saleRequestDoc);
+};
+
+export const finalizePosSale = async (
+  cart: PosCartItem[],
+  totalPrice: number,
+  paymentMethod: 'PIX' | 'Débito' | 'Crédito',
+  details: { discount?: number; finalPrice?: number; installments?: number }
+): Promise<void> => {
+  // 1. Create the sale request document
+  const saleRequestData = {
+    items: cart,
+    totalPrice: totalPrice,
+    paymentMethod,
+    status: 'pending', // Initially pending
+    createdAt: serverTimestamp(),
+  };
+  const newDocRef = await addDoc(saleRequestsCollection, saleRequestData);
+
+  // 2. Immediately call completeSaleRequest to update stock and finalize
+  await completeSaleRequest(newDocRef.id, details);
 };
 
 
