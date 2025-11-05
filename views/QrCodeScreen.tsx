@@ -7,8 +7,8 @@ const PrintLabel: React.FC<{ product: Product, size: CushionSize, qrCodeUrl: str
     const isDark = theme === 'dark';
 
     const labelStyle: React.CSSProperties = {
-        width: '5cm',
-        height: '4cm',
+        width: '4cm',
+        height: '5cm',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
@@ -36,6 +36,8 @@ const PrintLabel: React.FC<{ product: Product, size: CushionSize, qrCodeUrl: str
         </div>
     );
 };
+
+const LABELS_PER_PAGE = 25;
 
 const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
     const { theme } = useContext(ThemeContext);
@@ -101,13 +103,15 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                         <h1 className={`text-3xl font-bold mb-2 ${titleClasses}`}>Etiquetas QR Code</h1>
                         <p className={`text-md mb-6 ${subtitleClasses}`}>Defina as quantidades e imprima as etiquetas para seus produtos.</p>
                         
-                         <div className={`sticky top-20 z-10 flex justify-between items-center mb-4 p-4 rounded-lg ${cardClasses}`}>
-                            <button onClick={() => setQuantities({})} className="bg-red-500/20 text-red-300 font-bold py-2 px-4 rounded-lg text-sm">Limpar Quantidades</button>
-                            <div className="text-right">
-                                <span className={`font-bold text-lg ${titleClasses}`}>{allLabels.length}</span>
-                                <span className={`text-sm ml-2 ${subtitleClasses}`}>etiquetas na fila</span>
+                         <div className={`sticky top-20 z-10 flex flex-col sm:flex-row justify-between items-center mb-4 p-4 rounded-lg gap-4 ${cardClasses}`}>
+                             <div className="text-center sm:text-left">
+                                <span className={`font-bold text-lg ${titleClasses}`}>Fila de Impressão</span>
+                                <p className={`text-sm ${subtitleClasses}`}>Total de {allLabels.length} etiquetas</p>
                             </div>
-                            <button onClick={handleGeneratePdf} disabled={allLabels.length === 0} className="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg text-sm disabled:bg-gray-500">Gerar PDF para Impressão</button>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => setQuantities({})} className="bg-red-500/20 text-red-300 font-bold py-2 px-4 rounded-lg text-sm">Limpar Tudo</button>
+                                <button onClick={handleGeneratePdf} disabled={allLabels.length === 0} className="bg-cyan-600 text-white font-bold py-3 px-6 rounded-lg text-sm disabled:bg-gray-500">Imprimir Fila</button>
+                            </div>
                         </div>
                         
                         <div className="space-y-4">
@@ -126,14 +130,14 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                                         <div className="p-1 bg-white rounded-md flex-shrink-0">
                                                           <img src={variation.qrCodeUrl} alt="QR Code" className="w-12 h-12"/>
                                                         </div>
-                                                        <span className={`font-semibold text-sm ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>Tamanho: {variation.size}</span>
+                                                        <span className={`font-bold text-base ${isDark ? 'text-white' : 'text-black'}`}>Tamanho: {variation.size}</span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <label className={`font-semibold text-sm ${subtitleClasses}`}>Qtd:</label>
+                                                        <label className={`font-semibold text-sm ${subtitleClasses}`}>Quantidade:</label>
                                                         <input 
                                                             type="number"
                                                             min="0"
-                                                            placeholder="0"
+                                                            placeholder=""
                                                             value={quantities[key] || ''}
                                                             onChange={e => handleQuantityChange(key, e.target.value)}
                                                             className={`w-24 p-2 rounded ${inputClasses}`}
@@ -157,9 +161,9 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
             </div>
             
              <div id="print-area">
-                {Array.from({ length: Math.ceil(allLabels.length / 28) }).map((_, pageIndex) => (
+                {Array.from({ length: Math.ceil(allLabels.length / LABELS_PER_PAGE) }).map((_, pageIndex) => (
                     <div key={pageIndex} className="print-page">
-                        {allLabels.slice(pageIndex * 28, (pageIndex + 1) * 28).map(label => (
+                        {allLabels.slice(pageIndex * LABELS_PER_PAGE, (pageIndex + 1) * LABELS_PER_PAGE).map(label => (
                             <PrintLabel key={label.id} product={label.product} size={label.size} qrCodeUrl={label.qrCodeUrl!} />
                         ))}
                     </div>

@@ -90,6 +90,9 @@
       scrollbar-color: #8B5CF6 transparent; /* Firefox */
     }
     @media print {
+      body {
+        margin: 0;
+      }
       body.printing > #root {
         display: none;
       }
@@ -102,6 +105,24 @@
       @page {
         size: A4;
         margin: 0;
+      }
+      .print-page {
+        width: 21cm;
+        height: 29.7cm;
+        page-break-after: always;
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-start;
+        justify-content: flex-start;
+        box-sizing: border-box;
+        padding: 2.35cm 0.5cm; /* Margens para centralizar 5x5 etiquetas de 4x5cm */
+        gap: 0;
+      }
+      .print-page:last-of-type {
+        page-break-after: auto;
+      }
+      .print-page.back-page {
+        padding: 0;
       }
     }
   </style>

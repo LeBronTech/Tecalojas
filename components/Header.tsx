@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 const QrCodeIcon = () => (
-    <img src="https://i.postimg.cc/j2v9tdcm/20251105-132026-0000.png" alt="QR Code Icon" className="h-6 w-6" />
+    <img src="https://i.postimg.cc/j2v9tdcm/20251105-132026-0000.png" alt="QR Code Icon" className="h-7 w-7" />
 );
 
 
