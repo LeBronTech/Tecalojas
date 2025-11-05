@@ -1,5 +1,5 @@
 import React, { useState, useCallback, createContext, useContext, useEffect, useMemo, useRef } from 'react';
-import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType, CartItem, SaleRequest } from './types';
+import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType, CartItem, SaleRequest, CardFees } from './types';
 // FIX: Import PREDEFINED_COLORS to be used when creating color variations for products.
 import { INITIAL_PRODUCTS, PREDEFINED_COLORS } from './constants';
 import LoginScreen from './views/LoginScreen';
@@ -51,6 +51,7 @@ const API_KEY_STORAGE_KEY = 'pillow-oasis-api-key';
 const ALL_COLORS_STORAGE_KEY = 'pillow-oasis-all-colors';
 const SAVED_COMPOSITIONS_STORAGE_KEY = 'pillow-oasis-saved-compositions';
 const CART_STORAGE_KEY = 'pillow-oasis-cart';
+const CARD_FEES_STORAGE_KEY = 'pillow-oasis-card-fees';
 
 
 // --- Configuration Required Modal ---
@@ -366,8 +367,17 @@ export default function App() {
   const [saleRequests, setSaleRequests] = useState<SaleRequest[]>([]);
   const [saleRequestError, setSaleRequestError] = useState<string | null>(null);
   const loginRedirect = useRef<View | null>(null);
-  
+  const [cardFees, setCardFees] = useState<CardFees>(() => {
+    const storedFees = localStorage.getItem(CARD_FEES_STORAGE_KEY);
+    return storedFees ? JSON.parse(storedFees) : { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 };
+  });
+
   const isAdmin = useMemo(() => currentUser?.role === 'admin', [currentUser]);
+
+  // --- CARD FEES MANAGEMENT ---
+  useEffect(() => {
+    localStorage.setItem(CARD_FEES_STORAGE_KEY, JSON.stringify(cardFees));
+  }, [cardFees]);
 
 
   // --- CART MANAGEMENT ---
@@ -486,9 +496,9 @@ export default function App() {
     }
   }, [isAdmin]);
   
-  const handleCompleteSaleRequest = useCallback(async (requestId: string) => {
+  const handleCompleteSaleRequest = useCallback(async (requestId: string, details: { discount?: number, finalPrice?: number, installments?: number }) => {
       try {
-        await api.completeSaleRequest(requestId);
+        await api.completeSaleRequest(requestId, details);
       } catch (error) {
         console.error("Failed to complete sale request:", error);
         alert(`Error: ${(error as Error).message}`);
@@ -971,6 +981,8 @@ export default function App() {
                     onAddColor={handleAddColor}
                     onDeleteColor={handleDeleteColor}
                     onMenuClick={handleMenuClick}
+                    cardFees={cardFees}
+                    onSaveCardFees={setCardFees}
                 />;
        case View.CATALOG:
         return <CatalogScreen
@@ -1027,16 +1039,12 @@ export default function App() {
         return <PaymentScreen
                   cart={cart}
                   totalPrice={totalPrice}
-                  onPlaceOrder={async (paymentMethod) => {
-                    if (!currentUser) {
-                      alert("Você precisa estar logado para finalizar o pedido.");
-                      handleNavigate(View.CART); // Go back to cart
-                      return;
-                    }
+                  onPlaceOrder={async (paymentMethod, successMessage) => {
+                    if (!currentUser) { throw new Error("Usuário não está logado."); }
                     try {
                       await api.addSaleRequest({ items: cart, totalPrice, paymentMethod });
                       handleClearCart();
-                      alert("Pedido enviado! Em breve o vendedor entrará em contato.");
+                      alert(successMessage);
                       handleNavigate(View.SHOWCASE);
                     } catch (err: any) {
                        console.error("Failed to place order:", err);

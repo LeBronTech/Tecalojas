@@ -1,6 +1,5 @@
 import React, { useState, useContext, useRef, useMemo } from 'react';
-import { ThemeContext } from '../types';
-import { DynamicBrand, Brand } from '../types';
+import { ThemeContext, DynamicBrand, Brand, CardFees } from '../types';
 import ApiKeyModal from '../components/ApiKeyModal';
 import { BRANDS, BRAND_LOGOS } from '../constants';
 
@@ -13,6 +12,8 @@ interface SettingsScreenProps {
   allColors: { name: string; hex: string }[];
   onAddColor: (color: { name: string; hex: string }) => void;
   onDeleteColor: (colorName: string) => void;
+  cardFees: CardFees;
+  onSaveCardFees: (fees: CardFees) => void;
 }
 
 // --- Helper Components (Moved Outside to prevent re-rendering bugs) ---
@@ -49,7 +50,7 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
 
 // --- Main Component ---
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewBrand, onMenuClick, canManageStock, brands, allColors, onAddColor, onDeleteColor }) => {
+const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewBrand, onMenuClick, canManageStock, brands, allColors, onAddColor, onDeleteColor, cardFees, onSaveCardFees }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   
@@ -64,6 +65,20 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
 
   const [newColor, setNewColor] = useState({ name: '', hex: '#ffffff' });
   const [colorError, setColorError] = useState<string | null>(null);
+  
+  const [localFees, setLocalFees] = useState(cardFees);
+  const [feesSaved, setFeesSaved] = useState(false);
+
+  const handleFeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setLocalFees(prev => ({...prev, [name]: parseFloat(value) || 0}));
+  }
+
+  const handleSaveFees = () => {
+    onSaveCardFees(localFees);
+    setFeesSaved(true);
+    setTimeout(() => setFeesSaved(false), 2000);
+  };
 
 
   const allBrandsToDisplay = useMemo(() => {
@@ -151,6 +166,31 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
                 
                 {canManageStock && (
                   <>
+                    <Card>
+                        <SectionTitle>Configuração de Taxas de Cartão (%)</SectionTitle>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label className="text-sm font-semibold mb-1 block text-gray-400">Débito</label>
+                                <Input type="number" name="debit" value={localFees.debit} onChange={handleFeeChange} />
+                            </div>
+                             <div>
+                                <label className="text-sm font-semibold mb-1 block text-gray-400">Crédito 1x</label>
+                                <Input type="number" name="credit1x" value={localFees.credit1x} onChange={handleFeeChange} />
+                            </div>
+                             <div>
+                                <label className="text-sm font-semibold mb-1 block text-gray-400">Crédito 2x</label>
+                                <Input type="number" name="credit2x" value={localFees.credit2x} onChange={handleFeeChange} />
+                            </div>
+                             <div>
+                                <label className="text-sm font-semibold mb-1 block text-gray-400">Crédito 3x</label>
+                                <Input type="number" name="credit3x" value={localFees.credit3x} onChange={handleFeeChange} />
+                            </div>
+                        </div>
+                        <button onClick={handleSaveFees} className={`w-full mt-4 font-bold py-3 px-6 rounded-lg shadow-lg transition ${feesSaved ? 'bg-green-600' : 'bg-cyan-600 hover:bg-cyan-700'}`}>
+                            {feesSaved ? 'Taxas Salvas!' : 'Salvar Taxas'}
+                        </button>
+                    </Card>
+
                     <Card>
                         <SectionTitle>Gerenciamento de Cores</SectionTitle>
                         <div className="space-y-3 mb-4 max-h-60 overflow-y-auto pr-2">

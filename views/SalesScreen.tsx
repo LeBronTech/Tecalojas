@@ -1,10 +1,10 @@
-import React, { useState, useContext } from 'react';
-import { SaleRequest, View, ThemeContext, Product } from '../types';
+import React, { useState, useContext, useEffect, useMemo } from 'react';
+import { SaleRequest, View, ThemeContext, Product, PosCartItem } from '../types';
 import ProductSelectModal from '../components/ProductSelectModal';
 
 interface SalesScreenProps {
     saleRequests: SaleRequest[];
-    onCompleteSaleRequest: (requestId: string) => void;
+    onCompleteSaleRequest: (requestId: string, details: { discount?: number, finalPrice?: number, installments?: number }) => void;
     products: Product[];
     onMenuClick: () => void;
     error?: string | null;
@@ -17,17 +17,78 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const isDark = theme === 'dark';
     const [activeTab, setActiveTab] = useState<ActiveTab>('requests');
     const [selectedRequest, setSelectedRequest] = useState<SaleRequest | null>(null);
-
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [discount, setDiscount] = useState(0);
+    const [installments, setInstallments] = useState(1);
+    
     // POS State
     const [isProductSelectOpen, setIsProductSelectOpen] = useState(false);
-    const [posCart, setPosCart] = useState<any[]>([]); // Simplified for now
+    const [isCustomValueModalOpen, setIsCustomValueModalOpen] = useState(false);
+    const [isFinalizeSaleModalOpen, setIsFinalizeSaleModalOpen] = useState(false);
+    const [posCart, setPosCart] = useState<PosCartItem[]>([]); 
+
+    const finalPrice = useMemo(() => {
+        if (!selectedRequest) return 0;
+        return selectedRequest.totalPrice - discount;
+    }, [selectedRequest, discount]);
+    
+    const posTotal = useMemo(() => posCart.reduce((sum, item) => sum + item.price * item.quantity, 0), [posCart]);
 
     const pendingRequests = saleRequests.filter(r => r.status === 'pending');
     const completedRequests = saleRequests.filter(r => r.status === 'completed');
 
-    const handleConfirmPayment = (requestId: string) => {
-        onCompleteSaleRequest(requestId);
+    const handleConfirmPayment = () => {
+        if (!selectedRequest) return;
+        onCompleteSaleRequest(selectedRequest.id, {
+            discount: discount > 0 ? discount : undefined,
+            finalPrice: finalPrice,
+            installments: selectedRequest.paymentMethod === 'Crédito' ? installments : undefined,
+        });
         setSelectedRequest(null);
+        setDiscount(0);
+        setInstallments(1);
+    };
+
+    const handleAddProductsToPos = (selectedIds: string[]) => {
+        const productsToAdd = products.filter(p => selectedIds.includes(p.id));
+        const newCartItems: PosCartItem[] = productsToAdd.map(p => {
+            const defaultVariation = p.variations[0]; // Simplified: use the first variation
+            return {
+                id: `${p.id}-${defaultVariation.size}`,
+                name: `${p.name} (${defaultVariation.size})`,
+                price: defaultVariation.priceFull,
+                quantity: 1,
+                product: p,
+                variation: defaultVariation,
+                isCustom: false,
+            };
+        });
+        setPosCart(prev => [...prev, ...newCartItems]); // This needs de-duplication logic later
+        setIsProductSelectOpen(false);
+    };
+    
+    const handleAddCustomItem = (name: string, price: number) => {
+        const newItem: PosCartItem = {
+            id: `custom-${Date.now()}`,
+            name,
+            price,
+            quantity: 1,
+            isCustom: true,
+        };
+        setPosCart(prev => [...prev, newItem]);
+        setIsCustomValueModalOpen(false);
+    };
+
+    const updatePosQuantity = (itemId: string, newQuantity: number) => {
+        setPosCart(prev => prev.map(item => item.id === itemId ? {...item, quantity: Math.max(0, newQuantity)} : item).filter(item => item.quantity > 0));
+    };
+
+    const handleFinalizeSale = async () => {
+        // This would involve creating a new sale request and completing it
+        // Simplified for now
+        alert(`Venda de R$ ${posTotal.toFixed(2)} finalizada!`);
+        setPosCart([]);
+        setIsFinalizeSaleModalOpen(false);
     };
 
     const titleClasses = isDark ? 'text-white' : 'text-gray-900';
@@ -51,7 +112,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const RequestList = ({ requests }: { requests: SaleRequest[] }) => (
         <div className="space-y-3">
             {requests.map(req => (
-                <button key={req.id} onClick={() => setSelectedRequest(req)} className={`w-full p-4 rounded-xl flex items-center justify-between text-left ${cardClasses}`}>
+                <button key={req.id} onClick={() => { setSelectedRequest(req); setIsProcessing(true); }} className={`w-full p-4 rounded-xl flex items-center justify-between text-left ${cardClasses}`}>
                     <div>
                         <p className={`font-bold ${titleClasses}`}>Pedido de {req.items.length} item(s)</p>
                         <p className={`text-sm ${subtitleClasses}`}>Total: R$ {req.totalPrice.toFixed(2).replace('.', ',')} via {req.paymentMethod}</p>
@@ -106,19 +167,34 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                             <div className={`p-6 rounded-2xl ${cardClasses}`}>
                                 <h3 className={`font-bold text-lg mb-4 ${titleClasses}`}>Ponto de Venda</h3>
                                 <div className="space-y-4">
-                                    <div className={`min-h-[100px] p-4 rounded-lg ${isDark ? 'bg-black/30' : 'bg-gray-50'}`}>
-                                        {/* Items will be listed here */}
-                                        <p className={subtitleClasses}>Adicione produtos para começar...</p>
+                                    <div className={`min-h-[100px] p-2 rounded-lg ${isDark ? 'bg-black/30' : 'bg-gray-50'}`}>
+                                        {posCart.length > 0 ? (
+                                            posCart.map(item => (
+                                                <div key={item.id} className="flex items-center justify-between p-2">
+                                                    <div>
+                                                        <p className={`font-semibold text-sm ${titleClasses}`}>{item.name}</p>
+                                                        <p className={`text-xs ${subtitleClasses}`}>R$ {item.price.toFixed(2)}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <button onClick={() => updatePosQuantity(item.id, item.quantity - 1)} className="w-6 h-6 rounded bg-black/20 text-white font-bold">-</button>
+                                                        <span>{item.quantity}</span>
+                                                        <button onClick={() => updatePosQuantity(item.id, item.quantity + 1)} className="w-6 h-6 rounded bg-black/20 text-white font-bold">+</button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className={`text-center py-8 ${subtitleClasses}`}>Adicione produtos para começar...</p>
+                                        )}
                                     </div>
                                     <div className="flex justify-between items-center font-bold text-xl">
                                         <p className={titleClasses}>Total:</p>
-                                        <p className={isDark ? 'text-fuchsia-400' : 'text-purple-600'}>R$ 0,00</p>
+                                        <p className={isDark ? 'text-fuchsia-400' : 'text-purple-600'}>R$ {posTotal.toFixed(2)}</p>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <button onClick={() => setIsProductSelectOpen(true)} className={`w-full py-3 rounded-lg font-semibold ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>Adicionar Produto</button>
-                                        <button className={`w-full py-3 rounded-lg font-semibold ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>Valor Avulso</button>
+                                        <button onClick={() => setIsCustomValueModalOpen(true)} className={`w-full py-3 rounded-lg font-semibold ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>Valor Avulso</button>
                                         <button className={`w-full py-3 rounded-lg font-semibold ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-700'}`}>Escanear QR Code</button>
-                                        <button className="w-full bg-fuchsia-600 text-white font-bold py-3 rounded-lg">Finalizar Venda</button>
+                                        <button onClick={() => setIsFinalizeSaleModalOpen(true)} disabled={posCart.length === 0} className="w-full bg-fuchsia-600 text-white font-bold py-3 rounded-lg disabled:bg-gray-500">Finalizar Venda</button>
                                     </div>
                                 </div>
                             </div>
@@ -126,28 +202,36 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                     </div>
                 </main>
             </div>
-            {selectedRequest && (
-                 <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedRequest(null)}>
+            {isProcessing && selectedRequest && (
+                 <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { setIsProcessing(false); setSelectedRequest(null); }}>
                     <div className={`border rounded-3xl shadow-2xl w-full max-w-sm p-6 ${cardClasses}`} onClick={e => e.stopPropagation()}>
-                        <h3 className={`font-bold text-lg mb-4 ${titleClasses}`}>Detalhes da Solicitação</h3>
-                        <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                             {selectedRequest.items.map((item, i) => (
-                                <div key={i} className="flex items-center gap-3">
-                                    <img src={item.baseImageUrl} alt={item.name} className="w-12 h-12 rounded-md object-cover" />
-                                    <div>
-                                        <p className={`text-sm font-semibold ${titleClasses}`}>{item.quantity}x {item.name}</p>
-                                        <p className={`text-xs ${subtitleClasses}`}>{item.variationSize}</p>
-                                    </div>
+                        <h3 className={`font-bold text-lg mb-4 ${titleClasses}`}>Processar Pagamento</h3>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Desconto (R$)</label>
+                                <input type="number" value={discount} onChange={e => setDiscount(parseFloat(e.target.value) || 0)} className={`w-full border-2 rounded-lg px-4 py-2 ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-100 text-gray-900 border-gray-300'}`} />
+                            </div>
+                            {selectedRequest.paymentMethod === 'Crédito' && (
+                                <div>
+                                    <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Parcelas</label>
+                                    <select value={installments} onChange={e => setInstallments(parseInt(e.target.value))} className={`w-full border-2 rounded-lg px-4 py-2 ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-100 text-gray-900 border-gray-300'}`}>
+                                        <option value={1}>À vista (1x)</option>
+                                        <option value={2}>2x</option>
+                                        <option value={3}>3x</option>
+                                    </select>
                                 </div>
-                            ))}
+                            )}
+                            <div className="border-t my-2" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}></div>
+                            <div className="flex justify-between items-center text-lg font-bold">
+                                <span className={titleClasses}>Total Final:</span>
+                                <span className={isDark ? 'text-fuchsia-400' : 'text-purple-600'}>R$ {finalPrice.toFixed(2)}</span>
+                            </div>
                         </div>
-                        <div className="border-t my-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}></div>
-                        <p className={`text-sm ${subtitleClasses}`}>Pagamento: <span className="font-bold">{selectedRequest.paymentMethod}</span></p>
-                        <p className={`text-sm ${subtitleClasses}`}>Total: <span className="font-bold">R$ {selectedRequest.totalPrice.toFixed(2).replace('.', ',')}</span></p>
 
                         <div className="mt-6 flex flex-col gap-3">
-                            <button onClick={() => handleConfirmPayment(selectedRequest.id)} className="w-full bg-green-600 text-white font-bold py-3 rounded-lg">Confirmar Pagamento</button>
-                            <button onClick={() => setSelectedRequest(null)} className={`w-full font-bold py-2 rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>Fechar</button>
+                            <button onClick={handleConfirmPayment} className="w-full bg-green-600 text-white font-bold py-3 rounded-lg">Confirmar Pagamento</button>
+                            <button onClick={() => { setIsProcessing(false); setSelectedRequest(null); }} className={`w-full font-bold py-2 rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>Cancelar</button>
                         </div>
                     </div>
                  </div>
@@ -156,16 +240,42 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                 <ProductSelectModal
                     products={products}
                     onClose={() => setIsProductSelectOpen(false)}
-                    onConfirm={(ids) => {
-                        console.log("Selected IDs for POS:", ids);
-                        setIsProductSelectOpen(false);
-                    }}
+                    onConfirm={handleAddProductsToPos}
                     initialSelectedIds={[]}
-                    maxSelection={99} // High limit for POS
+                    maxSelection={99}
+                />
+            )}
+            {isCustomValueModalOpen && (
+                <CustomValueModal 
+                    onClose={() => setIsCustomValueModalOpen(false)}
+                    onConfirm={handleAddCustomItem}
                 />
             )}
         </>
     );
 };
+
+// Simple modal for custom value
+const CustomValueModal: React.FC<{onClose: () => void, onConfirm: (name: string, price: number) => void}> = ({onClose, onConfirm}) => {
+    const [name, setName] = useState('');
+    const [price, setPrice] = useState(0);
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]" onClick={onClose}>
+            <div className={`p-6 rounded-lg ${isDark ? 'bg-[#1A1129]' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+                <h3 className="font-bold text-lg mb-4">Adicionar Valor Avulso</h3>
+                <div className="space-y-4">
+                    <input type="text" placeholder="Descrição" value={name} onChange={e => setName(e.target.value)} className={`w-full p-2 rounded ${isDark ? 'bg-black/20 text-white' : 'bg-gray-100'}`} />
+                    <input type="number" placeholder="Preço" value={price || ''} onChange={e => setPrice(parseFloat(e.target.value) || 0)} className={`w-full p-2 rounded ${isDark ? 'bg-black/20 text-white' : 'bg-gray-100'}`} />
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                    <button onClick={onClose}>Cancelar</button>
+                    <button onClick={() => onConfirm(name, price)} className="bg-fuchsia-600 text-white px-4 py-2 rounded-lg">Adicionar</button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default SalesScreen;

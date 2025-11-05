@@ -30,7 +30,7 @@ import {
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
-import { User, Product, DynamicBrand, CatalogPDF, SaleRequest, CartItem, StoreName } from './types';
+import { User, Product, DynamicBrand, CatalogPDF, SaleRequest, CartItem, StoreName, PosCartItem } from './types';
 import { firebaseConfig } from './firebaseConfig';
 
 // Initialize Firebase
@@ -292,7 +292,7 @@ export const deleteProduct = (productId: string): Promise<void> => {
 */
 
 // --- FIRESTORE (SALES) ---
-export const addSaleRequest = (saleData: { items: CartItem[], totalPrice: number, paymentMethod: 'PIX' | 'Cartão' }): Promise<any> => {
+export const addSaleRequest = (saleData: { items: CartItem[] | PosCartItem[], totalPrice: number, paymentMethod: 'PIX' | 'Débito' | 'Crédito' }): Promise<any> => {
     return addDoc(saleRequestsCollection, {
         ...saleData,
         status: 'pending',
@@ -314,7 +314,7 @@ export const onSaleRequestsUpdate = (
     }, onError);
 };
 
-export const completeSaleRequest = async (requestId: string): Promise<void> => {
+export const completeSaleRequest = async (requestId: string, details: { discount?: number, finalPrice?: number, installments?: number }): Promise<void> => {
     const saleRequestDocRef = doc(db, "saleRequests", requestId);
     const saleRequestSnap = await getDoc(saleRequestDocRef);
     if (!saleRequestSnap.exists()) {
@@ -328,8 +328,18 @@ export const completeSaleRequest = async (requestId: string): Promise<void> => {
     }
     
     // Update product stock and units sold for each item
-    for (const item of saleRequestData.items) {
-        const productDocRef = doc(db, "products", item.productId);
+    for (const item of saleRequestData.items as (CartItem | PosCartItem)[]) {
+        // Skip stock deduction for custom items in POS
+        if ('isCustom' in item && item.isCustom) {
+            continue;
+        }
+
+        const productId = 'productId' in item ? item.productId : item.product?.id;
+        const variationSize = 'variationSize' in item ? item.variationSize : item.variation?.size;
+        
+        if (!productId || !variationSize) continue;
+
+        const productDocRef = doc(db, "products", productId);
         const productSnap = await getDoc(productDocRef);
 
         if (productSnap.exists()) {
@@ -337,7 +347,7 @@ export const completeSaleRequest = async (requestId: string): Promise<void> => {
             let variationFound = false;
 
             const updatedVariations = productData.variations.map(v => {
-                if (v.size === item.variationSize) {
+                if (v.size === variationSize) {
                     variationFound = true;
                     // Simple deduction logic: deduct from Têca first, then Ione.
                     let qtyToDeduct = item.quantity;
@@ -367,7 +377,10 @@ export const completeSaleRequest = async (requestId: string): Promise<void> => {
     }
 
     // Finally, update the sale request status to completed
-    await updateDoc(saleRequestDocRef, { status: "completed" });
+    await updateDoc(saleRequestDocRef, { 
+        status: "completed",
+        ...details
+    });
 };
 
 

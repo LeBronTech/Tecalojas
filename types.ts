@@ -96,13 +96,37 @@ export interface CartItem {
   price: number;
 }
 
+export interface PosCartItem {
+  id: string; // Unique ID for the cart item, e.g., `${productId}-${variationSize}` or `custom-${timestamp}`
+  name: string;
+  price: number;
+  quantity: number;
+  // For catalog products
+  product?: Product;
+  variation?: Variation;
+  itemType?: 'cover' | 'full';
+  // For custom items
+  isCustom: boolean;
+}
+
 export interface SaleRequest {
   id: string;
-  items: CartItem[];
+  items: CartItem[] | PosCartItem[];
   totalPrice: number;
-  paymentMethod: 'PIX' | 'Cartão';
+  paymentMethod: 'PIX' | 'Débito' | 'Crédito';
   status: 'pending' | 'completed';
   createdAt: any; // Firestore Timestamp
+  // Admin-added fields
+  installments?: number;
+  discount?: number;
+  finalPrice?: number;
+}
+
+export interface CardFees {
+  debit: number;
+  credit1x: number;
+  credit2x: number;
+  credit3x: number;
 }
 
 
