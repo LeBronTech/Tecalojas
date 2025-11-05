@@ -177,7 +177,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
             setAddStatus(prev => ({ ...prev, [variation.size]: 'added' }));
             setTimeout(() => {
                 setAddStatus(prev => ({ ...prev, [variation.size]: 'goToCart' }));
-            }, 1500);
+            }, 500);
         }
     };
     

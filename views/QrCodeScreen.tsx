@@ -39,10 +39,66 @@ const PrintLabel: React.FC<{ product: Product, size: CushionSize, qrCodeUrl: str
 
 const LABELS_PER_PAGE = 25;
 
+const PrintPreviewModal: React.FC<{
+    labels: Array<{ id: string; product: Product; size: CushionSize; qrCodeUrl: string }>;
+    onClose: () => void;
+    onPrint: () => void;
+    isDark: boolean;
+}> = ({ labels, onClose, onPrint, isDark }) => {
+    const totalPages = Math.ceil(labels.length / LABELS_PER_PAGE);
+    
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[150] p-4" onClick={onClose}>
+            <div 
+                className={`border rounded-3xl shadow-2xl w-full max-w-2xl p-6 flex flex-col ${isDark ? 'bg-[#1A1129] border-white/10' : 'bg-white border-gray-200'}`} 
+                onClick={e => e.stopPropagation()}
+                style={{ maxHeight: '90vh' }}
+            >
+                <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    Pré-visualização da Fila
+                </h2>
+                <div className="flex justify-between items-center mb-4">
+                    <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>
+                        Total de <span className="font-bold">{labels.length}</span> etiquetas em <span className="font-bold">{totalPages}</span> página(s).
+                    </p>
+                </div>
+                
+                <div className={`flex-grow overflow-y-auto p-4 rounded-lg purple-scrollbar ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                        {labels.map(label => (
+                             <div key={label.id}>
+                                <PrintLabel 
+                                    product={label.product} 
+                                    size={label.size} 
+                                    qrCodeUrl={label.qrCodeUrl} 
+                                    isPreview={true}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-4 pt-4 mt-4 border-t" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+                    <button onClick={onClose} className={`font-bold py-2 px-6 rounded-lg ${isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}>
+                        Cancelar
+                    </button>
+                    <button onClick={onPrint} className="bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-cyan-700">
+                        Confirmar Impressão
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [quantities, setQuantities] = useState<Record<string, number | ''>>({});
+    const [printQueue, setPrintQueue] = useState<Array<{ id: string; product: Product; size: CushionSize; qrCodeUrl: string }>>([]);
+    const [isPreviewing, setIsPreviewing] = useState(false);
+    const [addConfirmation, setAddConfirmation] = useState<Record<string, boolean>>({});
+
 
     useEffect(() => {
         const handleAfterPrint = () => document.body.classList.remove('printing');
@@ -67,28 +123,44 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
         }));
     };
 
-    const allLabels = useMemo(() => {
-        return productsWithQr.flatMap(product =>
-            product.variations.flatMap(variation => {
-                const key = `${product.id}-${variation.size}`;
-                const count = Number(quantities[key] || 0);
-                if (!variation.qrCodeUrl || count === 0) return [];
+    const handleAddToQueue = (product: Product, variation: Variation) => {
+        const key = `${product.id}-${variation.size}`;
+        const count = Number(quantities[key] || 0);
+        if (count === 0 || !variation.qrCodeUrl) return;
 
-                return Array(count).fill(null).map((_, i) => ({
-                    id: `${key}-${i}`,
-                    product: product,
-                    size: variation.size,
-                    qrCodeUrl: variation.qrCodeUrl!
-                }));
-            })
-        );
-    }, [productsWithQr, quantities]);
+        const newLabels = Array(count).fill(null).map((_, i) => ({
+            id: `${key}-${Date.now()}-${i}`,
+            product: product,
+            size: variation.size,
+            qrCodeUrl: variation.qrCodeUrl!
+        }));
 
-
-    const handleGeneratePdf = () => {
-        document.body.classList.add('printing');
-        setTimeout(() => window.print(), 50); // Small timeout to ensure styles are applied
+        setPrintQueue(prev => [...prev, ...newLabels]);
+        handleQuantityChange(key, ''); // Clear input after adding
+        
+        setAddConfirmation(prev => ({ ...prev, [key]: true }));
+        setTimeout(() => {
+            setAddConfirmation(prev => ({ ...prev, [key]: false }));
+        }, 1200);
     };
+
+    const handlePrint = () => {
+        if (printQueue.length === 0) return;
+        
+        // First, close the preview modal.
+        setIsPreviewing(false);
+
+        // We need to wait for the DOM to update (i.e., for the modal to be removed)
+        // before we trigger the browser's print dialog. Otherwise, the print view might be incorrect (e.g., blank screen).
+        // A setTimeout is a reliable way to defer the print call until after the current render cycle.
+        setTimeout(() => {
+            document.body.classList.add('printing');
+            window.print();
+            // The 'afterprint' event listener in the useEffect hook will automatically
+            // remove the 'printing' class from the body after the print dialog is closed.
+        }, 500); // A 500ms delay is generally safe for this.
+    };
+
 
     const titleClasses = isDark ? 'text-white' : 'text-gray-900';
     const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
@@ -106,11 +178,11 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                          <div className={`sticky top-20 z-10 flex flex-col sm:flex-row justify-between items-center mb-4 p-4 rounded-lg gap-4 ${cardClasses}`}>
                              <div className="text-center sm:text-left">
                                 <span className={`font-bold text-lg ${titleClasses}`}>Fila de Impressão</span>
-                                <p className={`text-sm ${subtitleClasses}`}>Total de {allLabels.length} etiquetas</p>
+                                <p className={`text-sm ${subtitleClasses}`}>Total de {printQueue.length} etiquetas</p>
                             </div>
                             <div className="flex items-center gap-3">
-                                <button onClick={() => setQuantities({})} className="bg-red-500/20 text-red-300 font-bold py-2 px-4 rounded-lg text-sm">Limpar Tudo</button>
-                                <button onClick={handleGeneratePdf} disabled={allLabels.length === 0} className="bg-cyan-600 text-white font-bold py-3 px-6 rounded-lg text-sm disabled:bg-gray-500">Imprimir Fila</button>
+                                <button onClick={() => { setPrintQueue([]); setQuantities({})}} className="bg-red-500/20 text-red-300 font-bold py-2 px-4 rounded-lg text-sm">Limpar Fila</button>
+                                <button onClick={() => setIsPreviewing(true)} disabled={printQueue.length === 0} className="bg-cyan-600 text-white font-bold py-3 px-6 rounded-lg text-sm disabled:bg-gray-500">Ver e Imprimir</button>
                             </div>
                         </div>
                         
@@ -124,6 +196,9 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                     <div className="space-y-3 pl-0 sm:pl-20">
                                         {product.variations.map(variation => {
                                             const key = `${product.id}-${variation.size}`;
+                                            const quantity = Number(quantities[key] || 0);
+                                            const isButtonActive = quantity > 0;
+                                            
                                             return (
                                                 <div key={key} className={`flex flex-col sm:flex-row items-center justify-between gap-4 p-2 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
                                                     <div className="flex items-center gap-3">
@@ -133,15 +208,34 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                                         <span className={`font-bold text-base ${isDark ? 'text-white' : 'text-black'}`}>Tamanho: {variation.size}</span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <label className={`font-semibold text-sm ${subtitleClasses}`}>Quantidade:</label>
+                                                        <label className={`font-semibold text-sm ${subtitleClasses}`}>Qtde:</label>
                                                         <input 
                                                             type="number"
                                                             min="0"
-                                                            placeholder=""
+                                                            placeholder="0"
                                                             value={quantities[key] || ''}
                                                             onChange={e => handleQuantityChange(key, e.target.value)}
-                                                            className={`w-24 p-2 rounded ${inputClasses}`}
+                                                            className={`w-20 p-2 rounded ${inputClasses}`}
                                                         />
+                                                        {addConfirmation[key] ? (
+                                                             <div className="flex items-center justify-center w-[101px] h-[40px] bg-green-500/20 rounded-lg">
+                                                                <svg className="h-6 w-6 text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                            </div>
+                                                        ) : (
+                                                             <button
+                                                                onClick={() => handleAddToQueue(product, variation)}
+                                                                disabled={!isButtonActive}
+                                                                className={`font-bold py-2 px-3 rounded-lg text-sm transition-all duration-200 w-[101px] ${
+                                                                    isButtonActive
+                                                                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                                                                    : (isDark ? 'bg-black/20 text-gray-500' : 'bg-gray-200 text-gray-400')
+                                                                }`}
+                                                            >
+                                                                Adicionar
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             );
@@ -160,15 +254,24 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                 </main>
             </div>
             
+            {isPreviewing && (
+                <PrintPreviewModal
+                    labels={printQueue}
+                    onClose={() => setIsPreviewing(false)}
+                    onPrint={handlePrint}
+                    isDark={isDark}
+                />
+            )}
+
              <div className="print-area">
-                {Array.from({ length: Math.ceil(allLabels.length / LABELS_PER_PAGE) }).map((_, pageIndex) => (
+                {Array.from({ length: Math.ceil(printQueue.length / LABELS_PER_PAGE) }).map((_, pageIndex) => (
                     <div key={pageIndex} className="print-page">
-                        {allLabels.slice(pageIndex * LABELS_PER_PAGE, (pageIndex + 1) * LABELS_PER_PAGE).map(label => (
+                        {printQueue.slice(pageIndex * LABELS_PER_PAGE, (pageIndex + 1) * LABELS_PER_PAGE).map(label => (
                             <PrintLabel key={label.id} product={label.product} size={label.size} qrCodeUrl={label.qrCodeUrl!} />
                         ))}
                     </div>
                 ))}
-                {allLabels.length > 0 && (
+                {printQueue.length > 0 && (
                  <div className="print-page back-page">
                     <img src="https://i.postimg.cc/XqDy2sPn/Cartao-de-Visita-Elegante-Minimalista-Cinza-e-Marrom-1.png" alt="Verso da Etiqueta" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
