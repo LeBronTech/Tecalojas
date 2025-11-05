@@ -58,22 +58,13 @@ const getUserProfile = async (uid: string): Promise<Pick<User, 'role'>> => {
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) {
         const userData = userDocSnap.data();
-        if (userData) {
-            // Check for a string role field (e.g., role: 'admin') - handles common typo 'rule'
-            const userRole = userData.role || userData.rule;
-            if (userRole && typeof userRole === 'string') {
-                const roleLower = userRole.toLowerCase();
-                if (roleLower === 'admin' || roleLower === 'administrador') {
-                    return { role: 'admin' };
-                }
-            }
-            // Check for a boolean admin field (e.g., isAdmin: true or admin: true)
-            if (userData.isAdmin === true || userData.admin === true) {
-                return { role: 'admin' };
-            }
+        // The security rules for admin access rely *specifically* on the `role` field being set to 'admin'.
+        // This check must match the security rule logic to prevent permission errors.
+        if (userData && userData.role === 'admin') {
+            return { role: 'admin' };
         }
     }
-    // Default to 'user' if no specific admin role is found
+    // Default to 'user' if no admin role is found or the document doesn't exist.
     return { role: 'user' };
 };
 
@@ -249,27 +240,54 @@ export const deleteProduct = (productId: string): Promise<void> => {
 
 /* 
   =================================================================
-  🔥🔥🔥 AVISO DE REGRAS DE SEGURANÇA (FIRESTORE) 🔥🔥🔥
+  🔥🔥🔥 AÇÃO NECESSÁRIA: CORREÇÃO DE PERMISSÕES (FIRESTORE) 🔥🔥🔥
   =================================================================
-  Para que a tela de Vendas funcione para administradores, as regras
-  de segurança do Firestore para a coleção `saleRequests` precisam
-  permitir que eles leiam todos os documentos.
-  
-  A mensagem de erro "Missing or insufficient permissions" indica que
-  as regras atuais estão bloqueando o acesso.
-  
-  Vá para o seu projeto no Firebase > Firestore Database > Rules e
-  adicione ou modifique a regra para `saleRequests` para se parecer
-  com o seguinte:
+  O erro "Missing or insufficient permissions" na tela de Vendas ocorre
+  porque as regras de segurança do Firestore não estão configuradas
+  corretamente para permitir que administradores acessem os pedidos.
 
-  match /saleRequests/{requestId} {
-    // Permite que qualquer usuário autenticado crie um pedido.
-    allow create: if request.auth != null;
+  Para corrigir, siga DOIS PASSOS:
+
+  PASSO 1: ESTRUTURA DO USUÁRIO ADMINISTRADOR
+  -------------------------------------------
+  No seu Firestore, na coleção 'users', o documento do usuário
+  que deve ser administrador PRECISA ter um campo `role` com o valor
+  exato de `"admin"` (em minúsculas).
+
+  Exemplo da estrutura do documento para um usuário admin:
+  - Coleção: `users`
+  - Documento ID: `[UID_DO_USUARIO_ADMIN]`
+  - Campos:
+    - `email`: "admin@email.com"
+    - `role`: "admin"   <-- IMPORTANTE!
+
+  
+  PASSO 2: REGRAS DE SEGURANÇA
+  -------------------------------------------
+  Vá para o seu projeto no Firebase > Firestore Database > Rules e
+  adicione ou modifique a regra para `saleRequests` para que fique
+  exatamente como abaixo. Isso garante que apenas usuários com `role: "admin"`
+  possam ler os pedidos.
+
+  ```
+  rules_version = '2';
+  service cloud.firestore {
+    match /databases/{database}/documents {
     
-    // Permite que APENAS administradores leiam, listem e atualizem pedidos.
-    // Isso verifica se o 'role' do usuário no documento /users/{uid} é 'admin'.
-    allow read, list, update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // ... (suas outras regras, como a de 'products')
+
+      match /saleRequests/{requestId} {
+        // Permite que qualquer usuário autenticado crie um pedido.
+        allow create: if request.auth != null;
+        
+        // Permite que APENAS administradores leiam, listem e atualizem pedidos.
+        allow read, list, update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      }
+
+      // ... (suas outras regras)
+    }
   }
+  ```
   =================================================================
 */
 

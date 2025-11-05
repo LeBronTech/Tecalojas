@@ -74,7 +74,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
                                 disabled={isLoading}
                                 className={`w-full p-6 rounded-xl border-2 text-left transition-colors flex items-center gap-4 ${isDark ? 'border-gray-700 hover:border-fuchsia-500' : 'border-gray-300 hover:border-purple-500'} disabled:opacity-50`}
                             >
-                                <span className="text-3xl">💳</span>
+                                <img src="https://i.postimg.cc/6qF1dkk4/5.png" alt="Ícone PIX" className="h-10 w-10 object-contain flex-shrink-0" />
                                 <div>
                                     <p className={`font-bold ${titleClasses}`}>PIX</p>
                                     <p className={`text-sm ${subtitleClasses}`}>Pagamento rápido e fácil com QR Code.</p>
@@ -85,7 +85,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
                                 disabled={isLoading}
                                 className={`w-full p-6 rounded-xl border-2 text-left transition-colors flex items-center gap-4 ${isDark ? 'border-gray-700 hover:border-fuchsia-500' : 'border-gray-300 hover:border-purple-500'} disabled:opacity-50`}
                             >
-                                <span className="text-3xl">Credit Card</span>
+                                <img src="https://i.postimg.cc/j2nMd8Dw/6.png" alt="Ícone Cartão" className="h-10 w-10 object-contain flex-shrink-0" />
                                 <div>
                                     <p className={`font-bold ${titleClasses}`}>Cartão de Crédito/Débito</p>
                                     <p className={`text-sm ${subtitleClasses}`}>Finalize o pagamento na maquininha.</p>
