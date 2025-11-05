@@ -5,6 +5,7 @@ interface LoginScreenProps {
   onLogin: (email: string, pass: string) => Promise<void>;
   onGoogleLogin: () => Promise<void>;
   onOpenSignUp: () => void;
+  isCheckout?: boolean;
 }
 
 const GoogleIcon = () => (
@@ -18,7 +19,7 @@ const GoogleIcon = () => (
 
 const REMEMBER_EMAIL_KEY = 'pillow-oasis-remember-email';
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onOpenSignUp }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onOpenSignUp, isCheckout }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberEmail, setRememberEmail] = useState(false);
@@ -110,7 +111,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin, onOpe
       </div>
 
       <div className="w-full max-w-xs bg-white/30 backdrop-blur-lg rounded-2xl p-6 border-2 border-white/80 shadow-xl z-10">
-        <h3 className="text-center font-bold text-lg text-[#2D1F49] mb-4">Acesse para gerenciar</h3>
+        <h3 className="text-center font-bold text-lg text-[#2D1F49] mb-4">
+            {isCheckout ? "Acesse para finalizar a compra" : "Acesse para gerenciar"}
+        </h3>
         <form onSubmit={handleEmailSubmit}>
           <div className="relative mb-4">
             <input
