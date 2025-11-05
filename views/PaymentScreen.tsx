@@ -4,9 +4,10 @@ import { CartItem, View, ThemeContext } from '../types';
 interface PaymentScreenProps {
     cart: CartItem[];
     totalPrice: number;
-    onPlaceOrder: (paymentMethod: 'PIX' | 'Débito' | 'Crédito', successMessage: string) => Promise<void>;
+    onPlaceOrder: (paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Cartão (Online)', successMessage: string) => Promise<void>;
     onNavigate: (view: View) => void;
     onPixClick: () => void;
+    customerName: string;
 }
 
 const CardTypeSelectionModal: React.FC<{
@@ -21,7 +22,7 @@ const CardTypeSelectionModal: React.FC<{
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
             <div className={`border rounded-3xl shadow-2xl w-full max-w-xs p-6 ${isDark ? 'bg-[#1A1129] border-white/10' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
-                <h3 className={`text-lg font-bold text-center mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Tipo de Cartão</h3>
+                <h3 className={`text-lg font-bold text-center mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Tipo de Cartão (Presencial)</h3>
                 <div className="space-y-3">
                     <button onClick={() => onSelect('Crédito')} className={`w-full font-semibold py-3 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Crédito</button>
                     <button onClick={() => onSelect('Débito')} className={`w-full font-semibold py-3 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Débito</button>
@@ -31,15 +32,39 @@ const CardTypeSelectionModal: React.FC<{
     );
 };
 
-const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlaceOrder, onNavigate, onPixClick }) => {
+const CardPaymentMethodModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onSelect: (method: 'presencial' | 'online') => void;
+}> = ({ isOpen, onClose, onSelect }) => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[120] p-4" onClick={onClose}>
+            <div className={`border rounded-3xl shadow-2xl w-full max-w-xs p-6 ${isDark ? 'bg-[#1A1129] border-white/10' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
+                <h3 className={`text-lg font-bold text-center mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Como deseja pagar com cartão?</h3>
+                <div className="space-y-3">
+                    <button onClick={() => onSelect('presencial')} className={`w-full font-semibold py-3 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Presencial (Maquininha)</button>
+                    <button onClick={() => onSelect('online')} className={`w-full font-semibold py-3 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Online (WhatsApp)</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlaceOrder, onNavigate, onPixClick, customerName }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [isLoading, setIsLoading] = useState(false);
-    const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+    const [isCardTypeModalOpen, setIsCardTypeModalOpen] = useState(false);
+    const [isCardMethodModalOpen, setIsCardMethodModalOpen] = useState(false);
 
     const handlePaymentSelection = async (method: 'PIX' | 'Débito' | 'Crédito') => {
         setIsLoading(true);
-        setIsCardModalOpen(false);
+        setIsCardTypeModalOpen(false);
 
         const successMessage = method === 'PIX'
             ? "Pedido enviado! Use o QR Code para pagar."
@@ -54,6 +79,36 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
         } catch (error) {
             console.error("Failed to place order:", error);
             alert("Ocorreu um erro ao enviar seu pedido. Tente novamente.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleOnlinePayment = async () => {
+        setIsLoading(true);
+
+        const itemDescriptions = cart.map(item => {
+            const itemType = item.type === 'full' 
+                ? (item.quantity > 1 ? 'almofadas cheias' : 'almofada cheia') 
+                : (item.quantity > 1 ? 'capas' : 'capa');
+            const baseName = item.name.split('(')[0].trim().toLowerCase();
+            return `${item.quantity} ${itemType} ${baseName}`;
+        });
+
+        const itemsText = itemDescriptions.length > 1 
+            ? itemDescriptions.slice(0, -1).join(', ') + ' e ' + itemDescriptions.slice(-1) 
+            : itemDescriptions[0];
+
+        const message = `Olá sou a ${customerName}, fiz o pedido no site de ${itemsText}, no valor total de R$ ${totalPrice.toFixed(2).replace('.', ',')} como posso prosseguir com o pagamento ?`;
+        
+        const whatsappUrl = `https://wa.me/5561991434805?text=${encodeURIComponent(message)}`;
+
+        try {
+            await onPlaceOrder('Cartão (Online)', 'Seu pedido foi registrado! Conclua o pagamento no WhatsApp que se abriu.');
+            window.open(whatsappUrl, '_blank');
+        } catch (error) {
+            console.error("Failed to place online order:", error);
+            alert("Ocorreu um erro ao registrar seu pedido. Tente novamente.");
         } finally {
             setIsLoading(false);
         }
@@ -111,14 +166,14 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
                                 </div>
                             </button>
                             <button
-                                onClick={() => setIsCardModalOpen(true)}
+                                onClick={() => setIsCardMethodModalOpen(true)}
                                 disabled={isLoading}
                                 className={`w-full p-6 rounded-xl border-2 text-left transition-colors flex items-center gap-4 ${isDark ? 'border-gray-700 hover:border-fuchsia-500' : 'border-gray-300 hover:border-purple-500'} disabled:opacity-50`}
                             >
                                 <img src="https://i.postimg.cc/j2nMd8Dw/6.png" alt="Ícone Cartão" className="h-10 w-10 object-contain flex-shrink-0" />
                                 <div>
                                     <p className={`font-bold ${titleClasses}`}>Cartão</p>
-                                    <p className={`text-sm ${subtitleClasses}`}>Finalize o pagamento na maquininha.</p>
+                                    <p className={`text-sm ${subtitleClasses}`}>Pague na maquininha ou online via WhatsApp.</p>
                                 </div>
                             </button>
                         </div>
@@ -129,9 +184,21 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
                 </div>
             </main>
         </div>
+        <CardPaymentMethodModal
+            isOpen={isCardMethodModalOpen}
+            onClose={() => setIsCardMethodModalOpen(false)}
+            onSelect={(method) => {
+                setIsCardMethodModalOpen(false);
+                if (method === 'presencial') {
+                    setIsCardTypeModalOpen(true);
+                } else {
+                    handleOnlinePayment();
+                }
+            }}
+        />
         <CardTypeSelectionModal
-            isOpen={isCardModalOpen}
-            onClose={() => setIsCardModalOpen(false)}
+            isOpen={isCardTypeModalOpen}
+            onClose={() => setIsCardTypeModalOpen(false)}
             onSelect={(type) => handlePaymentSelection(type)}
         />
         </>

@@ -292,7 +292,7 @@ export const deleteProduct = (productId: string): Promise<void> => {
 */
 
 // --- FIRESTORE (SALES) ---
-export const addSaleRequest = (saleData: { items: CartItem[] | PosCartItem[], totalPrice: number, paymentMethod: 'PIX' | 'Débito' | 'Crédito' }): Promise<any> => {
+export const addSaleRequest = (saleData: { items: CartItem[] | PosCartItem[], totalPrice: number, paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Cartão (Online)', customerName?: string }): Promise<any> => {
     return addDoc(saleRequestsCollection, {
         ...saleData,
         status: 'pending',

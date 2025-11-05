@@ -164,7 +164,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
             {requests.map(req => (
                 <div key={req.id} className={`p-4 rounded-xl flex items-center justify-between text-left ${cardClasses}`}>
                     <button onClick={() => { setSelectedRequest(req); setIsProcessing(true); }} className="flex-grow text-left">
-                        <p className={`font-bold ${titleClasses}`}>Pedido de {req.items.length} item(s)</p>
+                        <p className={`font-bold ${titleClasses}`}>Pedido de {req.customerName || `${req.items.length} item(s)`}</p>
                         <p className={`text-sm ${subtitleClasses}`}>Total: R$ {req.totalPrice.toFixed(2).replace('.', ',')} via {req.paymentMethod}</p>
                     </button>
                      <div className="flex items-center gap-2">
@@ -260,7 +260,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
             {isProcessing && selectedRequest && (
                  <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { setIsProcessing(false); setSelectedRequest(null); }}>
                     <div className={`border rounded-3xl shadow-2xl w-full max-w-sm p-6 ${cardClasses}`} onClick={e => e.stopPropagation()}>
-                        <h3 className={`font-bold text-lg mb-4 ${titleClasses}`}>Processar Pagamento</h3>
+                        <h3 className={`font-bold text-lg mb-4 ${titleClasses}`}>Processar Pedido {selectedRequest.customerName ? `de ${selectedRequest.customerName}`: ''}</h3>
                         
                         <div className="space-y-3 max-h-48 overflow-y-auto mb-4 pr-2">
                              {selectedRequest.items.map((item, index) => {

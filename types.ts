@@ -113,9 +113,10 @@ export interface SaleRequest {
   id: string;
   items: CartItem[] | PosCartItem[];
   totalPrice: number;
-  paymentMethod: 'PIX' | 'Débito' | 'Crédito';
+  paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Cartão (Online)';
   status: 'pending' | 'completed';
   createdAt: any; // Firestore Timestamp
+  customerName?: string;
   // Admin-added fields
   installments?: number;
   discount?: number;

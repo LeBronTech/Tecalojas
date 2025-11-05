@@ -183,6 +183,64 @@ const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ onClose }) => {
     );
 };
 
+// --- Customer Name Modal ---
+interface CustomerNameModalProps {
+  onClose: () => void;
+  onConfirm: (name: string) => void;
+}
+
+const CustomerNameModal: React.FC<CustomerNameModalProps> = ({ onClose, onConfirm }) => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+    const [name, setName] = useState('');
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (name.trim()) {
+            onConfirm(name.trim());
+        }
+    };
+
+    const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
+    const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
+    const subtitleClasses = isDark ? "text-gray-400" : "text-gray-500";
+    const inputClasses = isDark ? "bg-black/20 text-white border-white/10" : "bg-gray-100 text-gray-900 border-gray-300";
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[120] p-4" onClick={onClose}>
+            <form 
+                onSubmit={handleSubmit}
+                className={`border rounded-3xl shadow-2xl w-full max-w-sm p-8 relative transform transition-all duration-300 scale-95 opacity-0 animate-fade-in-scale ${modalBgClasses}`} 
+                onClick={e => e.stopPropagation()}
+            >
+                 <style>{`
+                    @keyframes fade-in-scale { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+                    .animate-fade-in-scale { animation: fade-in-scale 0.3s forwards; }
+                `}</style>
+                <h2 className={`text-2xl font-bold mb-2 text-center ${titleClasses}`}>Identificação</h2>
+                <p className={`text-center text-sm mb-6 ${subtitleClasses}`}>Por favor, digite seu nome para identificarmos o pedido.</p>
+
+                <div className="space-y-4">
+                    <div>
+                        <input 
+                            type="text"
+                            placeholder="Seu nome completo"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            required
+                            className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} 
+                        />
+                    </div>
+                    
+                    <button type="submit" className="w-full bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">
+                        Continuar para Pagamento
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+};
+
 const HomeIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -408,6 +466,9 @@ export default function App() {
     return storedFees ? JSON.parse(storedFees) : { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 };
   });
 
+  const [isCustomerNameModalOpen, setIsCustomerNameModalOpen] = useState(false);
+  const [customerName, setCustomerName] = useState('');
+
   const isAdmin = useMemo(() => currentUser?.role === 'admin', [currentUser]);
 
   // --- CARD FEES MANAGEMENT ---
@@ -515,6 +576,7 @@ export default function App() {
 
   const handleClearCart = useCallback(() => {
     setCart([]);
+    setCustomerName('');
   }, []);
 
   // --- SALE REQUESTS MANAGEMENT (ADMIN) ---
@@ -671,6 +733,11 @@ export default function App() {
   }, []);
   
   const handleNavigate = useCallback((newView: View) => {
+    if (newView === View.PAYMENT && cart.reduce((sum, item) => sum + item.quantity, 0) > 0 && !customerName) {
+        setIsCustomerNameModalOpen(true);
+        return; 
+    }
+    
     const isProtectedView = [View.STOCK, View.SETTINGS, View.CATALOG, View.ASSISTANT, View.DIAGNOSTICS, View.SALES, View.PAYMENT].includes(newView);
     if (isProtectedView && !currentUser) {
         loginRedirect.current = newView;
@@ -678,7 +745,7 @@ export default function App() {
         loginRedirect.current = null;
     }
     setView(newView);
-  }, [currentUser]);
+  }, [currentUser, cart, customerName]);
   
   const handleLogin = useCallback(async (email: string, pass: string) => {
       await api.signIn(email, pass);
@@ -1081,7 +1148,7 @@ export default function App() {
                   onPlaceOrder={async (paymentMethod, successMessage) => {
                     if (!currentUser) { throw new Error("Usuário não está logado."); }
                     try {
-                      await api.addSaleRequest({ items: cart, totalPrice, paymentMethod });
+                      await api.addSaleRequest({ items: cart, totalPrice, paymentMethod, customerName });
                       handleClearCart();
                       alert(successMessage);
                       handleNavigate(View.SHOWCASE);
@@ -1096,6 +1163,7 @@ export default function App() {
                   }}
                   onNavigate={handleNavigate}
                   onPixClick={() => setIsPixModalOpen(true)}
+                  customerName={customerName}
                />;
       case View.SALES:
         return <SalesScreen 
@@ -1211,6 +1279,16 @@ export default function App() {
                     onConfirm={confirmDeleteProduct}
                     title="Confirmar Exclusão"
                     message="Tem certeza que deseja excluir este produto? A ação não pode ser desfeita."
+                />
+            )}
+             {isCustomerNameModalOpen && (
+                <CustomerNameModal
+                    onClose={() => setIsCustomerNameModalOpen(false)}
+                    onConfirm={(name) => {
+                        setCustomerName(name);
+                        setIsCustomerNameModalOpen(false);
+                        setView(View.PAYMENT);
+                    }}
                 />
             )}
         </div>
