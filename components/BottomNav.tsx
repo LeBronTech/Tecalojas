@@ -37,13 +37,6 @@ const SalesIcon = () => (
     </svg>
 );
 
-const QrCodeIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6.5 6.5v1m-6.5-17.5l-1.5 1.5M4 12H3m1.5 6.5l-1.5 1.5M12 20v1m6-11h2m-6.5 6.5v1m-6.5-17.5l-1.5 1.5M4 12H3m1.5 6.5l-1.5 1.5M21 12h-1" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 5h3v3H5zM16 5h3v3h-3zM5 16h3v3H5zM16 16h3v3h-3z" />
-    </svg>
-);
-
 
 interface BottomNavProps {
   activeView: View;
@@ -125,11 +118,6 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsT
       {isAdmin && (
         <NavButton label="Estoque" view={View.STOCK} isActive={activeView === View.STOCK} onNavigate={onNavigate}>
             <InventoryIcon />
-        </NavButton>
-      )}
-      {isAdmin && (
-        <NavButton label="QR Codes" view={View.QR_CODES} isActive={activeView === View.QR_CODES} onNavigate={onNavigate}>
-            <QrCodeIcon />
         </NavButton>
       )}
       {isAdmin && (

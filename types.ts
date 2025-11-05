@@ -51,6 +51,7 @@ export interface Variation {
     [StoreName.TECA]: number;
     [StoreName.IONE]: number;
   };
+  qrCodeUrl?: string;
 }
 
 export interface Product {
