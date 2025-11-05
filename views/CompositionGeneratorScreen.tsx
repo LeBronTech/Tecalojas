@@ -145,6 +145,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     // New state for color filtering
     const [useColorFilter, setUseColorFilter] = useState(false);
     const [selectedFilterColors, setSelectedFilterColors] = useState<{name: string, hex: string}[]>([]);
+    const [hoveredProductId, setHoveredProductId] = useState<string | null>(null);
 
 
     useEffect(() => {
@@ -558,20 +559,37 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                         // RESULT VIEW
                         <div className="flex-grow flex flex-col items-center gap-4">
                              <div className={`w-full aspect-[4/3] rounded-xl border p-4 flex flex-col ${cardClasses}`}>
-                                 <div className="flex items-center justify-center gap-2 mb-3">
+                                <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
                                     <button onClick={handleShuffle} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}><ShuffleIcon /> Ordem</button>
                                     <button onClick={handleGenerateNewCombination} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}><StarIcon /> Gerar Nova</button>
                                     <button onClick={drawAndShare} disabled={isSharing} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>{isSharing ? <ButtonSpinner/> : <ShareIcon />} Compartilhar</button>
                                     <button onClick={handleSave} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}><SaveIcon /> Salvar</button>
                                 </div>
-                                <div className="flex-grow flex items-center justify-center">
-                                     <div className="flex flex-wrap justify-center items-start gap-4 p-4">
-                                        {currentComposition.map((p) => (
-                                            <div key={p.id} className="flex flex-col items-center w-32">
-                                                <button onClick={() => setViewingProduct(p)} className="w-32 h-32 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-fuchsia-500">
+                                <div className="flex-grow flex items-center justify-center overflow-hidden">
+                                    <div className="flex justify-center items-center -space-x-8 md:-space-x-12 p-4">
+                                        {currentComposition.map((p, index) => (
+                                            <div 
+                                                key={p.id} 
+                                                className="flex flex-col items-center transition-all duration-300 ease-in-out cursor-pointer"
+                                                style={{ 
+                                                    zIndex: hoveredProductId === p.id ? 10 : index,
+                                                    transform: hoveredProductId === p.id ? 'scale(1.1) translateY(-10px)' : 'scale(1)',
+                                                }}
+                                                onMouseEnter={() => setHoveredProductId(p.id)}
+                                                onMouseLeave={() => setHoveredProductId(null)}
+                                                onClick={() => setViewingProduct(p)}
+                                            >
+                                                <div 
+                                                    className="w-28 h-28 md:w-32 md:h-32 rounded-lg shadow-lg relative"
+                                                    aria-label={`Ver detalhes de ${p.name}`}
+                                                >
                                                     <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover rounded-lg" />
-                                                </button>
-                                                <p className={`text-xs mt-2 text-center ${subtitleClasses} h-8`}>{p.name}</p>
+                                                </div>
+                                                <p 
+                                                    className={`text-xs mt-2 text-center transition-opacity duration-300 pointer-events-none ${subtitleClasses} w-28 md:w-32 truncate h-8 ${hoveredProductId === p.id ? 'opacity-100' : 'opacity-0 md:opacity-100'}`}
+                                                >
+                                                    {p.name}
+                                                </p>
                                             </div>
                                         ))}
                                     </div>
