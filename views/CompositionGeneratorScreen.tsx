@@ -311,11 +311,11 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                 ctx.fillStyle = isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)';
                 ctx.fillRect(0, watermarkY, canvas.width, WATERMARK_HEIGHT);
                 
-                ctx.font = '22px sans-serif';
+                ctx.font = '18px sans-serif';
                 ctx.fillStyle = isDark ? '#FFFFFF' : '#111827';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                const text = "composição de Têca Lojas";
+                const text = "@tecadecoracoestorredetv @ionelourencodecor";
                 const textMetrics = ctx.measureText(text);
                 const textX = canvas.width / 2;
                 const textY = watermarkY + WATERMARK_HEIGHT / 2;
