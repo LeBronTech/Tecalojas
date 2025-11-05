@@ -22,11 +22,15 @@ import {
     addDoc, 
     updateDoc, 
     deleteDoc,
-    FirestoreError
+    FirestoreError,
+    serverTimestamp,
+    query,
+    where,
+    orderBy
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
-import { User, Product, DynamicBrand, CatalogPDF } from './types';
+import { User, Product, DynamicBrand, CatalogPDF, SaleRequest, CartItem, StoreName } from './types';
 import { firebaseConfig } from './firebaseConfig';
 
 // Initialize Firebase
@@ -45,6 +49,7 @@ const storage = getStorage(app);
 const productsCollection = collection(db, "products");
 const brandsCollection = collection(db, "brands");
 const catalogsCollection = collection(db, "catalogs");
+const saleRequestsCollection = collection(db, "saleRequests");
 const provider = new GoogleAuthProvider();
 
 // --- AUTHENTICATION ---
@@ -80,9 +85,6 @@ export const signUp = async (email: string, password: string): Promise<User> => 
   }
   const { uid } = userCredential.user;
   
-  // On sign-up, create a corresponding user document in Firestore.
-  // This ensures that every registered user has a profile where their role can be managed.
-  // By default, all new users are assigned the 'user' role.
   const userDocRef = doc(db, 'users', uid);
   await setDoc(userDocRef, { role: 'user', email: email });
 
@@ -100,7 +102,6 @@ export const signIn = async (email: string, password: string): Promise<User> => 
 };
 
 // --- GOOGLE SIGN IN REWORK FOR KODULAR/CORDOVA ---
-
 let googleSignInResolver: ((user: User) => void) | null = null;
 let googleSignInRejecter: ((error: any) => void) | null = null;
 let googleSignInTimeout: number | null = null;
@@ -114,17 +115,12 @@ const cleanupGoogleSignIn = () => {
     googleSignInRejecter = null;
 };
 
-// This function will be called by the native Kodular/Cordova app to complete the sign-in flow
 window.completeGoogleSignIn = async (idToken: string | null, errorMsg: string | null) => {
     const resolver = googleSignInResolver;
     const rejecter = googleSignInRejecter;
-    
-    // Important: Clean up immediately to prevent memory leaks and accidental calls
     cleanupGoogleSignIn();
 
     if (errorMsg) {
-        // The native app reported an error.
-        // If the error is 'disallowed_useragent', it confirms the native configuration issue.
         console.error("Google Sign-In Error from Native App:", errorMsg);
         rejecter?.(new Error(errorMsg));
         return;
@@ -146,18 +142,12 @@ window.completeGoogleSignIn = async (idToken: string | null, errorMsg: string | 
             rejecter?.(error);
         }
     } else {
-        // This case handles user cancellation or other failures where no token is returned.
         rejecter?.(new Error("Login com Google cancelado ou falhou (sem token)."));
     }
 };
 
-// This function will be called by the native Kodular app to complete any login flow
-// that provides an ID token. It assumes the token is a Google ID token, as that's
-// the only type the client-side SDK can consume directly via signInWithCredential.
 window.handleLoginToken = (idToken: string) => {
     console.log("`handleLoginToken` called from native app.");
-    // We assume the token is a Google ID token and call the existing Google sign-in completion logic.
-    // If an error occurs here, it will be caught inside completeGoogleSignIn and rejected.
     if (window.completeGoogleSignIn) {
         window.completeGoogleSignIn(idToken, null);
     } else {
@@ -165,50 +155,29 @@ window.handleLoginToken = (idToken: string) => {
     }
 };
 
-
-/**
- * Handles Google Sign-In for Cordova/Kodular environments.
- * It sends a command to the native app, which then performs the sign-in and calls back `window.completeGoogleSignIn`.
- */
 const signInWithGoogleCordova = (): Promise<User> => {
   return new Promise((resolve, reject) => {
-    // Ensure no previous sign-in process is still lingering
     if (googleSignInResolver || googleSignInRejecter) {
         reject(new Error("Um processo de login com Google já está em andamento."));
         return;
     }
-
-    // Store resolve/reject to be used by the global callback
     googleSignInResolver = resolve;
     googleSignInRejecter = reject;
-
-    // Set a timeout in case the native app doesn't respond
     googleSignInTimeout = window.setTimeout(() => {
         if (googleSignInRejecter) {
             googleSignInRejecter(new Error("Tempo de resposta do app esgotado. Verifique se o app está configurado para o login com Google."));
             cleanupGoogleSignIn();
         }
-    }, 30000); // 30 seconds timeout
-    
-    // Trigger the native login flow by navigating to a custom URL scheme.
-    // The native app (Kodular/Cordova) should be configured to intercept this navigation,
-    // perform the Google Sign-In, and then call `window.completeGoogleSignIn` with the result.
+    }, 30000);
     window.location.href = "appkodular://iniciar-login-google";
   });
 };
 
-/**
- * Dispatches to the correct Google Sign-In method based on the environment (web vs. Cordova).
- */
 export const signInWithGoogle = async (): Promise<User> => {
-  // A more robust check for Cordova/WebView environments.
-  // The error `auth/operation-not-supported-in-this-environment` occurs on non-http(s) protocols.
   const isWebView = !!window.cordova || window.location.protocol === 'file:';
-
   if (isWebView) {
     return signInWithGoogleCordova();
   } else {
-    // Standard web-based sign-in flow
     const result = await signInWithPopup(auth, provider);
     if (!result.user) {
         throw new Error("Google sign in failed.");
@@ -219,9 +188,7 @@ export const signInWithGoogle = async (): Promise<User> => {
   }
 };
 
-
 export const signOut = (): Promise<void> => {
-  // Also disconnect from Google if logged in via Kodular's native flow
   if (!!window.cordova || window.location.protocol === 'file:') {
       window.location.href = 'appkodular://iniciar-logout-google';
   }
@@ -231,7 +198,6 @@ export const signOut = (): Promise<void> => {
 export const onAuthStateChanged = (callback: (user: User | null) => void) => {
   return firebaseOnAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
     if (firebaseUser) {
-      // Since anonymous sign-in is removed, we assume any user is a real user.
       const profile = await getUserProfile(firebaseUser.uid);
       callback({ uid: firebaseUser.uid, email: firebaseUser.email, role: profile.role });
     } else {
@@ -242,7 +208,6 @@ export const onAuthStateChanged = (callback: (user: User | null) => void) => {
 
 
 // --- FIRESTORE (PRODUCTS) ---
-
 export const onProductsUpdate = (
   onSuccess: (products: Product[]) => void,
   onError: (error: FirestoreError) => void
@@ -253,9 +218,6 @@ export const onProductsUpdate = (
       const products = snapshot.docs.map(
         (doc) => {
           const data = doc.data();
-          // This creates a more robust product object by providing default empty arrays
-          // for properties that might be missing from older Firestore documents,
-          // preventing "Cannot read properties of undefined (reading 'map')" errors.
           return {
             id: doc.id,
             ...data,
@@ -285,6 +247,112 @@ export const deleteProduct = (productId: string): Promise<void> => {
     return deleteDoc(productDoc);
 };
 
+/* 
+  =================================================================
+  🔥🔥🔥 AVISO DE REGRAS DE SEGURANÇA (FIRESTORE) 🔥🔥🔥
+  =================================================================
+  Para que a tela de Vendas funcione para administradores, as regras
+  de segurança do Firestore para a coleção `saleRequests` precisam
+  permitir que eles leiam todos os documentos.
+  
+  A mensagem de erro "Missing or insufficient permissions" indica que
+  as regras atuais estão bloqueando o acesso.
+  
+  Vá para o seu projeto no Firebase > Firestore Database > Rules e
+  adicione ou modifique a regra para `saleRequests` para se parecer
+  com o seguinte:
+
+  match /saleRequests/{requestId} {
+    // Permite que qualquer usuário autenticado crie um pedido.
+    allow create: if request.auth != null;
+    
+    // Permite que APENAS administradores leiam, listem e atualizem pedidos.
+    // Isso verifica se o 'role' do usuário no documento /users/{uid} é 'admin'.
+    allow read, list, update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+  }
+  =================================================================
+*/
+
+// --- FIRESTORE (SALES) ---
+export const addSaleRequest = (saleData: { items: CartItem[], totalPrice: number, paymentMethod: 'PIX' | 'Cartão' }): Promise<any> => {
+    return addDoc(saleRequestsCollection, {
+        ...saleData,
+        status: 'pending',
+        createdAt: serverTimestamp()
+    });
+};
+
+export const onSaleRequestsUpdate = (
+  onSuccess: (requests: SaleRequest[]) => void,
+  onError: (error: FirestoreError) => void
+) => {
+    const q = query(saleRequestsCollection, orderBy("createdAt", "desc"));
+    return onSnapshot(q, (snapshot) => {
+        const requests = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as SaleRequest));
+        onSuccess(requests);
+    }, onError);
+};
+
+export const completeSaleRequest = async (requestId: string): Promise<void> => {
+    const saleRequestDocRef = doc(db, "saleRequests", requestId);
+    const saleRequestSnap = await getDoc(saleRequestDocRef);
+    if (!saleRequestSnap.exists()) {
+        throw new Error("Solicitação de venda não encontrada.");
+    }
+    const saleRequestData = saleRequestSnap.data() as SaleRequest;
+
+    if (saleRequestData.status === 'completed') {
+        console.log("Sale already completed.");
+        return;
+    }
+    
+    // Update product stock and units sold for each item
+    for (const item of saleRequestData.items) {
+        const productDocRef = doc(db, "products", item.productId);
+        const productSnap = await getDoc(productDocRef);
+
+        if (productSnap.exists()) {
+            const productData = productSnap.data() as Product;
+            let variationFound = false;
+
+            const updatedVariations = productData.variations.map(v => {
+                if (v.size === item.variationSize) {
+                    variationFound = true;
+                    // Simple deduction logic: deduct from Têca first, then Ione.
+                    let qtyToDeduct = item.quantity;
+                    const tecaStock = v.stock[StoreName.TECA] || 0;
+                    const ioneStock = v.stock[StoreName.IONE] || 0;
+
+                    const tecaDeduction = Math.min(qtyToDeduct, tecaStock);
+                    v.stock[StoreName.TECA] = tecaStock - tecaDeduction;
+                    qtyToDeduct -= tecaDeduction;
+
+                    if (qtyToDeduct > 0) {
+                        const ioneDeduction = Math.min(qtyToDeduct, ioneStock);
+                        v.stock[StoreName.IONE] = ioneStock - ioneDeduction;
+                    }
+                }
+                return v;
+            });
+            
+            if (variationFound) {
+                const updatedUnitsSold = (productData.unitsSold || 0) + item.quantity;
+                await updateDoc(productDocRef, { 
+                    variations: updatedVariations,
+                    unitsSold: updatedUnitsSold 
+                });
+            }
+        }
+    }
+
+    // Finally, update the sale request status to completed
+    await updateDoc(saleRequestDocRef, { status: "completed" });
+};
+
+
 // --- STORAGE ---
 export const uploadFile = (path: string, file: File, onProgress?: (progress: number) => void): { promise: Promise<string>, cancel: () => void } => {
     const fileRef = ref(storage, path);
@@ -293,17 +361,17 @@ export const uploadFile = (path: string, file: File, onProgress?: (progress: num
     const promise = new Promise<string>((resolve, reject) => {
         uploadTask.on(
             'state_changed',
-            (snapshot) => { // "next" observer
+            (snapshot) => {
                 const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
                 if (onProgress) {
                     onProgress(progress);
                 }
             },
-            (error) => { // "error" observer
+            (error) => {
                 console.error("Upload failed:", error);
                 reject(error);
             },
-            async () => { // "complete" observer
+            async () => {
                 try {
                     const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
                     resolve(downloadURL);

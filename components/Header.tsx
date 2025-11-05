@@ -1,11 +1,14 @@
 import React, { useContext } from 'react';
-import { ThemeContext } from '../types';
+import { View, ThemeContext } from '../types';
 
 interface HeaderProps {
     onMenuClick: () => void;
+    cartItemCount: number;
+    onCartClick: () => void;
+    activeView: View;
 }
 
-const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
+const Header: React.FC<HeaderProps> = ({ onMenuClick, cartItemCount, onCartClick, activeView }) => {
     const { theme } = useContext(ThemeContext);
     const menuColor = theme === 'dark' ? 'text-white' : 'text-gray-800';
 
@@ -13,9 +16,10 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     const darkLogoUrl = 'https://i.postimg.cc/qvgmgRpN/Cabe-alho-escuro.png';
 
     const logoUrl = theme === 'dark' ? darkLogoUrl : lightLogoUrl;
+    const isCartActive = activeView === View.CART;
 
     return (
-        <div className={`absolute top-0 left-0 right-0 h-20 px-4 flex items-center z-20`}>
+        <div className={`absolute top-0 left-0 right-0 h-20 px-4 flex items-center justify-between z-20`}>
             <button 
                 onClick={onMenuClick} 
                 className={`p-2 rounded-full ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition-colors`}
@@ -33,6 +37,27 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
                     className="h-16 object-contain transition-all duration-300"
                 />
             </div>
+
+             <button 
+                onClick={onCartClick} 
+                className={`relative p-2 rounded-full ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition-colors`}
+                aria-label="Ver carrinho"
+            >
+                {isCartActive ? (
+                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${menuColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${menuColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                )}
+                {cartItemCount > 0 && !isCartActive && (
+                    <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-fuchsia-500 text-xs font-bold text-white ring-2 ring-white dark:ring-[#1A1129]">
+                        {cartItemCount}
+                    </span>
+                )}
+            </button>
         </div>
     );
 };

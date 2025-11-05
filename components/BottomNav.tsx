@@ -31,11 +31,19 @@ const DiagnosticsIcon = () => (
     </svg>
 );
 
+const SalesIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+);
+
 
 interface BottomNavProps {
   activeView: View;
   onNavigate: (view: View) => void;
   hasItemsToRestock: boolean;
+  isAdmin: boolean;
+  hasNewSaleRequests: boolean;
 }
 
 const NavButton: React.FC<{
@@ -81,7 +89,7 @@ const NavButton: React.FC<{
 };
 
 
-const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsToRestock }) => {
+const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsToRestock, isAdmin, hasNewSaleRequests }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
 
@@ -97,12 +105,22 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsT
        <NavButton label="Composições" view={View.COMPOSITIONS} isActive={activeView === View.COMPOSITIONS} onNavigate={onNavigate}>
         <CompositionIcon />
       </NavButton>
-       <NavButton label="Estoque" view={View.STOCK} isActive={activeView === View.STOCK} onNavigate={onNavigate}>
-        <InventoryIcon />
-      </NavButton>
-      <NavButton label="Diagnóstico" view={View.DIAGNOSTICS} isActive={activeView === View.DIAGNOSTICS} onNavigate={onNavigate}>
-        <DiagnosticsIcon />
-      </NavButton>
+       {isAdmin && (
+        <NavButton label="Vendas" view={View.SALES} isActive={activeView === View.SALES} onNavigate={onNavigate}>
+            <div className="relative">
+                <SalesIcon />
+                {hasNewSaleRequests && (
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-[#1A1129] blinking-dot"></span>
+                )}
+            </div>
+        </NavButton>
+       )}
+      {isAdmin && (
+        <NavButton label="Estoque" view={View.STOCK} isActive={activeView === View.STOCK} onNavigate={onNavigate}>
+            <InventoryIcon />
+        </NavButton>
+      )}
+      {isAdmin && (
        <NavButton label="Assistente" view={View.ASSISTANT} isActive={activeView === View.ASSISTANT} onNavigate={onNavigate}>
         <div className="relative">
             <ReplacementIcon />
@@ -111,6 +129,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsT
             )}
         </div>
       </NavButton>
+      )}
     </div>
   );
 };

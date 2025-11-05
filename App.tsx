@@ -1,8 +1,5 @@
-
-
-
 import React, { useState, useCallback, createContext, useContext, useEffect, useMemo } from 'react';
-import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType } from './types';
+import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType, CartItem, SaleRequest } from './types';
 // FIX: Import PREDEFINED_COLORS to be used when creating color variations for products.
 import { INITIAL_PRODUCTS, PREDEFINED_COLORS } from './constants';
 import LoginScreen from './views/LoginScreen';
@@ -14,6 +11,9 @@ import CompositionGeneratorScreen from './views/CompositionGeneratorScreen';
 import CompositionsScreen from './views/CompositionsScreen';
 import AssistantScreen from './views/ReplacementScreen';
 import DiagnosticsScreen from './views/DiagnosticsScreen';
+import CartScreen from './views/CartScreen';
+import PaymentScreen from './views/PaymentScreen';
+import SalesScreen from './views/SalesScreen';
 import AddEditProductModal from './components/AddEditProductModal';
 import SignUpModal from './SignUpModal';
 import Header from './components/Header';
@@ -50,6 +50,8 @@ const THEME_STORAGE_KEY = 'pillow-oasis-theme';
 const API_KEY_STORAGE_KEY = 'pillow-oasis-api-key';
 const ALL_COLORS_STORAGE_KEY = 'pillow-oasis-all-colors';
 const SAVED_COMPOSITIONS_STORAGE_KEY = 'pillow-oasis-saved-compositions';
+const CART_STORAGE_KEY = 'pillow-oasis-cart';
+
 
 // --- Configuration Required Modal ---
 const ConfigurationRequiredModal = () => {
@@ -187,6 +189,13 @@ const DiagnosticsIcon = () => (
     </svg>
 );
 
+const SalesIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+);
+
+
 
 // --- Side Menu Component ---
 interface SideMenuProps {
@@ -198,10 +207,12 @@ interface SideMenuProps {
   activeView: View;
   onNavigate: (view: View) => void;
   isLoggedIn: boolean;
+  isAdmin: boolean;
   hasItemsToRestock: boolean;
+  hasNewSaleRequests: boolean;
 }
 
-const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginClick, onPixClick, activeView, onNavigate, isLoggedIn, hasItemsToRestock }) => {
+const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginClick, onPixClick, activeView, onNavigate, isLoggedIn, isAdmin, hasItemsToRestock, hasNewSaleRequests }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   const menuBgColor = theme === 'dark' ? 'bg-[#1A1129]' : 'bg-white';
@@ -232,28 +243,46 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginC
       <div 
         className={`fixed top-0 left-0 h-full w-72 ${menuBgColor} shadow-2xl z-50 transform transition-transform duration-300 ease-in-out border-r ${borderColor} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <div className={`p-6 ${textColor}`}>
+        <div className={`p-6 ${textColor} flex flex-col h-full`}>
           <h2 className="text-2xl font-bold text-fuchsia-500 mb-8">Menu</h2>
-          <nav className="flex flex-col space-y-2">
+          <nav className="flex flex-col space-y-2 flex-grow">
             <NavItem label="Vitrine" view={View.SHOWCASE} icon={<HomeIcon />} />
             <NavItem label="Composições" view={View.COMPOSITIONS} icon={<CompositionIcon />} />
-            <NavItem label="Diagnóstico" view={View.DIAGNOSTICS} icon={<DiagnosticsIcon />} />
-            <NavItem label="Estoque" view={View.STOCK} icon={<InventoryIcon />} />
-            <NavItem 
-                label="Assistente" 
-                view={View.ASSISTANT} 
-                icon={
-                    <div className="relative">
-                        <ReplacementIcon />
-                        {hasItemsToRestock && (
-                           <span className="absolute -top-1 -right-1 block h-3 w-3 rounded-full bg-red-500 ring-2 ring-white dark:ring-[#1A1129] blinking-dot" />
-                        )}
-                    </div>
-                } 
-            />
-            <NavItem label="Catálogo" view={View.CATALOG} icon={<CatalogIcon />} />
-            <NavItem label="Configurações" view={View.SETTINGS} icon={<SettingsIcon />} />
-            
+             {isAdmin && <NavItem label="Diagnóstico" view={View.DIAGNOSTICS} icon={<DiagnosticsIcon />} />}
+             {isAdmin && (
+                <NavItem 
+                    label="Vendas" 
+                    view={View.SALES} 
+                    icon={
+                        <div className="relative">
+                            <SalesIcon />
+                            {hasNewSaleRequests && (
+                               <span className="absolute -top-1 -right-1 block h-3 w-3 rounded-full bg-red-500 ring-2 ring-white dark:ring-[#1A1129] blinking-dot" />
+                            )}
+                        </div>
+                    } 
+                />
+            )}
+            {isAdmin && <NavItem label="Estoque" view={View.STOCK} icon={<InventoryIcon />} />}
+            {isAdmin && (
+                 <NavItem 
+                    label="Assistente" 
+                    view={View.ASSISTANT} 
+                    icon={
+                        <div className="relative">
+                            <ReplacementIcon />
+                            {hasItemsToRestock && (
+                               <span className="absolute -top-1 -right-1 block h-3 w-3 rounded-full bg-red-500 ring-2 ring-white dark:ring-[#1A1129] blinking-dot" />
+                            )}
+                        </div>
+                    } 
+                />
+            )}
+            {isAdmin && <NavItem label="Catálogo" view={View.CATALOG} icon={<CatalogIcon />} />}
+            {isAdmin && <NavItem label="Configurações" view={View.SETTINGS} icon={<SettingsIcon />} />}
+          </nav>
+
+          <div className="mt-auto">
             <div className={`border-b pt-2 my-2 ${theme === 'dark' ? 'border-purple-500/20' : 'border-gray-200'}`}></div>
 
             <button 
@@ -302,7 +331,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginC
                   <span className="font-semibold">Entrar</span>
                 </button>
             )}
-          </nav>
+            </div>
         </div>
       </div>
     </>
@@ -333,6 +362,139 @@ export default function App() {
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [saleRequests, setSaleRequests] = useState<SaleRequest[]>([]);
+  const [saleRequestError, setSaleRequestError] = useState<string | null>(null);
+  
+  const isAdmin = useMemo(() => currentUser?.role === 'admin', [currentUser]);
+
+
+  // --- CART MANAGEMENT ---
+  useEffect(() => {
+    try {
+      const storedCart = localStorage.getItem(CART_STORAGE_KEY);
+      if (storedCart) {
+        setCart(JSON.parse(storedCart));
+      }
+    } catch (e) { console.error("Failed to load cart from localStorage", e); }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+  }, [cart]);
+  
+  const handleAddToCart = useCallback((product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number) => {
+    setCart(prevCart => {
+      const stock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
+      
+      const otherTypeInCart = prevCart.find(item => 
+        item.productId === product.id && 
+        item.variationSize === variation.size && 
+        item.type !== itemType
+      );
+      const otherQuantity = otherTypeInCart?.quantity || 0;
+      
+      const existingItem = prevCart.find(item => 
+        item.productId === product.id && 
+        item.variationSize === variation.size &&
+        item.type === itemType
+      );
+
+      const maxAllowedForThisItem = stock - otherQuantity;
+      const finalQuantity = Math.min(quantity, maxAllowedForThisItem);
+
+      if (finalQuantity <= 0 && !existingItem) {
+        return prevCart;
+      }
+      
+      if (finalQuantity <= 0 && existingItem) {
+        return prevCart.filter(item => item !== existingItem);
+      }
+      
+      if (existingItem) {
+        return prevCart.map(item => 
+          item === existingItem ? { ...item, quantity: finalQuantity } : item
+        );
+      } else {
+        const newItem: CartItem = {
+          productId: product.id,
+          name: product.name,
+          baseImageUrl: product.baseImageUrl,
+          variationSize: variation.size,
+          price: price,
+          quantity: finalQuantity,
+          type: itemType,
+        };
+        return [...prevCart, newItem];
+      }
+    });
+  }, []);
+
+
+  const handleUpdateCartQuantity = useCallback((productId: string, variationSize: CushionSize, itemType: 'cover' | 'full', newQuantity: number) => {
+    setCart(prevCart => {
+      const product = products.find(p => p.id === productId);
+      const variation = product?.variations.find(v => v.size === variationSize);
+      if (!variation) return prevCart;
+
+      const stock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
+      
+      const otherTypeInCart = prevCart.find(item => 
+        item.productId === productId && 
+        item.variationSize === variationSize && 
+        item.type !== itemType
+      );
+      const otherQuantity = otherTypeInCart?.quantity || 0;
+      
+      const maxAllowed = stock - otherQuantity;
+      const clampedQuantity = Math.max(0, Math.min(newQuantity, maxAllowed));
+
+      if (clampedQuantity === 0) {
+        return prevCart.filter(item => !(item.productId === productId && item.variationSize === variationSize && item.type === itemType));
+      }
+      
+      return prevCart.map(item =>
+        (item.productId === productId && item.variationSize === variationSize && item.type === itemType)
+          ? { ...item, quantity: clampedQuantity }
+          : item
+      );
+    });
+  }, [products]);
+
+
+  const handleRemoveFromCart = useCallback((productId: string, variationSize: CushionSize, itemType: 'cover' | 'full') => {
+     setCart(prevCart => prevCart.filter(item => !(item.productId === productId && item.variationSize === variationSize && item.type === itemType)));
+  }, []);
+
+  const handleClearCart = useCallback(() => {
+    setCart([]);
+  }, []);
+
+  // --- SALE REQUESTS MANAGEMENT (ADMIN) ---
+  useEffect(() => {
+    if (isAdmin) {
+      setSaleRequestError(null);
+      const unsubscribe = api.onSaleRequestsUpdate(
+        (requests) => setSaleRequests(requests),
+        (error) => {
+          console.error("Failed to fetch sale requests:", error);
+          setSaleRequestError("Falha ao carregar pedidos: Permissões insuficientes. Verifique as regras de segurança do Firebase para a coleção 'saleRequests'.");
+        }
+      );
+      return () => unsubscribe();
+    }
+  }, [isAdmin]);
+  
+  const handleCompleteSaleRequest = useCallback(async (requestId: string) => {
+      try {
+        await api.completeSaleRequest(requestId);
+      } catch (error) {
+        console.error("Failed to complete sale request:", error);
+        alert(`Error: ${(error as Error).message}`);
+      }
+  }, []);
+
+  const hasNewSaleRequests = useMemo(() => saleRequests.some(r => r.status === 'pending'), [saleRequests]);
 
 
   // Effect for loading colors and compositions from localStorage
@@ -393,16 +555,12 @@ export default function App() {
     setAllColors(prev => {
         const newColors = prev.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
         localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
-        // Note: This doesn't update products that might be using the deleted color.
-        // They will retain the color data but it won't be available in the selector anymore.
         return newColors;
     });
   }, []);
   
-  // Check if the Firebase config is valid. If not, the app will be blocked.
   const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_REAL_API_KEY_HERE";
 
-  // Effect for handling auth state changes
   useEffect(() => {
     if (!isConfigValid) {
         setAuthLoading(false);
@@ -415,39 +573,14 @@ export default function App() {
     return () => unsubscribe();
   }, [isConfigValid]);
 
-  // Effect for Cordova device ready and network status
   useEffect(() => {
-    const onOffline = () => {
-      alert("Conexão perdida!");
-    };
-
-    const onOnline = () => {
-      console.log("Conexão recuperada!");
-    };
-
     const onDeviceReady = () => {
       console.log('Dispositivo pronto e plugins carregados.');
-      if (navigator.connection && typeof Connection !== 'undefined') {
-        if (navigator.connection.type === Connection.NONE) {
-          alert("Você está offline. Este app precisa de internet para funcionar.");
-        } else {
-          console.log("Conexão OK: " + navigator.connection.type);
-        }
-      }
-      document.addEventListener("offline", onOffline, false);
-      document.addEventListener("online", onOnline, false);
     };
-
     document.addEventListener('deviceready', onDeviceReady, false);
-
-    return () => {
-      document.removeEventListener('deviceready', onDeviceReady, false);
-      document.removeEventListener("offline", onOffline, false);
-      document.removeEventListener("online", onOnline, false);
-    };
+    return () => document.removeEventListener('deviceready', onDeviceReady, false);
   }, []);
   
-  // Effect for listening to real-time data updates (products, brands, catalogs).
   useEffect(() => {
     if (!isConfigValid) {
         setProducts(INITIAL_PRODUCTS);
@@ -493,25 +626,25 @@ export default function App() {
   
   const handleLogin = useCallback(async (email: string, pass: string) => {
       await api.signIn(email, pass);
-      setView(View.STOCK); // Redirect to stock after login
+      setView(View.STOCK);
   }, []);
   
   const handleSignUp = useCallback(async (email: string, pass: string) => {
       await api.signUp(email, pass);
       setIsSignUpModalOpen(false);
-      setView(View.STOCK); // Redirect to stock after sign up
+      setView(View.STOCK);
   }, []);
 
   const handleGoogleLogin = useCallback(async () => {
       await api.signInWithGoogle();
-      setView(View.STOCK); // Redirect to stock after login
+      setView(View.STOCK);
   }, []);
 
   const handleLogout = useCallback(() => {
     api.signOut();
     setCurrentUser(null);
     setIsMenuOpen(false);
-    setView(View.SHOWCASE); // Go back to showcase on logout
+    setView(View.SHOWCASE);
   }, []);
 
   const handleSaveApiKey = useCallback((key: string) => {
@@ -526,13 +659,6 @@ export default function App() {
                 throw new Error("Nome, categoria, tipo de tecido e cor são obrigatórios.");
             }
     
-            const existingProductWithSameName = products.find(p => 
-                p.name.toLowerCase() === productToSave.name.toLowerCase() && p.id !== productToSave.id
-            );
-            if (existingProductWithSameName) {
-                throw new Error(`Já existe um produto com o nome exato "${productToSave.name}".`);
-            }
-            
             let finalProductToSave = { ...productToSave };
             
             if (!finalProductToSave.variationGroupId) {
@@ -747,16 +873,12 @@ export default function App() {
 
   const uniqueCategories = [...new Set(products.map(p => p.category))];
   
-  const canManageStock = currentUser?.role === 'admin';
   const isLoggedIn = !!currentUser;
   
   const handleMenuClick = useCallback(() => setIsMenuOpen(true), []);
 
-  const mainScreenProps = useMemo(() => ({
-    onMenuClick: handleMenuClick,
-  }), [handleMenuClick]);
-
   const hasItemsToRestock = useMemo(() => {
+    if (!isAdmin) return false;
     return products.some(p => {
         const totalStock = p.variations.reduce((sum, v) => sum + (v.stock[StoreName.TECA] || 0) + (v.stock[StoreName.IONE] || 0), 0);
         if (totalStock <= 1) return true;
@@ -766,15 +888,15 @@ export default function App() {
         if (p.variations.some(v => v.priceFull <= 0)) return true;
         return false;
     });
-  }, [products]);
+  }, [products, isAdmin]);
 
   const renderView = () => {
     if (productsLoading || authLoading) {
       return <div className="flex-grow flex items-center justify-center"><p className={theme === 'dark' ? 'text-white' : 'text-gray-800'}>Carregando...</p></div>
     }
 
-    const isStockViewAttempt = view === View.STOCK || view === View.SETTINGS || view === View.CATALOG || view === View.ASSISTANT || view === View.DIAGNOSTICS;
-    const needsLogin = isStockViewAttempt && !currentUser;
+    const isProtectedView = [View.STOCK, View.SETTINGS, View.CATALOG, View.ASSISTANT, View.DIAGNOSTICS, View.SALES].includes(view);
+    const needsLogin = isProtectedView && !currentUser;
 
     if (needsLogin) {
       return (
@@ -793,14 +915,14 @@ export default function App() {
         return <ShowcaseScreen 
                     products={products} 
                     hasFetchError={hasFetchError} 
-                    canManageStock={!!canManageStock}
+                    canManageStock={isAdmin}
                     onEditProduct={setEditingProduct}
                     brands={brands}
                     apiKey={apiKey}
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
                     onNavigate={handleNavigate}
                     savedCompositions={savedCompositions}
-                    {...mainScreenProps} 
+                    onAddToCart={handleAddToCart}
                 />;
       case View.STOCK:
         return (
@@ -810,38 +932,38 @@ export default function App() {
             onAddProduct={() => setIsWizardOpen(true)}
             onDeleteProduct={requestDeleteProduct}
             onUpdateStock={handleUpdateStock}
-            canManageStock={!!canManageStock}
+            canManageStock={isAdmin}
             hasFetchError={hasFetchError}
             brands={brands}
-            {...mainScreenProps}
+            onMenuClick={handleMenuClick}
           />
         );
        case View.SETTINGS:
         return <SettingsScreen
                     onSaveApiKey={handleSaveApiKey}
                     onAddNewBrand={handleAddNewBrand}
-                    canManageStock={!!canManageStock}
+                    canManageStock={isAdmin}
                     brands={brands}
                     allColors={allColors}
                     onAddColor={handleAddColor}
                     onDeleteColor={handleDeleteColor}
-                    {...mainScreenProps}
+                    onMenuClick={handleMenuClick}
                 />;
        case View.CATALOG:
         return <CatalogScreen
                     catalogs={catalogs}
                     onUploadCatalog={handleUploadCatalog}
-                    canManageStock={!!canManageStock}
+                    canManageStock={isAdmin}
                     brands={brands}
-                    {...mainScreenProps}
+                    onMenuClick={handleMenuClick}
                 />;
       case View.ASSISTANT:
         return <AssistantScreen
                     products={products}
                     onEditProduct={setEditingProduct}
                     onDeleteProduct={requestDeleteProduct}
-                    canManageStock={!!canManageStock}
-                    {...mainScreenProps}
+                    canManageStock={isAdmin}
+                    onMenuClick={handleMenuClick}
                 />;
       case View.COMPOSITION_GENERATOR:
         return <CompositionGeneratorScreen
@@ -867,20 +989,50 @@ export default function App() {
       case View.DIAGNOSTICS:
         return <DiagnosticsScreen
                   products={products}
-                  {...mainScreenProps}
+                  onMenuClick={handleMenuClick}
+               />;
+      case View.CART:
+        return <CartScreen 
+                  cart={cart}
+                  products={products}
+                  onUpdateQuantity={handleUpdateCartQuantity}
+                  onRemoveItem={handleRemoveFromCart}
+                  onNavigate={handleNavigate}
+               />;
+      case View.PAYMENT:
+        const totalPrice = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+        return <PaymentScreen
+                  cart={cart}
+                  totalPrice={totalPrice}
+                  onPlaceOrder={async (paymentMethod) => {
+                    await api.addSaleRequest({ items: cart, totalPrice, paymentMethod });
+                    handleClearCart();
+                    alert("Pedido enviado! Em breve o vendedor entrará em contato.");
+                    handleNavigate(View.SHOWCASE);
+                  }}
+                  onNavigate={handleNavigate}
+                  onPixClick={() => setIsPixModalOpen(true)}
+               />;
+      case View.SALES:
+        return <SalesScreen 
+                  saleRequests={saleRequests}
+                  onCompleteSaleRequest={handleCompleteSaleRequest}
+                  products={products}
+                  onMenuClick={handleMenuClick}
+                  error={saleRequestError}
                />;
       default:
         return <ShowcaseScreen 
                     products={products} 
                     hasFetchError={hasFetchError} 
-                    canManageStock={!!canManageStock}
+                    canManageStock={isAdmin}
                     onEditProduct={setEditingProduct}
                     brands={brands}
                     apiKey={apiKey}
                     onRequestApiKey={() => setIsApiKeyModalOpen(true)}
                     onNavigate={handleNavigate}
                     savedCompositions={savedCompositions}
-                    {...mainScreenProps} 
+                    onAddToCart={handleAddToCart}
                 />;
     }
   };
@@ -893,7 +1045,12 @@ export default function App() {
         {!isConfigValid && <ConfigurationRequiredModal />}
         <div className={`min-h-screen ${bgClass} font-sans ${!isConfigValid ? 'blur-sm pointer-events-none' : ''}`}>
             <div className={`w-full max-w-6xl mx-auto h-screen ${mainContainerBgClass} md:rounded-[40px] md:shadow-2xl flex flex-col relative md:my-4 md:h-[calc(100vh-2rem)] max-h-[1200px]`}>
-                <Header onMenuClick={handleMenuClick} />
+                <Header 
+                    onMenuClick={handleMenuClick} 
+                    cartItemCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
+                    onCartClick={() => handleNavigate(view === View.CART ? View.SHOWCASE : View.CART)}
+                    activeView={view}
+                />
                 {renderView()}
 
                 <SideMenu
@@ -904,11 +1061,19 @@ export default function App() {
                     onPixClick={() => setIsPixModalOpen(true)}
                     activeView={view}
                     onNavigate={handleNavigate}
-                    isLoggedIn={!!isLoggedIn}
+                    isLoggedIn={isLoggedIn}
+                    isAdmin={isAdmin}
                     hasItemsToRestock={hasItemsToRestock}
+                    hasNewSaleRequests={hasNewSaleRequests}
                 />
                 <div className="md:hidden">
-                    <BottomNav activeView={view} onNavigate={handleNavigate} hasItemsToRestock={hasItemsToRestock} />
+                    <BottomNav 
+                      activeView={view} 
+                      onNavigate={handleNavigate} 
+                      hasItemsToRestock={hasItemsToRestock}
+                      isAdmin={isAdmin}
+                      hasNewSaleRequests={hasNewSaleRequests}
+                    />
                 </div>
             </div>
 

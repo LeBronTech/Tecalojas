@@ -86,6 +86,26 @@ export interface SavedComposition {
   size: number;
 }
 
+export interface CartItem {
+  productId: string;
+  name: string;
+  baseImageUrl: string;
+  variationSize: CushionSize;
+  quantity: number;
+  type: 'cover' | 'full';
+  price: number;
+}
+
+export interface SaleRequest {
+  id: string;
+  items: CartItem[];
+  totalPrice: number;
+  paymentMethod: 'PIX' | 'Cartão';
+  status: 'pending' | 'completed';
+  createdAt: any; // Firestore Timestamp
+}
+
+
 export enum View {
   SHOWCASE,
   STOCK,
@@ -95,6 +115,9 @@ export enum View {
   COMPOSITION_GENERATOR,
   COMPOSITIONS,
   DIAGNOSTICS,
+  CART,
+  PAYMENT,
+  SALES,
 }
 
 export type Theme = 'light' | 'dark';

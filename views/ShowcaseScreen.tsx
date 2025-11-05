@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect, useMemo } from 'react';
-import { Product, View, DynamicBrand, SavedComposition, ThemeContext } from '../types';
+import { Product, View, DynamicBrand, SavedComposition, ThemeContext, Variation, CushionSize, CartItem } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO } from '../constants';
 import CompositionViewerModal from '../components/CompositionViewerModal';
@@ -162,7 +162,6 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
 
 interface ShowcaseScreenProps {
   products: Product[];
-  onMenuClick: () => void;
   hasFetchError: boolean;
   canManageStock: boolean;
   onEditProduct: (product: Product) => void;
@@ -171,9 +170,10 @@ interface ShowcaseScreenProps {
   onRequestApiKey: () => void;
   onNavigate: (view: View) => void;
   savedCompositions: SavedComposition[];
+  onAddToCart: (product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number) => void;
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, hasFetchError, canManageStock, onEditProduct, brands, apiKey, onRequestApiKey, onNavigate, savedCompositions }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError, canManageStock, onEditProduct, brands, apiKey, onRequestApiKey, onNavigate, savedCompositions, onAddToCart }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedFabric, setSelectedFabric] = useState<string>('Todos os Tecidos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -186,7 +186,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
   const categories = useMemo(() => {
     const allCategoryValues = products.flatMap(p => [p.category, p.subCategory]).filter((c): c is string => !!c && c.trim() !== '');
     const uniqueCategories = [...new Set(allCategoryValues)];
-    // FIX: Explicitly cast to string to prevent `unknown` type error in sort.
     return ['Todas', ...uniqueCategories.sort((a, b) => String(a).localeCompare(String(b)))];
   }, [products]);
 
@@ -228,7 +227,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
     if (selectedCategory === 'Todas') {
       filtered = groupedProducts;
     } else {
-      // When a category is selected, we show individual products, not groups.
       let categoryProducts: Product[] = products.filter(p => p.category === selectedCategory || p.subCategory === selectedCategory);
       if (selectedFabric !== 'Todos os Tecidos') {
           categoryProducts = categoryProducts.filter(p => p.fabricType === selectedFabric);
@@ -236,7 +234,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
       filtered = categoryProducts;
     }
 
-    // Apply sorting
     const sorted = [...filtered].sort((a, b) => {
         if (sortOrder === 'alpha') {
             const nameA = Array.isArray(a) ? a[0]?.category : a.name;
@@ -257,17 +254,17 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
   }, [selectedCategory, selectedFabric, products, groupedProducts, sortOrder]);
 
   const handleEdit = (product: Product) => {
-    setSelectedProduct(null); // Close detail modal
-    onEditProduct(product); // Open edit modal
+    setSelectedProduct(null); 
+    onEditProduct(product);
   };
 
   const handleSwitchProduct = (product: Product) => {
-    setSelectedProduct(product); // Switch to another product variation in the detail modal
+    setSelectedProduct(product);
   };
 
   const handleViewComposition = (compositions: SavedComposition[], startIndex: number) => {
       setCompositionToView({ compositions, startIndex });
-      setSelectedProduct(null); // Close product detail modal if open
+      setSelectedProduct(null);
   }
 
   const searchInputClasses = isDark 
@@ -410,6 +407,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, onMenuClick, 
               onRequestApiKey={onRequestApiKey}
               savedCompositions={savedCompositions}
               onViewComposition={handleViewComposition}
+              onAddToCart={onAddToCart}
+              onNavigate={onNavigate}
           />
       )}
       {compositionToView && (
