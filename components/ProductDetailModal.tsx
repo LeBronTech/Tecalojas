@@ -309,11 +309,14 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                         </div>
 
                         {waterResistanceDetails && (
-                            <div className={`p-4 rounded-xl ${isDark ? 'bg-purple-500/10' : 'bg-purple-100/60'}`}>
+                            <div className={`p-5 my-4 rounded-xl bg-purple-500/10`}>
                                 <p className={`font-bold text-sm mb-2 ${subtitleClasses}`}>Proteção</p>
                                 <div className="flex items-center gap-3">
                                     <img src={waterResistanceDetails.icon} alt={waterResistanceDetails.label} className="w-8 h-8"/>
-                                    <p className={`font-bold ${titleClasses}`}>{waterResistanceDetails.label}</p>
+                                    <div>
+                                        <p className={`font-bold ${titleClasses}`}>{waterResistanceDetails.label}</p>
+                                        <p className={`text-sm mt-1 ${subtitleClasses}`}>{waterResistanceDetails.description}</p>
+                                    </div>
                                 </div>
                             </div>
                         )}

@@ -112,12 +112,25 @@ interface PixPaymentModalProps {
 const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ onClose }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
+    const [copySuccess, setCopySuccess] = useState('');
+
+    const pixKey = "00020126360014BR.GOV.BCB.PIX0114+55619932247435204000053039865802BR5912Cosme Daniel6008Brasilia62070503***63041F78";
+
+    const copyToClipboard = async () => {
+        try {
+            await navigator.clipboard.writeText(pixKey);
+            setCopySuccess('Copiado!');
+            setTimeout(() => setCopySuccess(''), 2000); // Reset after 2 seconds
+        } catch (err) {
+            setCopySuccess('Falhou!');
+        }
+    };
     
     const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
     const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
     const subtitleClasses = isDark ? "text-gray-400" : "text-gray-500";
     const closeBtnClasses = isDark ? "text-gray-400 hover:text-white bg-black/20" : "text-gray-500 hover:text-gray-800 bg-gray-100";
-    const newPixUrl = "https://i.postimg.cc/Fs7m9Xg4/Cartao-de-Visita-Elegante-Minimalista-Cinza-e-Marrom.png";
+    const newPixUrl = "https://i.postimg.cc/Kv6YwYXM/Cartao-de-Visita-Elegante-Minimalista-Cinza-e-Marrom.png";
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300" onClick={onClose}>
@@ -137,11 +150,34 @@ const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ onClose }) => {
                      <h2 className={`text-2xl font-bold ${titleClasses}`}>Pagamento via PIX</h2>
                      <p className={`mt-1 ${subtitleClasses}`}>Use o QR Code unificado para ambas as lojas.</p>
                 </div>
-                <div className="flex-grow overflow-y-auto no-scrollbar flex items-center justify-center">
-                     <div className="w-full">
+
+                <div className="flex-grow overflow-y-auto no-scrollbar flex flex-col items-center justify-center">
+                    <div className="w-full">
+                         <div className="mb-4">
+                            <p className={`text-center text-sm font-semibold mb-2 ${subtitleClasses}`}>PIX Copia e Cola:</p>
+                            <div className={`relative p-3 pr-10 rounded-lg text-xs break-all ${isDark ? 'bg-black/30' : 'bg-gray-100'}`}>
+                                <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{pixKey}</span>
+                                <button
+                                    onClick={copyToClipboard}
+                                    className={`absolute top-1/2 right-2 -translate-y-1/2 p-2 rounded-full transition-colors ${isDark ? 'bg-purple-600 text-white' : 'bg-purple-500 text-white'}`}
+                                >
+                                    {copySuccess ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                    )}
+                                </button>
+                            </div>
+                            {copySuccess && <p className="text-center text-xs text-green-500 font-semibold mt-1">{copySuccess}</p>}
+                        </div>
                         <img src={newPixUrl} alt="QR Code PIX Unificado" className="rounded-lg shadow-lg w-full" />
                     </div>
                 </div>
+
             </div>
         </div>
     );
@@ -554,21 +590,21 @@ export default function App() {
     });
   }, []);
 
-  const handleAddColor = (color: { name: string; hex: string }) => {
-      setAllColors(prevColors => {
-          const newColors = [...prevColors, color];
-          localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
-          return newColors;
-      });
-  };
-  
-  const handleDeleteColor = (colorName: string) => {
-      setAllColors(prevColors => {
-          const newColors = prevColors.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
-          localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
-          return newColors;
-      });
-  };
+  const handleAddColor = useCallback((color: { name: string; hex: string }) => {
+    setAllColors(prevColors => {
+        const newColors = [...prevColors, color];
+        localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
+        return newColors;
+    });
+  }, []);
+
+  const handleDeleteColor = useCallback((colorName: string) => {
+    setAllColors(prevColors => {
+        const newColors = prevColors.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
+        localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
+        return newColors;
+    });
+  }, []);
   
   const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_REAL_API_KEY_HERE";
 

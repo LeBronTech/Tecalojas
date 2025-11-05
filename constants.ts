@@ -67,7 +67,7 @@ export const WATER_RESISTANCE_INFO: Record<WaterResistanceLevel, { label: string
   [WaterResistanceLevel.SEMI]: {
     label: 'Proteção Impermeável para Ambiente Interno',
     icon: SEMI_WATERPROOF_ICON_URL,
-    description: 'Este tecido possui tratamento que repele líquidos, facilitando a limpeza.',
+    description: 'Este tecido possui um tratamento que repele líquidos, facilitando a limpeza e manutenção diária. Ideal para áreas internas.',
     shortLabel: 'Proteção Interna 💧',
     showcaseIndicator: '💧 Interna'
   },
