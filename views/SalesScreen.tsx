@@ -14,6 +14,7 @@ interface SalesScreenProps {
 }
 
 type ActiveTab = 'requests' | 'calculator';
+type TimeFilter = 'all' | 'today' | 'week' | 'month';
 
 const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleRequest, products, onMenuClick, error }) => {
     const { theme } = useContext(ThemeContext);
@@ -24,6 +25,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const [discount, setDiscount] = useState(0);
     const [installments, setInstallments] = useState(1);
     const [deletingRequestId, setDeletingRequestId] = useState<string | null>(null);
+    const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
     
     // POS State
     const [isProductSelectOpen, setIsProductSelectOpen] = useState(false);
@@ -42,6 +44,36 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
 
     const pendingRequests = saleRequests.filter(r => r.status === 'pending');
     const completedRequests = saleRequests.filter(r => r.status === 'completed');
+
+    const filteredCompletedRequests = useMemo(() => {
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()); // Assumes Sunday is the first day
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        if (timeFilter === 'all') return completedRequests;
+
+        return completedRequests.filter(req => {
+            if (!req.createdAt?.toDate) return false;
+            const reqDate = req.createdAt.toDate();
+            
+            switch (timeFilter) {
+                case 'today':
+                    return reqDate >= startOfToday;
+                case 'week':
+                    return reqDate >= startOfWeek;
+                case 'month':
+                    return reqDate >= startOfMonth;
+                default:
+                    return true;
+            }
+        });
+    }, [completedRequests, timeFilter]);
+    
+    const completedSalesTotal = useMemo(() => {
+        return filteredCompletedRequests.reduce((sum, req) => sum + (req.finalPrice ?? req.totalPrice), 0);
+    }, [filteredCompletedRequests]);
+
 
     const handleConfirmPayment = () => {
         if (!selectedRequest) return;
@@ -178,6 +210,18 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
         </div>
     );
     
+    const FilterButton: React.FC<{ label: string, filterId: TimeFilter }> = ({ label, filterId }) => {
+        const isActive = timeFilter === filterId;
+        return (
+             <button
+                onClick={() => setTimeFilter(filterId)}
+                className={`px-4 py-2 text-xs font-semibold rounded-full border transition-colors ${isActive ? (isDark ? 'bg-cyan-600 text-white border-transparent' : 'bg-teal-500 text-white border-transparent') : (isDark ? 'bg-black/20 text-gray-300 border-white/10' : 'bg-white text-gray-700 border-gray-300')}`}
+            >
+                {label}
+            </button>
+        )
+    };
+    
     return (
         <>
             <div className="h-full w-full flex flex-col relative overflow-hidden">
@@ -196,7 +240,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
 
                         <div className="flex gap-2 mb-6">
                             <TabButton label="Solicitações" tabId="requests" notification={pendingRequests.length > 0} />
-                            <TabButton label="Calculadora (PDV)" tabId="calculator" />
+                            <TabButton label="Vender Agora (PDV)" tabId="calculator" />
                         </div>
 
                         {activeTab === 'requests' && (
@@ -208,11 +252,25 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                                     </div>
                                 )}
                                  <div>
-                                    <h3 className={`font-bold mb-3 ${titleClasses}`}>Concluídas</h3>
-                                    {completedRequests.length > 0 ? (
-                                        <RequestList requests={completedRequests} />
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h3 className={`font-bold ${titleClasses}`}>Concluídas</h3>
+                                        <div className="text-right">
+                                            <p className={`text-sm ${subtitleClasses}`}>Total Filtrado</p>
+                                            <p className={`font-bold text-lg ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+                                                {completedSalesTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 mb-4">
+                                        <FilterButton label="Todos" filterId="all" />
+                                        <FilterButton label="Hoje" filterId="today" />
+                                        <FilterButton label="Esta Semana" filterId="week" />
+                                        <FilterButton label="Este Mês" filterId="month" />
+                                    </div>
+                                    {filteredCompletedRequests.length > 0 ? (
+                                        <RequestList requests={filteredCompletedRequests} />
                                     ) : (
-                                        <p className={subtitleClasses}>Nenhuma venda concluída ainda.</p>
+                                        <p className={subtitleClasses}>Nenhuma venda concluída neste período.</p>
                                     )}
                                 </div>
                             </div>
