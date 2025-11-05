@@ -206,6 +206,37 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         }
     }, [useColorFilter, selectedFilterColors, compositionSize, selectRandomProducts]);
 
+    const handlePillowClick = (clickedProduct: Product, index: number) => {
+        if (useColorFilter && selectedFilterColors.length === 1 && compositionSize) {
+            const colorName = selectedFilterColors[0].name.toLowerCase();
+            const fuzzyMatch = true;
+            
+            let potentialReplacements;
+            if (fuzzyMatch) {
+                potentialReplacements = products.filter(p => 
+                    !selectedProducts.some(sp => sp.id === p.id) &&
+                    p.colors.some(productColor => productColor.name.toLowerCase().includes(colorName))
+                );
+            } else {
+                potentialReplacements = products.filter(p => 
+                    !selectedProducts.some(sp => sp.id === p.id) &&
+                    p.colors.some(pc => pc.name.toLowerCase() === colorName)
+                );
+            }
+    
+            if (potentialReplacements.length > 0) {
+                const newProduct = potentialReplacements[Math.floor(Math.random() * potentialReplacements.length)];
+                setSelectedProducts(prev => {
+                    const newSelection = [...prev];
+                    newSelection[index] = newProduct;
+                    return newSelection;
+                });
+            }
+        } else {
+            setIsSelectModalOpen(true);
+        }
+    };
+
 
     const handleConfirmSelection = (selectedIds: string[]) => {
         const newlySelected = products.filter(p => selectedIds.includes(p.id));
@@ -307,28 +338,58 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             const drawWatermark = async () => {
                 const [tecaLogo, ioneLogo] = await loadLogos();
                 const watermarkY = canvas.height - WATERMARK_HEIGHT;
-                
+            
                 ctx.fillStyle = isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)';
                 ctx.fillRect(0, watermarkY, canvas.width, WATERMARK_HEIGHT);
-                
-                ctx.font = '18px sans-serif';
+            
+                ctx.font = 'bold 16px sans-serif';
                 ctx.fillStyle = isDark ? '#FFFFFF' : '#111827';
-                ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                const text = "@tecadecoracoestorredetv @ionelourencodecor";
-                const textMetrics = ctx.measureText(text);
-                const textX = canvas.width / 2;
+            
+                const logoSize = 30;
+                const logoPadding = 8;
+                const separator = " | ";
+            
+                const text1 = "@ionelourencodecor";
+                const text2 = "@tecadecoracoestorredetv";
+                const text3 = "tecalojas.vercel.app";
+            
+                const metrics1 = ctx.measureText(text1);
+                const metrics2 = ctx.measureText(text2);
+                const metrics3 = ctx.measureText(text3);
+                const separatorMetrics = ctx.measureText(separator);
+            
+                const block1Width = logoSize + logoPadding + metrics1.width;
+                const block2Width = logoSize + logoPadding + metrics2.width;
+                const block3Width = metrics3.width;
+            
+                const totalWidth = block1Width + separatorMetrics.width + block2Width + separatorMetrics.width + block3Width;
+                let currentX = (canvas.width - totalWidth) / 2;
                 const textY = watermarkY + WATERMARK_HEIGHT / 2;
-                
-                const logoSize = 40;
-                const logoPadding = 15;
-                
-                const tecaLogoX = textX - textMetrics.width / 2 - logoSize - logoPadding;
-                const ioneLogoX = textX + textMetrics.width / 2 + logoPadding;
-                
-                ctx.fillText(text, textX, textY);
-                ctx.drawImage(tecaLogo, tecaLogoX, textY - logoSize / 2, logoSize, logoSize);
-                ctx.drawImage(ioneLogo, ioneLogoX, textY - logoSize / 2, logoSize, logoSize);
+            
+                // Block 1: Ione
+                ctx.textAlign = 'left';
+                ctx.drawImage(ioneLogo, currentX, textY - logoSize / 2, logoSize, logoSize);
+                currentX += logoSize + logoPadding;
+                ctx.fillText(text1, currentX, textY);
+                currentX += metrics1.width;
+            
+                // Separator 1
+                ctx.fillText(separator, currentX, textY);
+                currentX += separatorMetrics.width;
+            
+                // Block 2: Teca
+                ctx.drawImage(tecaLogo, currentX, textY - logoSize / 2, logoSize, logoSize);
+                currentX += logoSize + logoPadding;
+                ctx.fillText(text2, currentX, textY);
+                currentX += metrics2.width;
+        
+                // Separator 2
+                ctx.fillText(separator, currentX, textY);
+                currentX += separatorMetrics.width;
+        
+                // Block 3: Website
+                ctx.fillText(text3, currentX, textY);
             };
 
             const drawTopPart = () => {
@@ -465,11 +526,11 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                 <div className="grid grid-cols-5 gap-2">{[2, 3, 4, 5, 6].map(size => (<button key={size} onClick={() => setCompositionSize(size)} className={`py-3 font-bold rounded-lg transition-colors text-center ${compositionSize === size ? 'bg-fuchsia-600 text-white' : (isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-800')}`}>{size}</button>))}</div>
                             </div>
                             
-                             {/* Step 1.5: AI Options */}
+                             {/* Step 2: AI Options */}
                             {compositionSize !== null && (
                                 <div className="border-t pt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
                                      <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>
-                                        1.5 Detalhes para IA (Opcional)
+                                        2. Detalhes para IA (Opcional)
                                         <span className="text-sm font-normal text-purple-400 ml-2">(Você pode adicionar mais de um tamanho)</span>
                                     </h3>
                                     <div className="mb-4">
@@ -502,7 +563,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
 
                             {compositionSize !== null && (
                                 <div className="border-t pt-6 mt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>1.7 Escolher por Cor (Opcional)</h3>
+                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>3. Escolher por Cor (Opcional)</h3>
                                     <div className="flex items-center mb-3">
                                         <input type="checkbox" id="useColorFilter" checked={useColorFilter} onChange={(e) => { setUseColorFilter(e.target.checked); if (!e.target.checked) setSelectedFilterColors([]); }} className={`h-4 w-4 rounded text-fuchsia-500 focus:ring-fuchsia-500 border-gray-300 ${isDark ? 'bg-gray-700 border-gray-600' : ''}`} />
                                         <label htmlFor="useColorFilter" className={`ml-2 text-sm ${subtitleClasses}`}>Ativar seleção de almofadas por cor</label>
@@ -532,13 +593,20 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                 </div>
                             )}
 
-                            {/* Step 2: Selection */}
+                            {/* Step 4: Selection */}
                             {compositionSize !== null && (
                                 <div className="border-t pt-6 mt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>2. Escolha suas Almofadas</h3>
+                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>4. Escolha suas Almofadas</h3>
                                     <p className={`text-sm mb-3 ${subtitleClasses}`}>{useColorFilter ? `Almofadas sugeridas (${selectedProducts.length}/${compositionSize})` : `Selecione até ${compositionSize} almofadas`}</p>
+                                    {useColorFilter && selectedFilterColors.length === 1 && (
+                                        <p className={`text-xs italic mb-3 ${subtitleClasses}`}>(clique na almofada para escolher outra)</p>
+                                    )}
                                     <div className="flex items-center gap-3 p-2 rounded-lg min-h-[88px]" style={{backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.05)'}}>
-                                        {selectedProducts.map(p => (<img key={p.id} src={p.baseImageUrl} alt={p.name} className="w-16 h-16 rounded-lg object-cover" />))}
+                                        {selectedProducts.map((p, index) => (
+                                            <button key={`${p.id}-${index}`} onClick={() => handlePillowClick(p, index)} className="transition-transform transform hover:scale-105">
+                                                <img src={p.baseImageUrl} alt={p.name} className="w-16 h-16 rounded-lg object-cover" />
+                                            </button>
+                                        ))}
                                         {selectedProducts.length < compositionSize && (
                                              <button onClick={() => setIsSelectModalOpen(true)} className={`w-16 h-16 rounded-lg border-2 border-dashed flex items-center justify-center transition-colors ${isDark ? 'border-gray-600 hover:border-fuchsia-500' : 'border-gray-300 hover:border-purple-500'}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg></button>
                                         )}
@@ -546,10 +614,10 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                 </div>
                             )}
 
-                             {/* Step 3: Generate */}
+                             {/* Step 5: Generate */}
                             {selectedProducts.length > 0 && (
                                 <div className="border-t pt-6 mt-6" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>3. Visualizar Composição</h3>
+                                    <h3 className={`font-bold text-lg mb-2 ${titleClasses}`}>5. Visualizar Composição</h3>
                                     <p className={`text-sm mb-3 ${subtitleClasses}`}>Tudo pronto! Clique abaixo para ver a composição com as almofadas que você selecionou.</p>
                                     <button onClick={handleVisualize} className="w-full bg-cyan-600 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">Visualizar Composição</button>
                                 </div>

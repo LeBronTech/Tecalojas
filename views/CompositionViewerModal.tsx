@@ -125,27 +125,58 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
             const drawWatermark = async () => {
                 const [tecaLogo, ioneLogo] = await loadLogos();
                 const watermarkY = canvas.height - WATERMARK_HEIGHT;
-                
+            
                 ctx.fillStyle = isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)';
                 ctx.fillRect(0, watermarkY, canvas.width, WATERMARK_HEIGHT);
-                
-                ctx.font = '18px sans-serif';
+            
+                ctx.font = 'bold 16px sans-serif';
                 ctx.fillStyle = isDark ? '#FFFFFF' : '#111827';
-                ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                const text = "@tecadecoracoestorredetv @ionelourencodecor";
-                const textMetrics = ctx.measureText(text);
-                const textX = canvas.width / 2;
+            
+                const logoSize = 30;
+                const logoPadding = 8;
+                const separator = " | ";
+            
+                const text1 = "@ionelourencodecor";
+                const text2 = "@tecadecoracoestorredetv";
+                const text3 = "tecalojas.vercel.app";
+            
+                const metrics1 = ctx.measureText(text1);
+                const metrics2 = ctx.measureText(text2);
+                const metrics3 = ctx.measureText(text3);
+                const separatorMetrics = ctx.measureText(separator);
+            
+                const block1Width = logoSize + logoPadding + metrics1.width;
+                const block2Width = logoSize + logoPadding + metrics2.width;
+                const block3Width = metrics3.width;
+            
+                const totalWidth = block1Width + separatorMetrics.width + block2Width + separatorMetrics.width + block3Width;
+                let currentX = (canvas.width - totalWidth) / 2;
                 const textY = watermarkY + WATERMARK_HEIGHT / 2;
-                
-                const logoSize = 40; const logoPadding = 15;
-                
-                const tecaLogoX = textX - textMetrics.width / 2 - logoSize - logoPadding;
-                const ioneLogoX = textX + textMetrics.width / 2 + logoPadding;
-                
-                ctx.fillText(text, textX, textY);
-                ctx.drawImage(tecaLogo, tecaLogoX, textY - logoSize / 2, logoSize, logoSize);
-                ctx.drawImage(ioneLogo, ioneLogoX, textY - logoSize / 2, logoSize, logoSize);
+            
+                // Block 1: Ione
+                ctx.textAlign = 'left';
+                ctx.drawImage(ioneLogo, currentX, textY - logoSize / 2, logoSize, logoSize);
+                currentX += logoSize + logoPadding;
+                ctx.fillText(text1, currentX, textY);
+                currentX += metrics1.width;
+            
+                // Separator 1
+                ctx.fillText(separator, currentX, textY);
+                currentX += separatorMetrics.width;
+            
+                // Block 2: Teca
+                ctx.drawImage(tecaLogo, currentX, textY - logoSize / 2, logoSize, logoSize);
+                currentX += logoSize + logoPadding;
+                ctx.fillText(text2, currentX, textY);
+                currentX += metrics2.width;
+        
+                // Separator 2
+                ctx.fillText(separator, currentX, textY);
+                currentX += separatorMetrics.width;
+        
+                // Block 3: Website
+                ctx.fillText(text3, currentX, textY);
             };
 
             const drawTopPart = () => {
