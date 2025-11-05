@@ -160,7 +160,7 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                 </main>
             </div>
             
-             <div id="print-area">
+             <div className="print-area">
                 {Array.from({ length: Math.ceil(allLabels.length / LABELS_PER_PAGE) }).map((_, pageIndex) => (
                     <div key={pageIndex} className="print-page">
                         {allLabels.slice(pageIndex * LABELS_PER_PAGE, (pageIndex + 1) * LABELS_PER_PAGE).map(label => (

@@ -89,16 +89,23 @@
       scrollbar-width: thin;  /* Firefox */
       scrollbar-color: #8B5CF6 transparent; /* Firefox */
     }
+
+    /* Regras para a tela (não impressão) */
+    .print-area {
+      display: none;
+    }
+    body.printing #root {
+      display: none;
+    }
+    body.printing .print-area {
+      display: block;
+    }
+
     @media print {
       body {
         margin: 0;
       }
-      body.printing > #root {
-        display: none;
-      }
-      body.printing > #print-area {
-        display: block;
-      }
+      /* A classe body.printing já cuida de esconder o #root */
       .print-hidden {
         display: none !important;
       }
@@ -129,7 +136,6 @@
 </head>
   <body>
     <div id="root"></div>
-    <div id="print-area" style="display: none;"></div>
     <script type="text/javascript" src="cordova.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
