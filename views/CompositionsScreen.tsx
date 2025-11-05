@@ -160,6 +160,9 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
                       setViewerState({ open: true, startIndex: originalIndex });
                   }
               }}
+              // FIX: Added missing properties to satisfy the component's required props.
+              onAddToCart={() => {}}
+              onNavigate={onNavigate}
           />
       )}
     </>

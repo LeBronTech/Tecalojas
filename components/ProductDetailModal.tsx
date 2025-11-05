@@ -44,6 +44,7 @@ const getBase64FromImageUrl = async (imageUrl: string): Promise<{ base64Data: st
             reader.onerror = reject;
             reader.readAsDataURL(blob);
         });
+        // FIX: The return type expects `base64Data`, not `data`.
         return { mimeType: blob.type, base64Data: base64Data };
     }
 };
@@ -99,7 +100,8 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
 
     const [variationQuantities, setVariationQuantities] = useState<Record<CushionSize, { cover: number, full: number }>>({} as Record<CushionSize, { cover: number, full: number }>);
     const [addStatus, setAddStatus] = useState<Record<CushionSize, 'idle' | 'added' | 'goToCart'>>({} as Record<CushionSize, 'idle' | 'added' | 'goToCart'>);
-    const [stockAlert, setStockAlert] = useState<Record<CushionSize, boolean>>({});
+    // FIX: Using Partial<Record<...>> allows the state to be an empty object, which is the intended use case here.
+    const [stockAlert, setStockAlert] = useState<Partial<Record<CushionSize, boolean>>>({});
     
     const familyProducts = useMemo(() => {
         if (!product.variationGroupId) return [];
@@ -306,23 +308,22 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                             <p className={`text-sm mt-1 ${subtitleClasses}`}>{product.description}</p>
                         </div>
 
-                         <div className="flex items-center gap-6">
-                            <div>
-                                <p className={`font-bold text-sm mb-1 ${subtitleClasses}`}>Cor</p>
-                                <div className="flex items-center gap-2">
-                                    <div style={{backgroundColor: product.colors[0]?.hex}} className="w-6 h-6 rounded-full border border-black/10"></div>
-                                    <p className={`font-bold ${titleClasses}`}>{product.colors[0]?.name}</p>
+                        {waterResistanceDetails && (
+                            <div className={`p-4 rounded-xl ${isDark ? 'bg-purple-500/10' : 'bg-purple-100/60'}`}>
+                                <p className={`font-bold text-sm mb-2 ${subtitleClasses}`}>Proteção</p>
+                                <div className="flex items-center gap-3">
+                                    <img src={waterResistanceDetails.icon} alt={waterResistanceDetails.label} className="w-8 h-8"/>
+                                    <p className={`font-bold ${titleClasses}`}>{waterResistanceDetails.label}</p>
                                 </div>
                             </div>
-                            {waterResistanceDetails && (
-                                <div>
-                                    <p className={`font-bold text-sm mb-1 ${subtitleClasses}`}>Proteção</p>
-                                    <div className="flex items-center gap-2">
-                                        <img src={waterResistanceDetails.icon} alt={waterResistanceDetails.label} className="w-6 h-6"/>
-                                        <p className={`font-bold ${titleClasses}`}>{waterResistanceDetails.label}</p>
-                                    </div>
-                                </div>
-                            )}
+                        )}
+
+                        <div>
+                            <p className={`font-bold text-sm mb-1 ${subtitleClasses}`}>Cor</p>
+                            <div className="flex items-center gap-2">
+                                <div style={{backgroundColor: product.colors[0]?.hex}} className="w-6 h-6 rounded-full border border-black/10"></div>
+                                <p className={`font-bold ${titleClasses}`}>{product.colors[0]?.name}</p>
+                            </div>
                         </div>
                         
                         {familyProducts.length > 0 && (

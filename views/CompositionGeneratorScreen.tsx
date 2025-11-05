@@ -621,6 +621,9 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     onRequestApiKey={onRequestApiKey}
                     savedCompositions={[]}
                     onViewComposition={() => {}}
+                    // FIX: Added missing properties to satisfy the component's required props.
+                    onAddToCart={() => {}}
+                    onNavigate={onNavigate}
                 />
             )}
         </>

@@ -117,7 +117,7 @@ const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ onClose }) => {
     const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
     const subtitleClasses = isDark ? "text-gray-400" : "text-gray-500";
     const closeBtnClasses = isDark ? "text-gray-400 hover:text-white bg-black/20" : "text-gray-500 hover:text-gray-800 bg-gray-100";
-    const newPixUrl = "https://i.postimg.cc/3R3f8ZRn/photo-2025-10-18-03-13-40.jpg";
+    const newPixUrl = "https://i.postimg.cc/Fs7m9Xg4/Cartao-de-Visita-Elegante-Minimalista-Cinza-e-Marrom.png";
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300" onClick={onClose}>
@@ -161,7 +161,7 @@ const InventoryIcon = () => (
 
 const SettingsIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
 );
@@ -554,21 +554,21 @@ export default function App() {
     });
   }, []);
 
-  const handleAddColor = useCallback((color: { name: string; hex: string }) => {
-    setAllColors(prev => {
-      const newColors = [...prev, color];
-      localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
-      return newColors;
-    });
-  }, []);
+  const handleAddColor = (color: { name: string; hex: string }) => {
+      setAllColors(prevColors => {
+          const newColors = [...prevColors, color];
+          localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
+          return newColors;
+      });
+  };
   
-  const handleDeleteColor = useCallback((colorName: string) => {
-    setAllColors(prev => {
-        const newColors = prev.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
-        localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
-        return newColors;
-    });
-  }, []);
+  const handleDeleteColor = (colorName: string) => {
+      setAllColors(prevColors => {
+          const newColors = prevColors.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
+          localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
+          return newColors;
+      });
+  };
   
   const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_REAL_API_KEY_HERE";
 

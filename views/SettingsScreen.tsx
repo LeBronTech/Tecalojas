@@ -171,22 +171,22 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <div>
                                 <label className="text-sm font-semibold mb-1 block text-gray-400">Débito</label>
-                                <Input type="number" name="debit" value={localFees.debit} onChange={handleFeeChange} />
+                                <Input type="number" step="0.01" placeholder="Ex: 1.99" name="debit" value={localFees.debit === 0 ? '' : localFees.debit} onChange={handleFeeChange} />
                             </div>
                              <div>
                                 <label className="text-sm font-semibold mb-1 block text-gray-400">Crédito 1x</label>
-                                <Input type="number" name="credit1x" value={localFees.credit1x} onChange={handleFeeChange} />
+                                <Input type="number" step="0.01" placeholder="Ex: 3.49" name="credit1x" value={localFees.credit1x === 0 ? '' : localFees.credit1x} onChange={handleFeeChange} />
                             </div>
                              <div>
                                 <label className="text-sm font-semibold mb-1 block text-gray-400">Crédito 2x</label>
-                                <Input type="number" name="credit2x" value={localFees.credit2x} onChange={handleFeeChange} />
+                                <Input type="number" step="0.01" placeholder="Ex: 4.59" name="credit2x" value={localFees.credit2x === 0 ? '' : localFees.credit2x} onChange={handleFeeChange} />
                             </div>
                              <div>
                                 <label className="text-sm font-semibold mb-1 block text-gray-400">Crédito 3x</label>
-                                <Input type="number" name="credit3x" value={localFees.credit3x} onChange={handleFeeChange} />
+                                <Input type="number" step="0.01" placeholder="Ex: 5.99" name="credit3x" value={localFees.credit3x === 0 ? '' : localFees.credit3x} onChange={handleFeeChange} />
                             </div>
                         </div>
-                        <button onClick={handleSaveFees} className={`w-full mt-4 font-bold py-3 px-6 rounded-lg shadow-lg transition ${feesSaved ? 'bg-green-600' : 'bg-cyan-600 hover:bg-cyan-700'}`}>
+                        <button onClick={handleSaveFees} className={`w-full mt-4 font-bold py-3 px-6 rounded-lg shadow-lg transition ${feesSaved ? 'bg-green-600' : 'bg-fuchsia-600 hover:bg-fuchsia-700'}`}>
                             {feesSaved ? 'Taxas Salvas!' : 'Salvar Taxas'}
                         </button>
                     </Card>
@@ -219,7 +219,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
                                     <label className={`text-sm font-semibold mb-1 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Cor</label>
                                     <input type="color" value={newColor.hex} onChange={e => setNewColor(c => ({...c, hex: e.target.value}))} className="w-12 h-12 p-1 rounded-lg bg-transparent border-2 border-gray-300 dark:border-gray-600 cursor-pointer" />
                                 </div>
-                                <button onClick={handleAddNewColor} className="bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-cyan-700 transition">Adicionar</button>
+                                <button onClick={handleAddNewColor} className="bg-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar</button>
                             </div>
                             {colorError && <p className="text-sm text-red-500 mt-2 font-semibold">{colorError}</p>}
                         </div>
@@ -248,7 +248,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
                             
                             {brandError && <p className="text-sm text-red-500 font-semibold">{brandError}</p>}
                             
-                            <button onClick={handleAddBrand} disabled={isSavingBrand} className="w-full mt-2 bg-cyan-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-cyan-700 transition disabled:bg-gray-500">
+                            <button onClick={handleAddBrand} disabled={isSavingBrand} className="w-full mt-2 bg-fuchsia-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-fuchsia-700 transition disabled:bg-gray-500">
                                 {isSavingBrand ? 'Salvando...' : 'Adicionar Nova Marca'}
                             </button>
                         </div>

@@ -65,10 +65,10 @@ export const WATERBLOCK_ICON_URL = 'https://i.postimg.cc/qRr75sWg/Gemini-Generat
 export const WATER_RESISTANCE_INFO: Record<WaterResistanceLevel, { label: string; icon: string; description: string; shortLabel: string; showcaseIndicator?: string; } | null> = {
   [WaterResistanceLevel.NONE]: null,
   [WaterResistanceLevel.SEMI]: {
-    label: '50% Impermeável',
+    label: 'Proteção Impermeável para Ambiente Interno',
     icon: SEMI_WATERPROOF_ICON_URL,
     description: 'Este tecido possui tratamento que repele líquidos, facilitando a limpeza.',
-    shortLabel: '50% Impermeável 💧',
+    shortLabel: 'Proteção Interna 💧',
     showcaseIndicator: '💧 Interna'
   },
   [WaterResistanceLevel.FULL]: {
