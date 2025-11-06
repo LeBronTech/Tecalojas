@@ -52,6 +52,7 @@ const ScannerModal: React.FC<{
 }> = ({ onClose, onConfirmScans, products, isDark }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const animationFrameId = useRef<number>();
     const [error, setError] = useState('');
     const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
     const [scanMode, setScanMode] = useState<ScanMode>('none');
@@ -104,6 +105,21 @@ const ScannerModal: React.FC<{
         setScanMode(prev => (prev === mode ? 'none' : mode));
     };
 
+    const processQrCode = (code: string) => {
+        try {
+            const data = JSON.parse(code);
+            const product = products.find(p => p.id === data.productId);
+            const variation = product?.variations.find(v => v.size === data.variationSize);
+            if (product && variation) {
+                handleSuccessfulScan(product, variation);
+                return true;
+            }
+        } catch (e) {
+            // Not a valid JSON QR code, ignore
+        }
+        return false;
+    }
+
     const handleManualScan = () => {
         const video = videoRef.current;
         const canvas = canvasRef.current;
@@ -123,19 +139,9 @@ const ScannerModal: React.FC<{
         const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
 
         if (code) {
-            try {
-                const data = JSON.parse(code.data);
-                const product = products.find(p => p.id === data.productId);
-                const variation = product?.variations.find(v => v.size === data.variationSize);
-                if (product && variation) {
-                    handleSuccessfulScan(product, variation);
-                } else {
-                    setError("QR Code inválido ou produto não encontrado.");
-                    setTimeout(() => setError(""), 2000);
-                }
-            } catch (e) {
-                setError("QR Code não reconhecido.");
-                setTimeout(() => setError(""), 2000);
+            if (!processQrCode(code.data)) {
+                 setError("QR Code inválido ou produto não encontrado.");
+                 setTimeout(() => setError(""), 2000);
             }
         } else {
             setError("Nenhum QR Code detectado. Tente novamente.");
@@ -145,24 +151,52 @@ const ScannerModal: React.FC<{
 
     useEffect(() => {
         const video = videoRef.current;
-        if (!video) return;
-
+        const canvas = canvasRef.current;
         let stream: MediaStream;
+
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(s => {
                 stream = s;
-                video.srcObject = s;
-                video.setAttribute("playsinline", "true");
-                video.play();
+                if(video) {
+                    video.srcObject = s;
+                    video.setAttribute("playsinline", "true");
+                    video.play();
+                }
             }).catch(err => {
                 console.error("Camera Error:", err);
                 setError("Não foi possível acessar a câmera. Verifique as permissões.");
             });
         
+        const scan = () => {
+            if (isScanPaused || !videoRef.current || !canvasRef.current) {
+                animationFrameId.current = requestAnimationFrame(scan);
+                return;
+            }
+            if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+                const context = canvas.getContext('2d', { willReadFrequently: true });
+                if(context) {
+                    canvas.height = video.videoHeight;
+                    canvas.width = video.videoWidth;
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+                    if (code) {
+                        processQrCode(code.data);
+                    }
+                }
+            }
+            animationFrameId.current = requestAnimationFrame(scan);
+        };
+        
+        scan();
+        
         return () => {
+            if (animationFrameId.current) {
+                cancelAnimationFrame(animationFrameId.current);
+            }
             if (stream) stream.getTracks().forEach(track => track.stop());
         };
-    }, []);
+    }, [isScanPaused, products]);
 
     return (
         <div className="fixed inset-0 bg-black z-[140] flex flex-col items-center justify-center">
