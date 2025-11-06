@@ -54,7 +54,7 @@ const ScannerModal: React.FC<{
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [error, setError] = useState('');
     const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
-    const [scanMode, setScanMode] = useState<ScanMode>('full');
+    const [scanMode, setScanMode] = useState<ScanMode>('none');
     const [lastScanSuccess, setLastScanSuccess] = useState<string | null>(null);
     const [itemForTypeChoice, setItemForTypeChoice] = useState<{ product: Product; variation: Variation } | null>(null);
     const [isScanPaused, setIsScanPaused] = useState(false);
@@ -73,6 +73,8 @@ const ScannerModal: React.FC<{
             setItemForTypeChoice({ product, variation });
         } else {
             addItem(product, variation, scanMode);
+            // After adding, unpause scanning automatically
+            setTimeout(() => setIsScanPaused(false), 500);
         }
     };
     
@@ -102,58 +104,65 @@ const ScannerModal: React.FC<{
         setScanMode(prev => (prev === mode ? 'none' : mode));
     };
 
-    useEffect(() => {
+    const handleManualScan = () => {
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        if (!video || !canvas) return;
+        if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA || isScanPaused) {
+            setError("Câmera não está pronta.");
+            setTimeout(() => setError(""), 1500);
+            return;
+        }
 
         const context = canvas.getContext('2d', { willReadFrequently: true });
         if (!context) return;
+        
+        canvas.height = video.videoHeight;
+        canvas.width = video.videoWidth;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+
+        if (code) {
+            try {
+                const data = JSON.parse(code.data);
+                const product = products.find(p => p.id === data.productId);
+                const variation = product?.variations.find(v => v.size === data.variationSize);
+                if (product && variation) {
+                    handleSuccessfulScan(product, variation);
+                } else {
+                    setError("QR Code inválido ou produto não encontrado.");
+                    setTimeout(() => setError(""), 2000);
+                }
+            } catch (e) {
+                setError("QR Code não reconhecido.");
+                setTimeout(() => setError(""), 2000);
+            }
+        } else {
+            setError("Nenhum QR Code detectado. Tente novamente.");
+            setTimeout(() => setError(""), 1500);
+        }
+    };
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
 
         let stream: MediaStream;
-        let animationFrameId: number;
-
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(s => {
                 stream = s;
                 video.srcObject = s;
                 video.setAttribute("playsinline", "true");
                 video.play();
-                animationFrameId = requestAnimationFrame(tick);
             }).catch(err => {
                 console.error("Camera Error:", err);
                 setError("Não foi possível acessar a câmera. Verifique as permissões.");
             });
         
-        const tick = () => {
-            if (video.readyState === video.HAVE_ENOUGH_DATA && !isScanPaused) {
-                canvas.height = video.videoHeight;
-                canvas.width = video.videoWidth;
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
-                
-                if (code) {
-                    try {
-                        const data = JSON.parse(code.data);
-                        const product = products.find(p => p.id === data.productId);
-                        const variation = product?.variations.find(v => v.size === data.variationSize);
-                        if (product && variation) {
-                            handleSuccessfulScan(product, variation);
-                        }
-                    } catch (e) {
-                        // Not a valid JSON QR code, ignore and continue
-                    }
-                }
-            }
-            animationFrameId = requestAnimationFrame(tick);
-        };
-
         return () => {
             if (stream) stream.getTracks().forEach(track => track.stop());
-            if (animationFrameId) cancelAnimationFrame(animationFrameId);
         };
-    }, [isScanPaused, products]);
+    }, []);
 
     return (
         <div className="fixed inset-0 bg-black z-[140] flex flex-col items-center justify-center">
@@ -167,9 +176,9 @@ const ScannerModal: React.FC<{
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
             
-            {lastScanSuccess && (
-                <div className="absolute top-16 bg-green-500/80 text-white p-3 rounded-lg font-bold text-lg animate-pulse z-20">
-                    {lastScanSuccess} escaneado!
+            {(lastScanSuccess || error) && (
+                <div className={`absolute top-16 text-white p-3 rounded-lg font-bold text-center z-20 ${error ? 'bg-red-500/80' : 'bg-green-500/80 animate-pulse'}`}>
+                    {lastScanSuccess || error}
                 </div>
             )}
 
@@ -177,7 +186,7 @@ const ScannerModal: React.FC<{
                  <div className="relative w-full h-full border-4 border-white/50 rounded-lg"></div>
             </div>
             
-            <div className="absolute bottom-28 right-4 w-64 max-h-48 overflow-y-auto bg-black/70 p-3 rounded-lg backdrop-blur-sm z-10 purple-scrollbar">
+            <div className="absolute top-4 right-16 w-64 max-h-60 overflow-y-auto bg-black/70 p-3 rounded-lg backdrop-blur-sm z-10 purple-scrollbar">
                 <h4 className="text-white font-bold mb-2 text-sm border-b border-white/20 pb-2">Itens ({scannedItems.length})</h4>
                 <ul className="text-white text-xs space-y-1">
                     {scannedItems.map(item => (
@@ -186,15 +195,24 @@ const ScannerModal: React.FC<{
                 </ul>
             </div>
 
-            <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between gap-2 z-10">
-                <div className="flex gap-2 p-2 bg-black/50 rounded-xl">
-                    <button onClick={() => handleModeChange('cover')} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${scanMode === 'cover' ? 'bg-fuchsia-600 text-white' : 'bg-gray-700/50 text-gray-300'}`}>Só Capa</button>
-                    <button onClick={() => handleModeChange('full')} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${scanMode === 'full' ? 'bg-fuchsia-600 text-white' : 'bg-gray-700/50 text-gray-300'}`}>Só Cheia</button>
+            <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-4 z-10">
+                <div className="flex flex-col items-center gap-2 p-2 bg-black/60 rounded-xl backdrop-blur-sm">
+                    <p className="text-white text-xs font-bold">Modo Fixo:</p>
+                    <div className="flex gap-2">
+                        <button onClick={() => handleModeChange('cover')} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${scanMode === 'cover' ? 'bg-fuchsia-600 text-white' : 'bg-gray-700/50 text-gray-300'}`}>Capa</button>
+                        <button onClick={() => handleModeChange('full')} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${scanMode === 'full' ? 'bg-fuchsia-600 text-white' : 'bg-gray-700/50 text-gray-300'}`}>Cheia</button>
+                    </div>
+                    <p className="text-gray-400 text-[10px] text-center w-32">Se nenhum modo for selecionado, o app perguntará a cada scan.</p>
                 </div>
-                <button onClick={handleConfirm} className="bg-green-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg">Confirmar ({scannedItems.length})</button>
+                
+                <button onClick={handleManualScan} className="w-20 h-20 bg-white rounded-full border-4 border-gray-400 focus:outline-none focus:ring-2 ring-offset-2 ring-offset-black ring-fuchsia-500 shadow-lg disabled:opacity-50" disabled={isScanPaused}>
+                </button>
+                
+                 <button onClick={handleConfirm} disabled={scannedItems.length === 0} className="bg-green-600 text-white font-bold p-2 rounded-xl shadow-lg h-[88px] w-24 flex flex-col items-center justify-center disabled:bg-gray-500">
+                    <span className="text-sm">Confirmar</span>
+                    <span className="text-xl">({scannedItems.length})</span>
+                </button>
             </div>
-            
-            {error && <p className="absolute top-8 text-red-500 bg-white/80 p-4 rounded">{error}</p>}
             
             <ItemTypeChoiceModal
                 isOpen={!!itemForTypeChoice}
