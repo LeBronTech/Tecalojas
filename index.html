@@ -12,6 +12,7 @@
     "react/": "https://aistudiocdn.com/react@^18.0.0/",
     "react": "https://aistudiocdn.com/react@^18.0.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^18.0.0/",
+    "react-dom": "https://aistudiocdn.com/react-dom@^18.0.0",
     "react-dom/client": "https://aistudiocdn.com/react-dom@^18.0.0/client",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^0.14.0",
     "@google/genai/": "https://aistudiocdn.com/@google/genai@^0.14.0/",
@@ -90,25 +91,26 @@
       scrollbar-color: #8B5CF6 transparent; /* Firefox */
     }
 
-    /* Regras para a tela (não impressão) */
+    /* On screen, the print area is always hidden */
     .print-area {
       display: none;
     }
-    body.printing #root {
-      display: none;
-    }
-    body.printing .print-area {
-      display: block;
-    }
-
+    
     @media print {
       body {
         margin: 0;
       }
-      /* A classe body.printing já cuida de esconder o #root */
-      .print-hidden {
+
+      /* When printing, hide everything in the body by default */
+      body > * {
         display: none !important;
       }
+      
+      /* Then, un-hide the print area and its contents */
+      .print-area {
+        display: block !important;
+      }
+      
       @page {
         size: A4;
         margin: 0;
@@ -122,7 +124,7 @@
         align-content: flex-start;
         justify-content: flex-start;
         box-sizing: border-box;
-        padding: 2.35cm 0.5cm; /* Margens para centralizar 5x5 etiquetas de 4x5cm */
+        padding: 0.85cm 0.5cm; /* Margins to center a 5x7 grid of 4x4cm labels */
         gap: 0;
       }
       .print-page:last-of-type {

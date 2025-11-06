@@ -1,4 +1,5 @@
 import React, { useState, useContext, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Product, ThemeContext, CushionSize, Variation } from '../types';
 import { STORE_IMAGE_URLS } from '../constants';
 
@@ -8,7 +9,7 @@ const PrintLabel: React.FC<{ product: Product, size: CushionSize, qrCodeUrl: str
 
     const labelStyle: React.CSSProperties = {
         width: '4cm',
-        height: '5cm',
+        height: '4cm',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
@@ -37,7 +38,7 @@ const PrintLabel: React.FC<{ product: Product, size: CushionSize, qrCodeUrl: str
     );
 };
 
-const LABELS_PER_PAGE = 25;
+const LABELS_PER_PAGE = 35;
 
 const PrintPreviewModal: React.FC<{
     labels: Array<{ id: string; product: Product; size: CushionSize; qrCodeUrl: string }>;
@@ -100,12 +101,6 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
     const [addConfirmation, setAddConfirmation] = useState<Record<string, boolean>>({});
 
 
-    useEffect(() => {
-        const handleAfterPrint = () => document.body.classList.remove('printing');
-        window.addEventListener('afterprint', handleAfterPrint);
-        return () => window.removeEventListener('afterprint', handleAfterPrint);
-    }, []);
-
     const productsWithQr = useMemo(() => {
         return products
             .map(product => ({
@@ -147,18 +142,13 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
     const handlePrint = () => {
         if (printQueue.length === 0) return;
         
-        // First, close the preview modal.
         setIsPreviewing(false);
 
-        // We need to wait for the DOM to update (i.e., for the modal to be removed)
-        // before we trigger the browser's print dialog. Otherwise, the print view might be incorrect (e.g., blank screen).
-        // A setTimeout is a reliable way to defer the print call until after the current render cycle.
+        // Timeout allows React to unmount the modal before calling print().
+        // The browser will then apply the @media print styles automatically.
         setTimeout(() => {
-            document.body.classList.add('printing');
             window.print();
-            // The 'afterprint' event listener in the useEffect hook will automatically
-            // remove the 'printing' class from the body after the print dialog is closed.
-        }, 500); // A 500ms delay is generally safe for this.
+        }, 500); 
     };
 
 
@@ -169,7 +159,7 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
 
     return (
         <>
-            <div className="h-full w-full flex flex-col relative overflow-hidden print-hidden">
+            <div className="h-full w-full flex flex-col relative overflow-hidden">
                 <main className="flex-grow overflow-y-auto px-6 pt-24 pb-36 md:pb-6 no-scrollbar z-10">
                     <div className="max-w-4xl mx-auto">
                         <h1 className={`text-3xl font-bold mb-2 ${titleClasses}`}>Etiquetas QR Code</h1>
@@ -263,20 +253,23 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                 />
             )}
 
-             <div className="print-area">
-                {Array.from({ length: Math.ceil(printQueue.length / LABELS_PER_PAGE) }).map((_, pageIndex) => (
-                    <div key={pageIndex} className="print-page">
-                        {printQueue.slice(pageIndex * LABELS_PER_PAGE, (pageIndex + 1) * LABELS_PER_PAGE).map(label => (
-                            <PrintLabel key={label.id} product={label.product} size={label.size} qrCodeUrl={label.qrCodeUrl!} />
-                        ))}
+             {createPortal(
+                <div className="print-area">
+                    {Array.from({ length: Math.ceil(printQueue.length / LABELS_PER_PAGE) }).map((_, pageIndex) => (
+                        <div key={pageIndex} className="print-page">
+                            {printQueue.slice(pageIndex * LABELS_PER_PAGE, (pageIndex + 1) * LABELS_PER_PAGE).map(label => (
+                                <PrintLabel key={label.id} product={label.product} size={label.size} qrCodeUrl={label.qrCodeUrl!} />
+                            ))}
+                        </div>
+                    ))}
+                    {printQueue.length > 0 && (
+                    <div className="print-page back-page">
+                        <img src="https://i.postimg.cc/XqDy2sPn/Cartao-de-Visita-Elegante-Minimalista-Cinza-e-Marrom-1.png" alt="Verso da Etiqueta" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
-                ))}
-                {printQueue.length > 0 && (
-                 <div className="print-page back-page">
-                    <img src="https://i.postimg.cc/XqDy2sPn/Cartao-de-Visita-Elegante-Minimalista-Cinza-e-Marrom-1.png" alt="Verso da Etiqueta" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-                )}
-            </div>
+                    )}
+                </div>,
+                document.body
+            )}
         </>
     );
 };
