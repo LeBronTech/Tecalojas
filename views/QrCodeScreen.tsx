@@ -38,6 +38,26 @@ const PrintLabel: React.FC<{ product: Product, size: CushionSize, qrCodeUrl: str
     );
 };
 
+const PrintBackLabel: React.FC<{ isPreview?: boolean, isDark?: boolean }> = ({ isPreview = false, isDark = false }) => {
+    const backImageUrl = "https://i.postimg.cc/XqDy2sPn/Cartao-de-Visita-Elegante-Minimalista-Cinza-e-Marrom-1.png";
+
+    const labelStyle: React.CSSProperties = {
+        width: '4cm',
+        height: '4cm',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        border: isPreview ? (isDark ? '1px solid #4A5568' : '1px solid #E2E8F0') : 'none',
+        backgroundColor: 'white',
+    };
+
+    return (
+        <div style={labelStyle}>
+            <img src={backImageUrl} alt="Verso da Etiqueta" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+    );
+};
+
+
 const LABELS_PER_PAGE = 35;
 
 const PrintPreviewModal: React.FC<{
@@ -60,12 +80,13 @@ const PrintPreviewModal: React.FC<{
                 </h2>
                 <div className="flex justify-between items-center mb-4">
                     <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>
-                        Total de <span className="font-bold">{labels.length}</span> etiquetas em <span className="font-bold">{totalPages}</span> página(s).
+                        Total de <span className="font-bold">{labels.length}</span> etiquetas em <span className="font-bold">{totalPages}</span> página(s) de frente e <span className="font-bold">{totalPages}</span> de verso.
                     </p>
                 </div>
                 
                 <div className={`flex-grow overflow-y-auto p-4 rounded-lg purple-scrollbar ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <p className="font-bold text-center mb-2">Frente</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4">
                         {labels.map(label => (
                              <div key={label.id}>
                                 <PrintLabel 
@@ -74,6 +95,14 @@ const PrintPreviewModal: React.FC<{
                                     qrCodeUrl={label.qrCodeUrl} 
                                     isPreview={true}
                                 />
+                            </div>
+                        ))}
+                    </div>
+                     <p className="font-bold text-center mb-2 border-t pt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>Verso</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                         {labels.map(label => (
+                             <div key={`preview-back-${label.id}`}>
+                                <PrintBackLabel isPreview={true} isDark={isDark} />
                             </div>
                         ))}
                     </div>
@@ -255,18 +284,23 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
 
              {createPortal(
                 <div className="print-area">
+                    {/* Front Pages */}
                     {Array.from({ length: Math.ceil(printQueue.length / LABELS_PER_PAGE) }).map((_, pageIndex) => (
-                        <div key={pageIndex} className="print-page">
+                        <div key={`front-${pageIndex}`} className="print-page">
                             {printQueue.slice(pageIndex * LABELS_PER_PAGE, (pageIndex + 1) * LABELS_PER_PAGE).map(label => (
                                 <PrintLabel key={label.id} product={label.product} size={label.size} qrCodeUrl={label.qrCodeUrl!} />
                             ))}
                         </div>
                     ))}
-                    {printQueue.length > 0 && (
-                    <div className="print-page back-page">
-                        <img src="https://i.postimg.cc/XqDy2sPn/Cartao-de-Visita-Elegante-Minimalista-Cinza-e-Marrom-1.png" alt="Verso da Etiqueta" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </div>
-                    )}
+                    
+                    {/* Back Pages */}
+                    {printQueue.length > 0 && Array.from({ length: Math.ceil(printQueue.length / LABELS_PER_PAGE) }).map((_, pageIndex) => (
+                        <div key={`back-${pageIndex}`} className="print-page">
+                            {printQueue.slice(pageIndex * LABELS_PER_PAGE, (pageIndex + 1) * LABELS_PER_PAGE).map(label => (
+                                <PrintBackLabel key={`back-${label.id}`} />
+                            ))}
+                        </div>
+                    ))}
                 </div>,
                 document.body
             )}
