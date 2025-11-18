@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { Product, View, DynamicBrand, SavedComposition, ThemeContext, Variation, CushionSize, CartItem } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
-import { BRAND_LOGOS, WATER_RESISTANCE_INFO } from '../constants';
+import { BRAND_LOGOS, WATER_RESISTANCE_INFO, PREDEFINED_SOFA_COLORS } from '../constants';
 import CompositionViewerModal from '../components/CompositionViewerModal';
 
 type ProductGroup = Product[];
@@ -171,9 +171,10 @@ interface ShowcaseScreenProps {
   onNavigate: (view: View) => void;
   savedCompositions: SavedComposition[];
   onAddToCart: (product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number) => void;
+  sofaColors: { name: string; hex: string }[];
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError, canManageStock, onEditProduct, brands, apiKey, onRequestApiKey, onNavigate, savedCompositions, onAddToCart }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError, canManageStock, onEditProduct, brands, apiKey, onRequestApiKey, onNavigate, savedCompositions, onAddToCart, sofaColors }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedFabric, setSelectedFabric] = useState<string>('Todos os Tecidos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -409,6 +410,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
               onViewComposition={handleViewComposition}
               onAddToCart={onAddToCart}
               onNavigate={onNavigate}
+              sofaColors={sofaColors}
           />
       )}
       {compositionToView && (

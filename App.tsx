@@ -1,7 +1,7 @@
 import React, { useState, useCallback, createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType, CartItem, SaleRequest, CardFees } from './types';
 // FIX: Import PREDEFINED_COLORS to be used when creating color variations for products.
-import { INITIAL_PRODUCTS, PREDEFINED_COLORS } from './constants';
+import { INITIAL_PRODUCTS, PREDEFINED_COLORS, PREDEFINED_SOFA_COLORS, SOFA_COLORS_STORAGE_KEY } from './constants';
 import LoginScreen from './views/LoginScreen';
 import ShowcaseScreen from './views/ShowcaseScreen';
 import StockManagementScreen from './views/StockManagementScreen';
@@ -505,6 +505,7 @@ export default function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyCq8roeLwkCxFR8_HBlsVOHkM-LQiYNtto");
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [allColors, setAllColors] = useState<{ name: string; hex: string }[]>([]);
+  const [sofaColors, setSofaColors] = useState<{ name: string; hex: string }[]>([]);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
@@ -673,6 +674,14 @@ export default function App() {
         setAllColors(PREDEFINED_COLORS);
         localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(PREDEFINED_COLORS));
       }
+      
+      const storedSofaColors = localStorage.getItem(SOFA_COLORS_STORAGE_KEY);
+      if (storedSofaColors) {
+        setSofaColors(JSON.parse(storedSofaColors));
+      } else {
+        setSofaColors(PREDEFINED_SOFA_COLORS);
+        localStorage.setItem(SOFA_COLORS_STORAGE_KEY, JSON.stringify(PREDEFINED_SOFA_COLORS));
+      }
 
       const storedCompositions = localStorage.getItem(SAVED_COMPOSITIONS_STORAGE_KEY);
       if (storedCompositions) {
@@ -691,6 +700,14 @@ export default function App() {
         console.error("Failed to save compositions to localStorage:", error);
     }
   }, [savedCompositions]);
+
+  useEffect(() => {
+    try {
+        localStorage.setItem(SOFA_COLORS_STORAGE_KEY, JSON.stringify(sofaColors));
+    } catch (error) {
+        console.error("Failed to save sofa colors to localStorage:", error);
+    }
+  }, [sofaColors]);
 
   const handleSaveComposition = useCallback((compositionToSave: Omit<SavedComposition, 'id'>) => {
     const id = `${compositionToSave.size}-${compositionToSave.products.map(p => p.id).sort().join('-')}`;
@@ -726,6 +743,20 @@ export default function App() {
           localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
           return newColors;
       });
+  };
+  
+  const handleAddSofaColor = (color: { name: string; hex: string }) => {
+    setSofaColors(prevColors => {
+        if (prevColors.some(c => c.name.toLowerCase() === color.name.toLowerCase())) {
+            return prevColors;
+        }
+        const newColors = [...prevColors, color];
+        return newColors;
+    });
+  };
+
+  const handleDeleteSofaColor = (colorName: string) => {
+      setSofaColors(prevColors => prevColors.filter(c => c.name.toLowerCase() !== colorName.toLowerCase()));
   };
   
   const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_REAL_API_KEY_HERE";
@@ -856,25 +887,26 @@ export default function App() {
                 throw new Error("Nome, categoria, tipo de tecido e cor são obrigatórios.");
             }
     
-            let finalProductToSave = { ...productToSave };
-            
-            if (!finalProductToSave.variationGroupId) {
-                finalProductToSave.variationGroupId = `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            let productWithGroupId = { ...productToSave };
+            if (!productWithGroupId.variationGroupId) {
+                productWithGroupId.variationGroupId = `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             }
+
+            let savedProduct: Product;
     
-            if (finalProductToSave.id) {
-                const { id, ...productData } = finalProductToSave;
-                await api.updateProduct(id, productData);
+            if (productWithGroupId.id) {
+                const { id, ...productData } = productWithGroupId;
+                savedProduct = await api.updateProduct(id, productData);
             } else {
-                const { id, ...productData } = finalProductToSave;
-                const newDoc = await api.addProduct(productData);
-                finalProductToSave.id = newDoc.id;
+                const { id, ...productData } = productWithGroupId;
+                savedProduct = await api.addProduct(productData);
             }
           
             if (options?.closeModal !== false) {
                 setEditingProduct(null);
             }
-            return finalProductToSave;
+            
+            return savedProduct;
         } catch (error: any) {
             console.error("Failed to save product:", error);
             if (error.code === 'permission-denied') {
@@ -1123,6 +1155,7 @@ export default function App() {
                     onNavigate={handleNavigate}
                     savedCompositions={savedCompositions}
                     onAddToCart={handleAddToCart}
+                    sofaColors={sofaColors}
                 />;
       case View.STOCK:
         return (
@@ -1150,6 +1183,9 @@ export default function App() {
                     onMenuClick={handleMenuClick}
                     cardFees={cardFees}
                     onSaveCardFees={setCardFees}
+                    sofaColors={sofaColors}
+                    onAddSofaColor={handleAddSofaColor}
+                    onDeleteSofaColor={handleDeleteSofaColor}
                 />;
        case View.CATALOG:
         return <CatalogScreen
@@ -1264,6 +1300,7 @@ export default function App() {
                     onNavigate={handleNavigate}
                     savedCompositions={savedCompositions}
                     onAddToCart={handleAddToCart}
+                    sofaColors={sofaColors}
                 />;
     }
   };
@@ -1338,6 +1375,7 @@ export default function App() {
                     onAddColor={handleAddColor}
                     onDeleteColor={handleDeleteColor}
                     brands={brands}
+                    sofaColors={sofaColors}
                 />
             )}
             {isSignUpModalOpen && (

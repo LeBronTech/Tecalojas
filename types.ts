@@ -69,8 +69,8 @@ export interface Product {
   brand: Brand | string; // Can be enum for old data or string for new
   variations: Variation[];
   backgroundImages?: {
-    quarto?: string;
-    sala?: string;
+    quarto?: { [color: string]: string };
+    sala?: { [color: string]: string };
     varanda?: string;
     piscina?: string;
   };

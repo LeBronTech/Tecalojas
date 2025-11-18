@@ -110,6 +110,17 @@ export const PREDEFINED_COLORS: { name: string; hex: string }[] = [
     { name: 'Bege', hex: '#F5F5DC' },
 ];
 
+export const SOFA_COLORS_STORAGE_KEY = 'pillow-oasis-sofa-colors';
+
+export const PREDEFINED_SOFA_COLORS: { name: string; hex: string }[] = [
+    { name: 'Branco', hex: '#FFFFFF' },
+    { name: 'Bege', hex: '#F5F5DC' },
+    { name: 'Cinza', hex: '#808080' },
+    { name: 'Marrom Escuro', hex: '#3D2B1F' },
+    { name: 'Preto', hex: '#000000' },
+    { name: 'Azul Marinho', hex: '#000080' },
+];
+
 const rawProductsData = [
   { id: '1658690251010-AcuoQ', name: 'Rosa bebê suede pena (Lombar)', price: 25, inventory: 0, category: 'Marca Própria' },
   { id: '1655401251353-AcuoQ', name: 'Capa livros vermelhos', price: 29, inventory: 2, category: 'Marca Própria' },

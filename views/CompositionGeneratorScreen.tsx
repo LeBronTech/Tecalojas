@@ -308,7 +308,19 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             }
         } catch (e: any) {
             console.error("Failed to generate composition image:", e);
-            window.alert("Aconteceu um erro! Mas não se preocupe, tente novamente agora");
+            if (e.message && e.message.includes('429')) {
+                let message = "Limite de uso da API atingido. Verifique seu plano e tente mais tarde.";
+                const retryMatch = e.message.match(/retry in ([\d.]+)s/);
+                if (retryMatch && retryMatch[1]) {
+                    const waitTime = Math.ceil(parseFloat(retryMatch[1]));
+                    message = `Limite de uso da API atingido. Tente novamente em ${waitTime} segundos.`;
+                }
+                setError(message);
+            } else if (e.message.includes('SAFETY')) {
+                setError("Geração bloqueada por políticas de segurança.");
+            } else {
+                setError("Falha na IA. Tente novamente.");
+            }
         } finally {
             setIsGenerating(false);
         }

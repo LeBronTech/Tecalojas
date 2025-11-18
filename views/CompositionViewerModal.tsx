@@ -240,13 +240,32 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
             const ai = new GoogleGenAI({ apiKey });
             const textPart = { text: `Arrume estas ${currentComposition.products.length} almofadas de forma natural e esteticamente agradável em um sofá moderno de cor neutra, em uma sala de estar elegante e bem iluminada.` };
             const response = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [...imageParts, textPart] }, config: { responseModalities: [Modality.IMAGE] } });
-            const generatedImagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+            
+            const candidate = response.candidates?.[0];
+            if (candidate?.finishReason === 'SAFETY' || response.promptFeedback?.blockReason) {
+                throw new Error('Geração bloqueada por políticas de segurança.');
+            }
+            const generatedImagePart = candidate?.content?.parts?.find(p => p.inlineData);
+
             if (!generatedImagePart?.inlineData) throw new Error("A IA não retornou uma imagem.");
             
             const newImageUrl = `data:${generatedImagePart.inlineData.mimeType};base64,${generatedImagePart.inlineData.data}`;
             onSaveComposition({ ...currentComposition, imageUrl: newImageUrl });
         } catch (e: any) {
-            window.alert("Aconteceu um erro! Mas não se preocupe, tente novamente agora");
+            console.error("Failed to generate composition image:", e);
+            if (e.message && e.message.includes('429')) {
+                let message = "Limite de uso da API atingido. Verifique seu plano e tente mais tarde.";
+                const retryMatch = e.message.match(/retry in ([\d.]+)s/);
+                if (retryMatch && retryMatch[1]) {
+                    const waitTime = Math.ceil(parseFloat(retryMatch[1]));
+                    message = `Limite de uso da API atingido. Tente novamente em ${waitTime} segundos.`;
+                }
+                setError(message);
+            } else if (e.message.includes('SAFETY')) {
+                setError("Geração bloqueada por políticas de segurança.");
+            } else {
+                setError("Falha na IA. Tente novamente.");
+            }
         } finally {
             setIsGenerating(false);
         }

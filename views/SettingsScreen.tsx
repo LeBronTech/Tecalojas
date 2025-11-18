@@ -14,6 +14,9 @@ interface SettingsScreenProps {
   onDeleteColor: (colorName: string) => void;
   cardFees: CardFees;
   onSaveCardFees: (fees: CardFees) => void;
+  sofaColors: { name: string; hex: string }[];
+  onAddSofaColor: (color: { name: string; hex: string }) => void;
+  onDeleteSofaColor: (colorName: string) => void;
 }
 
 // --- Helper Components (Moved Outside to prevent re-rendering bugs) ---
@@ -50,7 +53,12 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
 
 // --- Main Component ---
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewBrand, onMenuClick, canManageStock, brands, allColors, onAddColor, onDeleteColor, cardFees, onSaveCardFees }) => {
+const SettingsScreen: React.FC<SettingsScreenProps> = ({ 
+    onSaveApiKey, onAddNewBrand, onMenuClick, canManageStock, brands, 
+    allColors, onAddColor, onDeleteColor, 
+    cardFees, onSaveCardFees,
+    sofaColors, onAddSofaColor, onDeleteSofaColor
+}) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   
@@ -63,22 +71,22 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
   const [brandError, setBrandError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [newColor, setNewColor] = useState({ name: '', hex: '#ffffff' });
-  const [colorNameError, setColorNameError] = useState<string|null>(null);
+  const [newProductColor, setNewProductColor] = useState({ name: '', hex: '#ffffff' });
+  const [productColorNameError, setProductColorNameError] = useState<string|null>(null);
+
+  const [newSofaColor, setNewSofaColor] = useState({ name: '', hex: '#ffffff' });
+  const [sofaColorNameError, setSofaColorNameError] = useState<string|null>(null);
 
   const [fees, setFees] = useState(cardFees);
   const [feesSaved, setFeesSaved] = useState(false);
 
   useEffect(() => {
-     // When the initial cardFees prop changes, update the local state.
-     // This handles the initial load from localStorage in App.tsx.
      setFees(cardFees);
   }, [cardFees]);
 
 
   const handleFeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const { name, value } = e.target;
-     // Allow the input to be empty, but store 0 in the state if so.
      setFees(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
      if(feesSaved) setFeesSaved(false);
  };
@@ -92,7 +100,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      if (e.target.files && e.target.files[0]) {
          setNewBrandLogoFile(e.target.files[0]);
-         setNewBrandLogoUrl(''); // Clear URL if file is selected
+         setNewBrandLogoUrl('');
      }
  };
   const handleAddBrand = async (e: React.FormEvent) => {
@@ -116,19 +124,34 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
      }
    };
  
- const handleAddColor = () => {
-     if (!newColor.name.trim()) {
-         setColorNameError("O nome da cor é obrigatório.");
+ const handleAddProductColor = () => {
+     if (!newProductColor.name.trim()) {
+         setProductColorNameError("O nome da cor é obrigatório.");
          return;
      }
-     if (allColors.some(c => c.name.toLowerCase() === newColor.name.trim().toLowerCase())) {
-         setColorNameError("Esta cor já existe.");
+     if (allColors.some(c => c.name.toLowerCase() === newProductColor.name.trim().toLowerCase())) {
+         setProductColorNameError("Esta cor já existe.");
          return;
      }
-     onAddColor({ name: newColor.name.trim(), hex: newColor.hex });
-     setNewColor({ name: '', hex: '#ffffff' });
-     setColorNameError(null);
+     onAddColor({ name: newProductColor.name.trim(), hex: newProductColor.hex });
+     setNewProductColor({ name: '', hex: '#ffffff' });
+     setProductColorNameError(null);
  };
+
+ const handleAddSofaColor = () => {
+    if (!newSofaColor.name.trim()) {
+        setSofaColorNameError("O nome da cor é obrigatório.");
+        return;
+    }
+    if (sofaColors.some(c => c.name.toLowerCase() === newSofaColor.name.trim().toLowerCase())) {
+        setSofaColorNameError("Esta cor já existe.");
+        return;
+    }
+    onAddSofaColor({ name: newSofaColor.name.trim(), hex: newSofaColor.hex });
+    setNewSofaColor({ name: '', hex: '#ffffff' });
+    setSofaColorNameError(null);
+};
+
 
  const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
  
@@ -175,7 +198,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
              </Card>
 
              <Card>
-                 <SectionTitle>Gerenciar Cores</SectionTitle>
+                 <SectionTitle>Gerenciar Cores de Produtos</SectionTitle>
                  <div className="flex flex-wrap gap-3 mb-6 max-h-48 overflow-y-auto p-2 rounded-lg bg-black/10">
                      {allColors.map(color => (
                          <div key={color.name} className="flex flex-col items-center group relative">
@@ -190,15 +213,43 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onSaveApiKey, onAddNewB
                   <div className="flex items-end gap-3">
                      <div className="flex-grow">
                          <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Nome da nova cor</label>
-                         <Input value={newColor.name} onChange={e => setNewColor(prev => ({...prev, name: e.target.value}))} />
+                         <Input value={newProductColor.name} onChange={e => setNewProductColor(prev => ({...prev, name: e.target.value}))} />
                      </div>
                      <div>
                          <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Cor</label>
-                         <input type="color" value={newColor.hex} onChange={e => setNewColor(prev => ({...prev, hex: e.target.value}))} className="w-12 h-12 p-1 rounded-lg bg-transparent border-0 cursor-pointer" />
+                         <input type="color" value={newProductColor.hex} onChange={e => setNewProductColor(prev => ({...prev, hex: e.target.value}))} className="w-12 h-12 p-1 rounded-lg bg-transparent border-0 cursor-pointer" />
                      </div>
-                     <button onClick={handleAddColor} className="bg-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar</button>
+                     <button onClick={handleAddProductColor} className="bg-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar</button>
                  </div>
-                  {colorNameError && <p className="text-sm text-red-500 mt-2">{colorNameError}</p>}
+                  {productColorNameError && <p className="text-sm text-red-500 mt-2">{productColorNameError}</p>}
+             </Card>
+             
+             <Card>
+                 <SectionTitle>Gerenciar Cores de Mobília (Sofá/Cama)</SectionTitle>
+                 <p className={`text-sm -mt-3 mb-4 ${subtitleClasses}`}>Essas cores serão usadas para gerar os fundos com IA.</p>
+                 <div className="flex flex-wrap gap-3 mb-6 max-h-48 overflow-y-auto p-2 rounded-lg bg-black/10">
+                     {sofaColors.map(color => (
+                         <div key={color.name} className="flex flex-col items-center group relative">
+                             <div style={{ backgroundColor: color.hex }} className="w-12 h-12 rounded-full border border-black/20"></div>
+                             <span className={`text-xs mt-1 text-center truncate w-16 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{color.name}</span>
+                             <button onClick={() => onDeleteSofaColor(color.name)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                             </button>
+                         </div>
+                     ))}
+                 </div>
+                  <div className="flex items-end gap-3">
+                     <div className="flex-grow">
+                         <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Nome da nova cor de mobília</label>
+                         <Input value={newSofaColor.name} onChange={e => setNewSofaColor(prev => ({...prev, name: e.target.value}))} />
+                     </div>
+                     <div>
+                         <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Cor</label>
+                         <input type="color" value={newSofaColor.hex} onChange={e => setNewSofaColor(prev => ({...prev, hex: e.target.value}))} className="w-12 h-12 p-1 rounded-lg bg-transparent border-0 cursor-pointer" />
+                     </div>
+                     <button onClick={handleAddSofaColor} className="bg-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar</button>
+                 </div>
+                  {sofaColorNameError && <p className="text-sm text-red-500 mt-2">{sofaColorNameError}</p>}
              </Card>
 
               <Card>

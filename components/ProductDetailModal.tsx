@@ -17,6 +17,7 @@ interface ProductDetailModalProps {
     onViewComposition: (compositions: SavedComposition[], startIndex: number) => void;
     onAddToCart: (product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number) => void;
     onNavigate: (view: View) => void;
+    sofaColors: { name: string; hex: string }[];
 }
 
 const ButtonSpinner = () => (
@@ -94,13 +95,12 @@ const FurnitureColorPopover: React.FC<FurnitureColorPopoverProps> = ({ isOpen, o
 };
 
 
-const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct, apiKey, onRequestApiKey, onAddToCart, onNavigate }) => {
+const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct, apiKey, onRequestApiKey, onAddToCart, onNavigate, sofaColors }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
     const [variationQuantities, setVariationQuantities] = useState<Record<CushionSize, { cover: number, full: number }>>({} as Record<CushionSize, { cover: number, full: number }>);
     const [addStatus, setAddStatus] = useState<Record<CushionSize, 'idle' | 'added' | 'goToCart'>>({} as Record<CushionSize, 'idle' | 'added' | 'goToCart'>);
-    // FIX: Using Partial<Record<...>> allows the state to be an empty object, which is the intended use case here.
     const [stockAlert, setStockAlert] = useState<Partial<Record<CushionSize, boolean>>>({});
     
     const familyProducts = useMemo(() => {
@@ -182,13 +182,29 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     };
     
     // AI Environments State and Logic
-    const [environments, setEnvironments] = useState(product.backgroundImages || {});
     const [activeEnvIndex, setActiveEnvIndex] = useState(0);
-    const [isGenerating, setIsGenerating] = useState<string | null>(null);
     const [isColorPopoverOpen, setIsColorPopoverOpen] = useState(false);
+    const [activeSofaColor, setActiveSofaColor] = useState('Bege');
+    const [activeBedColor, setActiveBedColor] = useState('Bege');
 
-    const envKeys = useMemo(() => Object.keys(environments).filter(key => environments[key as keyof typeof environments]), [environments]);
-    const activeEnvKey = envKeys[activeEnvIndex] as 'sala' | 'quarto' | undefined;
+    const envKeys = useMemo(() => Object.keys(product.backgroundImages || {}).filter(key => {
+        const value = product.backgroundImages![key as keyof typeof product.backgroundImages];
+        return typeof value === 'string' || (typeof value === 'object' && value !== null && Object.keys(value).length > 0);
+    }), [product.backgroundImages]);
+
+    const activeEnvKey = envKeys[activeEnvIndex] as 'sala' | 'quarto' | 'varanda' | 'piscina' | undefined;
+
+    const currentImageUrl = useMemo(() => {
+        if (!activeEnvKey) return product.baseImageUrl;
+        const bgData = product.backgroundImages?.[activeEnvKey];
+        if (typeof bgData === 'string') return bgData;
+        if (typeof bgData === 'object' && bgData !== null) {
+            const color = activeEnvKey === 'sala' ? activeSofaColor : activeBedColor;
+            // Fallback chain: selected color -> Bege -> first available color
+            return bgData[color] || bgData['Bege'] || Object.values(bgData)[0];
+        }
+        return product.baseImageUrl;
+    }, [activeEnvKey, activeSofaColor, activeBedColor, product]);
     
     const envDisplayNames: Record<string, string> = {
         sala: 'Sala',
@@ -197,43 +213,11 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         piscina: 'Piscina',
     };
 
-    const handleGenerateNewBackground = async (color: string) => {
-        if (!activeEnvKey || !apiKey) return;
-        
-        setIsGenerating(activeEnvKey);
-        setIsColorPopoverOpen(false);
-
-        try {
-            const ai = new GoogleGenAI({ apiKey });
-            const { base64Data, mimeType } = await getBase64FromImageUrl(product.baseImageUrl);
-            const imagePart = { inlineData: { data: base64Data, mimeType } };
-
-            const furniture = activeEnvKey === 'quarto' ? 'cama' : 'sofá';
-            const prompt = `Foto de produto profissional. A almofada está em um ${furniture} moderno de cor ${color} em uma ${activeEnvKey} elegante e com luz natural.`;
-
-            const aiResponse = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-image',
-                contents: { parts: [imagePart, { text: prompt }] },
-                config: { responseModalities: [Modality.IMAGE] }
-            });
-            
-            if (aiResponse.promptFeedback?.blockReason) {
-                throw new Error('Geração bloqueada por políticas de segurança da IA.');
-            }
-            
-            const generatedImagePart = aiResponse.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-            if (!generatedImagePart?.inlineData) throw new Error("A IA não retornou uma imagem.");
-
-            const newImageUrl = `data:${generatedImagePart.inlineData.mimeType};base64,${generatedImagePart.inlineData.data}`;
-            setEnvironments(prev => ({ ...prev, [activeEnvKey]: newImageUrl }));
-
-        } catch (error) {
-            console.error(error);
-            alert("Falha ao gerar nova imagem. Tente novamente.");
-        } finally {
-            setIsGenerating(null);
-        }
-    };
+    const availableSalaColors = product.backgroundImages?.sala;
+    const availableQuartoColors = product.backgroundImages?.quarto;
+    
+    const showSalaColorButton = typeof availableSalaColors === 'object' && availableSalaColors !== null && Object.keys(availableSalaColors).length > 1;
+    const showQuartoColorButton = typeof availableQuartoColors === 'object' && availableQuartoColors !== null && Object.keys(availableQuartoColors).length > 1;
 
 
     const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
@@ -269,29 +253,39 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                         <div className="px-6 mb-4">
                              <h3 className={`font-bold mb-2 ${titleClasses}`}>{envDisplayNames[activeEnvKey] || 'Veja em Ambientes'}</h3>
                             <div className="relative w-full aspect-square rounded-2xl overflow-hidden mb-2">
-                                {isGenerating === activeEnvKey ? (
-                                    <div className="w-full h-full flex items-center justify-center bg-black/20"><ButtonSpinner /></div>
-                                ) : (
-                                    <img src={environments[activeEnvKey as keyof typeof environments]} alt={activeEnvKey} className="w-full h-full object-cover" />
-                                )}
+                                <img src={currentImageUrl} alt={activeEnvKey} className="w-full h-full object-cover" />
                                 <div className="absolute top-2 left-2 flex items-center gap-2">
-                                {activeEnvKey && (activeEnvKey === 'sala' || activeEnvKey === 'quarto') && (
+                                {(activeEnvKey === 'sala' && showSalaColorButton) && (
                                     <button 
                                         onClick={() => setIsColorPopoverOpen(true)} 
                                         className="bg-black/40 text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-sm"
                                     >
                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6c0 1.887.817 3.556 2.093 4.63.26.173.41.46.41.77v3.27a.75.75 0 001.5 0V14a.75.75 0 00-.03-.223A5.98 5.98 0 0016 8a6 6 0 00-6-6zM3.654 9.324A4.5 4.5 0 0110 3.5a4.5 4.5 0 015.42 7.237.75.75 0 00.58.263h.001c.414 0 .75.336.75.75v.5c0 .414-.336.75-.75.75h-2.14a.75.75 0 00-.737.649A3.5 3.5 0 0110 14.5a3.5 3.5 0 01-3.354-2.851.75.75 0 00-.737-.649H3.75a.75.75 0 01-.75-.75v-.5a.75.75 0 01.654-.726z" /></svg>
-                                        Cor
+                                        Cor do Sofá
+                                    </button>
+                                )}
+                                {(activeEnvKey === 'quarto' && showQuartoColorButton) && (
+                                     <button 
+                                        onClick={() => setIsColorPopoverOpen(true)} 
+                                        className="bg-black/40 text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-sm"
+                                    >
+                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6c0 1.887.817 3.556 2.093 4.63.26.173.41.46.41.77v3.27a.75.75 0 001.5 0V14a.75.75 0 00-.03-.223A5.98 5.98 0 0016 8a6 6 0 00-6-6zM3.654 9.324A4.5 4.5 0 0110 3.5a4.5 4.5 0 015.42 7.237.75.75 0 00.58.263h.001c.414 0 .75.336.75.75v.5c0 .414-.336.75-.75.75h-2.14a.75.75 0 00-.737.649A3.5 3.5 0 0110 14.5a3.5 3.5 0 01-3.354-2.851.75.75 0 00-.737-.649H3.75a.75.75 0 01-.75-.75v-.5a.75.75 0 01.654-.726z" /></svg>
+                                        Cor da Cama
                                     </button>
                                 )}
                                 </div>
                             </div>
                              <div className="flex items-center justify-center gap-2">
-                                {envKeys.map((key, index) => (
+                                {envKeys.map((key, index) => {
+                                    const bgData = product.backgroundImages?.[key as keyof typeof product.backgroundImages];
+                                    const thumbUrl = typeof bgData === 'string' ? bgData : (bgData?.['Bege'] || Object.values(bgData || {})[0]);
+                                    if (!thumbUrl) return null;
+                                    return (
                                     <button key={key} onClick={() => setActiveEnvIndex(index)} className={`w-12 h-12 rounded-lg overflow-hidden border-2 ${activeEnvIndex === index ? 'border-fuchsia-500' : 'border-transparent'}`}>
-                                        <img src={environments[key as keyof typeof environments]} alt={key} className="w-full h-full object-cover" />
+                                        <img src={thumbUrl} alt={key} className="w-full h-full object-cover" />
                                     </button>
-                                ))}
+                                    )
+                                })}
                             </div>
                         </div>
                     )}
@@ -427,8 +421,12 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                 <FurnitureColorPopover
                     isOpen={isColorPopoverOpen}
                     onClose={() => setIsColorPopoverOpen(false)}
-                    onSelectColor={handleGenerateNewBackground}
-                    colors={PREDEFINED_COLORS.filter(c => ['Bege', 'Cinza', 'Branco', 'Marrom', 'Preto', 'Azul'].includes(c.name))}
+                    onSelectColor={(color) => {
+                        if (activeEnvKey === 'sala') setActiveSofaColor(color);
+                        if (activeEnvKey === 'quarto') setActiveBedColor(color);
+                        setIsColorPopoverOpen(false);
+                    }}
+                    colors={Object.keys(product.backgroundImages?.[activeEnvKey as 'sala'|'quarto'] || {}).map(name => sofaColors.find(c => c.name === name)).filter((c): c is { name: string; hex: string } => !!c)}
                 />
             </div>
         </div>
