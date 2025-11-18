@@ -29,7 +29,7 @@ const ItemTypeChoiceModal: React.FC<{
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[150] p-4" onClick={onClose}>
             <div className={`border rounded-3xl shadow-2xl w-full max-w-xs p-6 ${isDark ? 'bg-[#1A1129] border-white/10' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
-                <h3 className={`text-lg font-bold text-center mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>Item Escaneado</h3>
+                <h3 className={`text-lg font-bold text-center mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>Adicionar Item</h3>
                 <p className={`text-sm text-center mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{productName}</p>
                 <div className="space-y-3">
                     <button onClick={() => onSelect('cover')} className={`w-full font-semibold py-3 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Só Capa</button>
@@ -168,7 +168,7 @@ const ScannerModal: React.FC<{
             });
         
         const scan = () => {
-            if (isScanPaused || !videoRef.current || !canvasRef.current) {
+            if (isScanPaused || !videoRef.current || !canvasRef.current || videoRef.current.paused || videoRef.current.ended) {
                 animationFrameId.current = requestAnimationFrame(scan);
                 return;
             }
@@ -277,6 +277,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const [isFinalizeSaleModalOpen, setIsFinalizeSaleModalOpen] = useState(false);
     const [posCart, setPosCart] = useState<PosCartItem[]>([]); 
     const [productForVariationSelect, setProductForVariationSelect] = useState<Product | null>(null);
+    const [itemForPosTypeChoice, setItemForPosTypeChoice] = useState<{ product: Product, variation: Variation } | null>(null);
     const [isScannerOpen, setIsScannerOpen] = useState(false);
 
 
@@ -332,32 +333,48 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
         setInstallments(1);
     };
 
-     const handleAddProductsToPos = (selectedIds: string[]) => {
-        const productsToAdd = products.filter(p => selectedIds.includes(p.id));
-
-        if (productsToAdd.length === 1 && productsToAdd[0].variations.length > 1) {
-            setProductForVariationSelect(productsToAdd[0]);
-        } else {
-            const newCartItems: PosCartItem[] = productsToAdd.map(p => {
-                const defaultVariation = p.variations[0];
-                return {
-                    id: `${p.id}-${defaultVariation.size}`,
-                    name: `${p.name} (${defaultVariation.size})`,
-                    price: defaultVariation.priceFull,
-                    quantity: 1,
-                    product: p,
-                    variation: defaultVariation,
-                    isCustom: false,
-                };
-            });
-             setPosCart(prev => {
-                const existingIds = new Set(prev.map(item => item.id));
-                const uniqueNewItems = newCartItems.filter(item => !existingIds.has(item.id));
-                return [...prev, ...uniqueNewItems];
-            });
-        }
+    const handleAddProductsToPos = (selectedIds: string[]) => {
         setIsProductSelectOpen(false);
+        if (selectedIds.length === 0) return;
+
+        const productToAdd = products.find(p => p.id === selectedIds[0]);
+        if (!productToAdd) return;
+
+        if (productToAdd.variations.length > 1) {
+            setProductForVariationSelect(productToAdd);
+        } else if (productToAdd.variations.length === 1) {
+            setItemForPosTypeChoice({ product: productToAdd, variation: productToAdd.variations[0] });
+        }
     };
+
+    const handlePosItemTypeSelected = (type: 'cover' | 'full') => {
+        if (!itemForPosTypeChoice) return;
+
+        const { product, variation } = itemForPosTypeChoice;
+        const price = type === 'cover' ? variation.priceCover : variation.priceFull;
+        const name = `${product.name} (${variation.size}) - ${type === 'cover' ? 'Capa' : 'Cheia'}`;
+
+        const newItem: PosCartItem = {
+            id: `${product.id}-${variation.size}-${type}`, // ID is now unique for cover/full
+            name: name,
+            price: price,
+            quantity: 1,
+            product: product,
+            variation: variation,
+            itemType: type,
+            isCustom: false,
+        };
+
+        setPosCart(prev => {
+            const existingItem = prev.find(item => item.id === newItem.id);
+            if (existingItem) {
+                return prev.map(item => item.id === newItem.id ? { ...item, quantity: item.quantity + 1 } : item);
+            }
+            return [...prev, newItem];
+        });
+        setItemForPosTypeChoice(null);
+    };
+
 
     const handleConfirmScans = (scannedItems: ScannedItem[]) => {
         const newPosCartItems: PosCartItem[] = scannedItems.map(item => {
@@ -391,23 +408,8 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
 
 
     const handleVariationSelected = (product: Product, variation: Variation) => {
-        const newItem: PosCartItem = {
-            id: `${product.id}-${variation.size}`,
-            name: `${product.name} (${variation.size})`,
-            price: variation.priceFull,
-            quantity: 1,
-            product: product,
-            variation: variation,
-            isCustom: false,
-        };
-        setPosCart(prev => {
-            const existingItem = prev.find(item => item.id === newItem.id);
-            if (existingItem) {
-                return prev.map(item => item.id === newItem.id ? { ...item, quantity: item.quantity + 1 } : item);
-            }
-            return [...prev, newItem];
-        });
         setProductForVariationSelect(null);
+        setItemForPosTypeChoice({ product, variation });
     };
     
     const handleAddCustomItem = (name: string, price: number) => {
@@ -658,7 +660,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                     onClose={() => setIsProductSelectOpen(false)}
                     onConfirm={handleAddProductsToPos}
                     initialSelectedIds={[]}
-                    maxSelection={99}
+                    maxSelection={1}
                 />
             )}
             {productForVariationSelect && (
@@ -668,6 +670,13 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                     onSelect={handleVariationSelected}
                 />
             )}
+            <ItemTypeChoiceModal
+                isOpen={!!itemForPosTypeChoice}
+                onClose={() => setItemForPosTypeChoice(null)}
+                onSelect={handlePosItemTypeSelected}
+                productName={itemForPosTypeChoice ? `${itemForPosTypeChoice.product.name} (${itemForPosTypeChoice.variation.size})` : ''}
+                isDark={isDark}
+            />
             {isCustomValueModalOpen && (
                 <CustomValueModal 
                     onClose={() => setIsCustomValueModalOpen(false)}
