@@ -139,6 +139,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     
     // AI Generation Options
     const [selectedSizes, setSelectedSizes] = useState<CushionSize[]>([]);
+    const [assignedPillowSizes, setAssignedPillowSizes] = useState<Record<number, CushionSize>>({});
     const [sofaColor, setSofaColor] = useState('Bege');
     const sofaColors = ['Bege', 'Cinza', 'Branco', 'Marrom Escuro', 'Azul Marinho'];
     
@@ -246,8 +247,25 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
 
     const handleVisualize = () => {
         setError(null);
-        setCurrentComposition(selectedProducts);
-    }
+        if (!compositionSize || selectedProducts.length === 0) {
+            setCurrentComposition([]);
+            return;
+        }
+
+        const finalComposition: Product[] = [];
+        for (let i = 0; i < compositionSize; i++) {
+            finalComposition.push(selectedProducts[i % selectedProducts.length]);
+        }
+        setCurrentComposition(finalComposition);
+        
+        // Initialize assigned sizes
+        const initialSizes: Record<number, CushionSize> = {};
+        const defaultSize = selectedSizes[0] || CushionSize.SQUARE_45;
+        finalComposition.forEach((_, index) => {
+            initialSizes[index] = defaultSize;
+        });
+        setAssignedPillowSizes(initialSizes);
+    };
     
     const handleSave = () => {
         if (!currentComposition) return;
@@ -283,10 +301,18 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             );
             const ai = new GoogleGenAI({ apiKey });
             
-            let promptText = `Arrume estas almofadas de forma natural e esteticamente agradável em um sofá moderno de cor ${sofaColor}, em uma sala de estar elegante e bem iluminada. É crucial que a imagem final contenha exatamente ${currentComposition.length} almofadas, dispostas na mesma ordem em que as imagens foram fornecidas (da esquerda para a direita). A composição deve parecer realista e atraente para um catálogo de produtos.`;
+            let promptText = `Arrume estas almofadas de forma natural e esteticamente agradável em um sofá moderno de cor ${sofaColor}, em uma sala de estar elegante e bem iluminada. É crucial que a imagem final contenha exatamente ${currentComposition.length} almofadas. A composição deve parecer realista e atraente para um catálogo de produtos.`;
+
             if (selectedSizes.length > 0) {
-                promptText += ` A composição deve incluir os seguintes formatos de almofada: ${selectedSizes.join(', ')}.`;
+                const pillowDetails = currentComposition.map((p, index) => {
+                    const size = assignedPillowSizes[index] || selectedSizes[0];
+                    return `Almofada ${index + 1} (${p.name}) deve ter o tamanho ${size}`;
+                }).join(', ');
+                promptText += ` A composição deve incluir as seguintes almofadas e seus respectivos tamanhos: ${pillowDetails}.`;
+            } else {
+                 promptText += ` As almofadas devem ser dispostas na mesma ordem em que as imagens foram fornecidas (da esquerda para a direita).`;
             }
+            
             const textPart = { text: promptText };
             
             const response = await ai.models.generateContent({
@@ -649,7 +675,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                     <div className="flex justify-center items-center -space-x-8 md:-space-x-12 p-4">
                                         {currentComposition.map((p, index) => (
                                             <div 
-                                                key={p.id} 
+                                                key={`${p.id}-${index}`} 
                                                 className="flex flex-col items-center transition-all duration-300 ease-in-out cursor-pointer"
                                                 style={{ 
                                                     zIndex: hoveredProductId === p.id ? 10 : index,
@@ -657,14 +683,29 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                                 }}
                                                 onMouseEnter={() => setHoveredProductId(p.id)}
                                                 onMouseLeave={() => setHoveredProductId(null)}
-                                                onClick={() => setViewingProduct(p)}
                                             >
                                                 <div 
                                                     className="w-28 h-28 md:w-32 md:h-32 rounded-lg shadow-lg relative"
+                                                    onClick={() => setViewingProduct(p)}
                                                     aria-label={`Ver detalhes de ${p.name}`}
                                                 >
                                                     <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover rounded-lg" />
                                                 </div>
+                                                {selectedSizes.length > 1 && (
+                                                    <select
+                                                        value={assignedPillowSizes[index] || ''}
+                                                        onChange={(e) => {
+                                                            const newSize = e.target.value as CushionSize;
+                                                            setAssignedPillowSizes(prev => ({ ...prev, [index]: newSize }));
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className={`-mt-1 text-xs p-1 rounded-md border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${isDark ? 'bg-gray-800 text-gray-200 border-white/10' : 'bg-white text-gray-700 border-gray-200'} relative z-20`}
+                                                    >
+                                                        {selectedSizes.map(size => (
+                                                            <option key={size} value={size}>{size}</option>
+                                                        ))}
+                                                    </select>
+                                                )}
                                                 <div className={`mt-2 w-28 md:w-32 h-8 flex justify-center items-start transition-opacity duration-300 pointer-events-none ${hoveredProductId === p.id ? 'opacity-100' : 'opacity-0 md:opacity-100'}`}>
                                                     <span className={`px-2 py-0.5 rounded-md text-xs truncate max-w-full ${isDark ? 'bg-black/60 text-gray-200 backdrop-blur-sm' : 'bg-white/80 text-gray-800 backdrop-blur-sm'}`}>
                                                         {p.name}
@@ -722,7 +763,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     // FIX: Added missing properties to satisfy the component's required props.
                     onAddToCart={() => {}}
                     onNavigate={onNavigate}
-                    sofaColors={sofaColors}
+                    sofaColors={[]}
                 />
             )}
         </>
