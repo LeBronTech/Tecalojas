@@ -28,8 +28,8 @@ import {
     where,
     orderBy
 } from "firebase/firestore";
-// Change: Imported uploadString
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, uploadString } from "firebase/storage";
+// ALTERADO: Usando uploadBytesResumable para maior estabilidade
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 import { User, Product, DynamicBrand, CatalogPDF, SaleRequest, CartItem, StoreName, PosCartItem, Variation } from './types';
 import { firebaseConfig } from './firebaseConfig';
@@ -59,13 +59,10 @@ const getUserProfile = async (uid: string): Promise<Pick<User, 'role'>> => {
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) {
         const userData = userDocSnap.data();
-        // The security rules for admin access rely *specifically* on the `role` field being set to 'admin'.
-        // This check must match the security rule logic to prevent permission errors.
         if (userData && userData.role === 'admin') {
             return { role: 'admin' };
         }
     }
-    // Default to 'user' if no admin role is found or the document doesn't exist.
     return { role: 'user' };
 };
 
@@ -200,7 +197,18 @@ export const onAuthStateChanged = (callback: (user: User | null) => void) => {
 
 // --- STORAGE ---
 
-// General file upload (PDFs, etc) - Uses uploadBytesResumable for progress
+function base64ToUint8Array(base64DataUrl: string): Uint8Array {
+    const parts = base64DataUrl.split(',');
+    const base64 = parts.length > 1 ? parts[1] : parts[0];
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+}
+
 export const uploadFile = (path: string, file: File | Blob, onProgress?: (progress: number) => void): { promise: Promise<string>, cancel: () => void } => {
     const fileRef = ref(storage, path);
     const uploadTask = uploadBytesResumable(fileRef, file);
@@ -245,100 +253,85 @@ export const uploadFile = (path: string, file: File | Blob, onProgress?: (progre
     return { promise, cancel };
 };
 
-// Simplified and Robust Base64 Image Upload using uploadString
-// This avoids the overhead of converting to Blob/Uint8Array manually which can freeze the UI on large strings
-export const uploadBase64Image = (path: string, base64DataUrl: string, onProgress?: (progress: number) => void): { promise: Promise<string>, cancel: () => void } => {
-    if (onProgress) onProgress(10); 
+export const uploadBase64Image = (path: string, base64DataUrl: string): { promise: Promise<string>, cancel: () => void } => {
+    let data: Uint8Array;
+    try {
+        data = base64ToUint8Array(base64DataUrl);
+    } catch (e: any) {
+        return { promise: Promise.reject(new Error("Falha interna na conversão da imagem: " + e.message)), cancel: () => {} };
+    }
 
     const fileRef = ref(storage, path);
-    
-    // uploadString automatically handles 'data:image/...' URLs efficiently
-    const promise = uploadString(fileRef, base64DataUrl, 'data_url').then(async (snapshot) => {
-        if (onProgress) onProgress(100);
-        return await getDownloadURL(snapshot.ref);
-    }).catch((error) => {
-        console.error("Base64 Upload Error:", error);
-        if (error.code === 'storage/unauthorized') {
-            throw new Error("ERRO DE PERMISSÃO: Vá no Firebase Console > Storage > Rules e cole as regras do arquivo storage.rules.");
-        } else if (error.code === 'storage/retry-limit-exceeded') {
-            throw new Error("O upload falhou após várias tentativas. Verifique sua conexão.");
-        } else {
-            throw new Error(`Erro no upload: ${error.message}`);
-        }
+    const metadata = { contentType: 'image/jpeg' };
+    const uploadTask = uploadBytesResumable(fileRef, data, metadata);
+
+    const promise = new Promise<string>((resolve, reject) => {
+        uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                console.log(`[Background Upload] ${path}: ${progress.toFixed(0)}%`);
+            },
+            (error) => {
+                console.error(`[Background Upload Error] ${path}:`, error);
+                reject(error);
+            },
+            async () => {
+                try {
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                    resolve(downloadURL);
+                } catch (e: any) {
+                    reject(e);
+                }
+            }
+        );
     });
 
-    return { promise, cancel: () => {} }; // Cancellation is not supported for atomic uploadString
+    return { promise, cancel: () => uploadTask.cancel() };
 };
 
-async function uploadAllProductImagesInProduct(productData: Product | Omit<Product, 'id'>): Promise<any> {
-    const productToUpload = JSON.parse(JSON.stringify(productData)); // Deep copy to avoid mutating original state
-    const productId = 'id' in productToUpload ? productToUpload.id : `new_${Date.now()}`;
+export const processImageUploadsForProduct = async (product: Product): Promise<void> => {
+    const productDocRef = doc(db, "products", product.id);
 
-    // Helper to upload an image only if it's a new base64 string
-    const uploadIfNeeded = async (imageUrl: string, path: string): Promise<string> => {
-        if (imageUrl && imageUrl.startsWith('data:')) {
+    const uploadAndQueueUpdate = async (fieldPath: string, dataUrl: string) => {
+        if (dataUrl && dataUrl.startsWith('data:')) {
+            const storagePath = `products/${product.id}/${fieldPath.replace(/[.\[\]]/g, '_')}_${Date.now()}.jpg`;
             try {
-                // Use the new simplified uploadBase64Image
-                const { promise } = uploadBase64Image(path, imageUrl);
-                return await promise; 
-            } catch (e: any) {
-                console.error(`Falha no upload da imagem para ${path}:`, e);
-                // Propagate specific permission errors directly to the UI
-                if (e.message.includes("ERRO DE PERMISSÃO") || e.code === 'storage/unauthorized') {
-                    throw e; 
-                }
-                throw new Error(`Falha ao enviar imagem: ${e.message}`);
+                const { promise } = uploadBase64Image(storagePath, dataUrl);
+                const downloadURL = await promise;
+                console.log(`Successfully uploaded ${fieldPath}. Updating document.`);
+                await updateDoc(productDocRef, { [fieldPath]: downloadURL });
+            } catch (error) {
+                console.error(`Failed to upload and link image for ${fieldPath}:`, error);
+                // We don't re-throw the error, allowing other uploads to continue.
+                // The UI will keep the local base64 image as a placeholder.
             }
         }
-        return imageUrl; // Already a URL, return as is
     };
+    
+    // Sequentially process all images to avoid network congestion and memory issues.
+    await uploadAndQueueUpdate('baseImageUrl', product.baseImageUrl);
 
-    // --- Serial Uploads to prevent race conditions ---
-
-    // 1. Base Image
-    if (productToUpload.baseImageUrl) {
-        productToUpload.baseImageUrl = await uploadIfNeeded(
-            productToUpload.baseImageUrl,
-            `products/${productId}/baseImage_${Date.now()}.jpg`
-        );
+    for (let i = 0; i < product.variations.length; i++) {
+        await uploadAndQueueUpdate(`variations.${i}.imageUrl`, product.variations[i].imageUrl);
     }
-
-    // 2. Variations
-    const updatedVariations = [];
-    for (const [index, variation] of productToUpload.variations.entries()) {
-        const newImageUrl = await uploadIfNeeded(
-            variation.imageUrl,
-            `products/${productId}/variation_${variation.size}_${index}_${Date.now()}.jpg`
-        );
-        updatedVariations.push({ ...variation, imageUrl: newImageUrl });
-    }
-    productToUpload.variations = updatedVariations;
-
-
-    // 3. Background Images
-    if (productToUpload.backgroundImages) {
-        for (const env in productToUpload.backgroundImages) {
+    
+    if (product.backgroundImages) {
+        for (const env of Object.keys(product.backgroundImages)) {
             const key = env as keyof Product['backgroundImages'];
-            const images = productToUpload.backgroundImages[key];
+            const images = product.backgroundImages[key];
 
             if (typeof images === 'string') {
-                productToUpload.backgroundImages[key] = await uploadIfNeeded(
-                    images,
-                    `products/${productId}/bg_${key}_${Date.now()}.jpg`
-                );
+                await uploadAndQueueUpdate(`backgroundImages.${key}`, images);
             } else if (typeof images === 'object' && images !== null) {
-                for (const color in images) {
-                    images[color] = await uploadIfNeeded(
-                        images[color],
-                        `products/${productId}/bg_${key}_${color.replace(/\s/g, '_')}_${Date.now()}.jpg`
-                    );
+                for (const color of Object.keys(images)) {
+                    await uploadAndQueueUpdate(`backgroundImages.${key}.${color}`, images[color]);
                 }
             }
         }
     }
-
-    return productToUpload;
-}
+    console.log("All image processing finished for product:", product.id);
+};
 
 
 // --- FIRESTORE (PRODUCTS) ---
@@ -368,19 +361,14 @@ export const onProductsUpdate = (
   );
 };
 
-export const addProduct = async (productData: Omit<Product, 'id'>): Promise<Product> => {
-    const dataToSave = await uploadAllProductImagesInProduct(productData);
-    const docRef = await addDoc(productsCollection, dataToSave as { [key: string]: any });
-    return { id: docRef.id, ...dataToSave } as Product;
+export const addProductData = async (productData: Omit<Product, 'id'>): Promise<Product> => {
+    const docRef = await addDoc(productsCollection, productData as { [key: string]: any });
+    return { id: docRef.id, ...productData } as Product;
 };
 
-export const updateProduct = async (productId: string, productData: Omit<Product, 'id'>): Promise<Product> => {
-    const productWithId = { ...productData, id: productId };
-    const dataToSave = await uploadAllProductImagesInProduct(productWithId);
-    const { id, ...finalData } = dataToSave;
+export const updateProductData = async (productId: string, productData: Omit<Product, 'id'>): Promise<void> => {
     const productDoc = doc(db, "products", productId);
-    await updateDoc(productDoc, finalData as { [key: string]: any });
-    return dataToSave as Product;
+    await updateDoc(productDoc, productData as { [key: string]: any });
 };
 
 export const deleteProduct = (productId: string): Promise<void> => {

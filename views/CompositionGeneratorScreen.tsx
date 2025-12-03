@@ -665,11 +665,11 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                                 >
                                                     <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover rounded-lg" />
                                                 </div>
-                                                <p 
-                                                    className={`text-xs mt-2 text-center transition-opacity duration-300 pointer-events-none ${subtitleClasses} w-28 md:w-32 truncate h-8 ${hoveredProductId === p.id ? 'opacity-100' : 'opacity-0 md:opacity-100'}`}
-                                                >
-                                                    {p.name}
-                                                </p>
+                                                <div className={`mt-2 w-28 md:w-32 h-8 flex justify-center items-start transition-opacity duration-300 pointer-events-none ${hoveredProductId === p.id ? 'opacity-100' : 'opacity-0 md:opacity-100'}`}>
+                                                    <span className={`px-2 py-0.5 rounded-md text-xs truncate max-w-full ${isDark ? 'bg-black/60 text-gray-200 backdrop-blur-sm' : 'bg-white/80 text-gray-800 backdrop-blur-sm'}`}>
+                                                        {p.name}
+                                                    </span>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -722,6 +722,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     // FIX: Added missing properties to satisfy the component's required props.
                     onAddToCart={() => {}}
                     onNavigate={onNavigate}
+                    sofaColors={sofaColors}
                 />
             )}
         </>

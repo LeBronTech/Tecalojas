@@ -892,21 +892,28 @@ export default function App() {
                 productWithGroupId.variationGroupId = `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             }
 
-            let savedProduct: Product;
+            let productForBackgroundUpload: Product;
     
             if (productWithGroupId.id) {
                 const { id, ...productData } = productWithGroupId;
-                savedProduct = await api.updateProduct(id, productData);
+                await api.updateProductData(id, productData);
+                productForBackgroundUpload = productWithGroupId;
             } else {
                 const { id, ...productData } = productWithGroupId;
-                savedProduct = await api.addProduct(productData);
+                productForBackgroundUpload = await api.addProductData(productData);
             }
+            
+            // Trigger background image uploads without waiting
+            api.processImageUploadsForProduct(productForBackgroundUpload).catch(err => {
+                console.error("Background image processing failed:", err);
+                // Optionally show a non-blocking notification to the user
+            });
           
             if (options?.closeModal !== false) {
                 setEditingProduct(null);
             }
             
-            return savedProduct;
+            return productForBackgroundUpload;
         } catch (error: any) {
             console.error("Failed to save product:", error);
             if (error.code === 'permission-denied') {
@@ -950,7 +957,7 @@ export default function App() {
                 return rest;
             });
     
-            const creationPromises = productsToCreate.map(p => api.addProduct(p));
+            const creationPromises = productsToCreate.map(p => api.addProductData(p));
             await Promise.all(creationPromises);
         } catch (error: any) {
             console.error("Failed to create color variations:", error);
@@ -967,7 +974,7 @@ export default function App() {
     productToConfigure: Omit<Product, 'id'>
   ) => {
       try {
-          const creationPromises = productsToCreate.map(p => api.addProduct(p));
+          const creationPromises = productsToCreate.map(p => api.addProductData(p));
           const createdDocs = await Promise.all(creationPromises);
   
           const configuredProductDoc = createdDocs.find((doc, index) => 
@@ -1059,7 +1066,7 @@ export default function App() {
     
     const { id, ...productData } = updatedProduct;
     try {
-        await api.updateProduct(id, productData);
+        await api.updateProductData(id, productData);
     } catch (error: any) {
         console.error("Failed to update stock:", error);
         let alertMessage = 'Falha ao atualizar o estoque.';

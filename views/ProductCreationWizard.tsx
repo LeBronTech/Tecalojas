@@ -5,7 +5,7 @@ import ColorSelector from '../components/ColorSelector';
 
 // --- Helper Components & Functions ---
 
-const resizeImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promise<string> => {
+const resizeImage = (base64Str: string, maxWidth = 512, maxHeight = 512): Promise<string> => {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.src = base64Str;
@@ -32,7 +32,7 @@ const resizeImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promis
                 return reject(new Error('Could not get canvas context'));
             }
             ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.8));
+            resolve(canvas.toDataURL('image/jpeg', 0.6));
         };
         img.onerror = (error) => {
             reject(error);

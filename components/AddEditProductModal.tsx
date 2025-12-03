@@ -72,7 +72,7 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg');
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6); // Slightly lower quality for camera captures
         onCapture(dataUrl);
         cleanupCamera();
       }
@@ -297,7 +297,7 @@ const FormInput = ({ label, children, ...props }: { label: string, children?: Re
 };
 
 
-const resizeImage = (base64Str: string, maxWidth = 500, maxHeight = 500): Promise<string> => {
+const resizeImage = (base64Str: string, maxWidth = 512, maxHeight = 512): Promise<string> => {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.src = base64Str;
@@ -325,7 +325,7 @@ const resizeImage = (base64Str: string, maxWidth = 500, maxHeight = 500): Promis
             }
             ctx.drawImage(img, 0, 0, width, height);
             
-            // Reduced quality to 0.6 to significantly improve upload speed
+            // More aggressive compression for faster uploads
             resolve(canvas.toDataURL('image/jpeg', 0.6));
         };
         img.onerror = (error) => {
@@ -386,7 +386,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [addVariationSize, setAddVariationSize] = useState<CushionSize | ''>('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [bgGenerating, setBgGenerating] = useState<Record<string, boolean>>({});
   const [isBatchColorMode, setIsBatchColorMode] = useState(false);
   const [selectedNewColors, setSelectedNewColors] = useState<{name: string, hex: string}[]>([]);
@@ -403,7 +402,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [deleteConfirmation, setDeleteConfirmation] = useState<'sala' | 'quarto' | null>(null);
   
   const isMounted = useRef(true);
-  const safetyTimeoutRef = useRef<any>(null);
 
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -980,18 +978,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     e.preventDefault();
     setIsSaving(true);
     setSaveError(null);
-    setLoadingMessage('Validando...');
-
-    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
-    
-    // Safety timeout increased to 120 seconds to allow for slow uploads
-    safetyTimeoutRef.current = setTimeout(() => {
-        if (isMounted.current) {
-            setIsSaving(false);
-            setLoadingMessage('');
-            setSaveError("O salvamento está demorando muito. Verifique sua conexão ou tente novamente.");
-        }
-    }, 120000); 
 
     try {
         const productToSave = { ...formData };
@@ -1012,28 +998,17 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             throw new Error(`Já existe um produto com o nome exato "${productToSave.name}".`);
         }
 
-        if (productToSave.baseImageUrl && productToSave.baseImageUrl.startsWith('data:')) {
-            setLoadingMessage('Enviando imagens... (pode demorar)');
-        } else {
-            setLoadingMessage('Salvando dados...');
-        }
-
         await onSave(productToSave);
-        if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
     } catch (error: any) { 
-        if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
         console.error("Failed to save product:", error);
         let msg = error.message || "Ocorreu um erro desconhecido ao salvar.";
         if (msg.includes('permission') || msg.includes('Permissão')) {
-            msg = "Permissão negada. Verifique se você está logado como administrador e se as regras do Firebase permitem escrita.";
-        } else if (msg.includes('network') || msg.includes('timeout') || msg.includes('retry')) {
-            msg = "Erro de rede. O upload falhou. Tente novamente com uma conexão melhor.";
+            msg = "Permissão negada. Verifique se você está logado como administrador.";
         }
         if (isMounted.current) setSaveError(msg);
     } finally { 
       if (isMounted.current) {
           setIsSaving(false);
-          setLoadingMessage('');
       }
     }
   };
@@ -1134,7 +1109,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
   const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
   const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
-  const subtitleClasses = isDark ? "text-gray-400" : "text-gray-500";
+  const subtitleClasses = isDark ? "text-gray-400" : "text-gray-600";
   const closeBtnClasses = isDark ? "text-gray-400 hover:text-white bg-black/20" : "text-gray-500 hover:text-gray-800 bg-gray-100";
   const labelClasses = isDark ? "text-gray-400" : "text-gray-600";
   const inputClasses = isDark ? "bg-black/20 text-white border-white/10" : "bg-gray-100 text-gray-900 border-gray-300";
@@ -1515,7 +1490,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     </div>
                      <div className="flex items-center gap-4">
                          {saveError && <p className="text-sm text-red-500 font-semibold">{saveError}</p>}
-                         <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100">{isSaving ? (loadingMessage || 'Salvando...') : 'Salvar'}</button>
+                         <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100">{isSaving ? 'Salvando...' : 'Salvar'}</button>
                     </div>
                 </div>
             </form>
