@@ -119,6 +119,36 @@ const loadLogos = (): Promise<[HTMLImageElement, HTMLImageElement]> => {
     return Promise.all([tecaPromise, ionePromise]);
 };
 
+const getPillowMobileStyle = (index: number, total: number): React.CSSProperties => {
+    const baseStyle: React.CSSProperties = {
+        position: 'absolute',
+        transition: 'transform 0.3s ease-out, z-index 0.3s ease-out',
+    };
+
+    switch (total) {
+        case 6: // 2 back, 2 middle, 2 front
+            if (index < 2) return { ...baseStyle, zIndex: 1, transform: 'scale(0.8)', top: '0%', left: index === 0 ? '15%' : '55%' };
+            if (index < 4) return { ...baseStyle, zIndex: 2, transform: 'scale(0.9)', top: '25%', left: index === 2 ? '5%' : '65%' };
+            return { ...baseStyle, zIndex: 3, transform: 'scale(1)', top: '50%', left: index === 4 ? '20%' : '50%' };
+        case 5: // 2 back, 2 middle, 1 front
+            if (index < 2) return { ...baseStyle, zIndex: 1, transform: 'scale(0.8)', top: '0%', left: index === 0 ? '15%' : '55%' };
+            if (index < 4) return { ...baseStyle, zIndex: 2, transform: 'scale(0.9)', top: '25%', left: index === 2 ? '5%' : '65%' };
+            return { ...baseStyle, zIndex: 3, transform: 'scale(1)', top: '50%', left: '35%' }; // Centered
+        case 4: // 2 back, 2 front
+            if (index < 2) return { ...baseStyle, zIndex: 1, transform: 'scale(0.9)', top: '15%', left: index === 0 ? '15%' : '55%' };
+            return { ...baseStyle, zIndex: 2, transform: 'scale(1)', top: '45%', left: index === 2 ? '5%' : '65%' };
+        case 3: // 1 back, 2 front
+            if (index < 1) return { ...baseStyle, zIndex: 1, transform: 'scale(0.9)', top: '15%', left: '35%' };
+            return { ...baseStyle, zIndex: 2, transform: 'scale(1)', top: '45%', left: index === 1 ? '10%' : '60%' };
+        case 2: // Side by side
+            return { ...baseStyle, zIndex: 1, transform: 'scale(1)', top: '35%', left: index === 0 ? '10%' : '60%' };
+        case 1: // Center
+            return { ...baseStyle, zIndex: 1, transform: 'scale(1)', top: '35%', left: '35%' };
+        default:
+            return {};
+    }
+};
+
 
 const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({ products, onNavigate, apiKey, onRequestApiKey, onSaveComposition }) => {
     const { theme } = useContext(ThemeContext);
@@ -147,6 +177,8 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     const [useColorFilter, setUseColorFilter] = useState(false);
     const [selectedFilterColors, setSelectedFilterColors] = useState<{name: string, hex: string}[]>([]);
     const [hoveredProductId, setHoveredProductId] = useState<string | null>(null);
+
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
 
     useEffect(() => {
@@ -538,6 +570,30 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     const toggleSize = (size: CushionSize) => {
         setSelectedSizes(prev => prev.includes(size) ? prev.filter(s => s !== size) : [...prev, size]);
     };
+
+    const handleDragStart = (index: number) => {
+        setDraggedIndex(index);
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault(); // Necessary to allow dropping
+    };
+
+    const handleDrop = (targetIndex: number) => {
+        if (draggedIndex === null || draggedIndex === targetIndex) return;
+        
+        setCurrentComposition(prev => {
+            if (!prev) return null;
+            const newComposition = [...prev];
+            // Swap elements
+            [newComposition[draggedIndex], newComposition[targetIndex]] = [newComposition[targetIndex], newComposition[draggedIndex]];
+            return newComposition;
+        });
+    };
+    
+    const handleDragEnd = () => {
+        setDraggedIndex(null);
+    };
     
     const titleClasses = isDark ? "text-white" : "text-gray-900";
     const subtitleClasses = isDark ? "text-gray-400" : "text-gray-600";
@@ -664,7 +720,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     ) : (
                         // RESULT VIEW
                         <div className="flex-grow flex flex-col items-center gap-4">
-                             <div className={`w-full aspect-[4/3] rounded-xl border p-4 flex flex-col ${cardClasses}`}>
+                             <div className={`w-full md:aspect-[4/3] aspect-square rounded-xl border p-4 flex flex-col ${cardClasses}`}>
                                 <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
                                     <button onClick={handleShuffle} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}><ShuffleIcon /> Ordem</button>
                                     <button onClick={handleGenerateNewCombination} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}><StarIcon /> Gerar Nova</button>
@@ -672,13 +728,19 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                     <button onClick={handleSave} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}><SaveIcon /> Salvar</button>
                                 </div>
                                 <div className="flex-grow flex items-center justify-center overflow-hidden">
-                                    <div className="flex justify-center items-center -space-x-8 md:-space-x-12 p-4">
+                                    {/* Desktop View */}
+                                    <div className="hidden md:flex justify-center items-center -space-x-8 md:-space-x-12 p-4">
                                         {currentComposition.map((p, index) => (
                                             <div 
                                                 key={`${p.id}-${index}`} 
-                                                className="flex flex-col items-center transition-all duration-300 ease-in-out cursor-pointer"
+                                                draggable="true"
+                                                onDragStart={() => handleDragStart(index)}
+                                                onDragOver={handleDragOver}
+                                                onDrop={() => handleDrop(index)}
+                                                onDragEnd={handleDragEnd}
+                                                className={`flex flex-col items-center transition-all duration-300 ease-in-out cursor-grab ${draggedIndex === index ? 'opacity-50' : ''}`}
                                                 style={{ 
-                                                    zIndex: hoveredProductId === p.id ? 10 : index,
+                                                    zIndex: hoveredProductId === p.id ? 20 : index,
                                                     transform: hoveredProductId === p.id ? 'scale(1.1) translateY(-10px)' : 'scale(1)',
                                                 }}
                                                 onMouseEnter={() => setHoveredProductId(p.id)}
@@ -706,13 +768,69 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                                         ))}
                                                     </select>
                                                 )}
-                                                <div className={`mt-2 w-28 md:w-32 h-8 flex justify-center items-start transition-opacity duration-300 pointer-events-none ${hoveredProductId === p.id ? 'opacity-100' : 'opacity-0 md:opacity-100'}`}>
+                                                <div className={`mt-2 w-28 md:w-32 h-8 flex justify-center items-start transition-opacity duration-300 pointer-events-none opacity-100`}>
                                                     <span className={`px-2 py-0.5 rounded-md text-xs truncate max-w-full ${isDark ? 'bg-black/60 text-gray-200 backdrop-blur-sm' : 'bg-white/80 text-gray-800 backdrop-blur-sm'}`}>
                                                         {p.name}
                                                     </span>
                                                 </div>
                                             </div>
                                         ))}
+                                    </div>
+
+                                    {/* Mobile View */}
+                                    <div className="flex md:hidden flex-grow w-full h-full items-center justify-center relative">
+                                         {currentComposition.map((p, index) => {
+                                            const style = getPillowMobileStyle(index, currentComposition.length);
+                                            const isBeingDragged = draggedIndex === index;
+                                            const hoverStyle: React.CSSProperties = {
+                                                ...style,
+                                                ...(hoveredProductId === p.id && !isBeingDragged ? { transform: `${style.transform || ''} scale(1.1) translateY(-10px)`, zIndex: 20 } : {}),
+                                                ...(isBeingDragged ? { opacity: 0.5, transform: `${style.transform || ''} scale(1.1)` } : {}),
+                                            };
+                                            
+                                            return (
+                                                <div
+                                                    key={`${p.id}-${index}`}
+                                                    draggable="true"
+                                                    onDragStart={() => handleDragStart(index)}
+                                                    onDragOver={handleDragOver}
+                                                    onDrop={() => handleDrop(index)}
+                                                    onDragEnd={handleDragEnd}
+                                                    className="flex flex-col items-center cursor-grab"
+                                                    style={hoverStyle}
+                                                    onMouseEnter={() => setHoveredProductId(p.id)}
+                                                    onMouseLeave={() => setHoveredProductId(null)}
+                                                >
+                                                    <div
+                                                        className="w-28 h-28 rounded-lg shadow-lg relative"
+                                                        onClick={() => setViewingProduct(p)}
+                                                        aria-label={`Ver detalhes de ${p.name}`}
+                                                    >
+                                                        <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover rounded-lg" />
+                                                    </div>
+                                                    {selectedSizes.length > 1 && (
+                                                        <select
+                                                            value={assignedPillowSizes[index] || ''}
+                                                            onChange={(e) => {
+                                                                const newSize = e.target.value as CushionSize;
+                                                                setAssignedPillowSizes(prev => ({ ...prev, [index]: newSize }));
+                                                            }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className={`-mt-1 text-xs p-1 rounded-md border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${isDark ? 'bg-gray-800 text-gray-200 border-white/10' : 'bg-white text-gray-700 border-gray-200'} relative z-20`}
+                                                        >
+                                                            {selectedSizes.map(size => (
+                                                                <option key={size} value={size}>{size}</option>
+                                                            ))}
+                                                        </select>
+                                                    )}
+                                                     <div className={`mt-2 w-28 h-8 flex justify-center items-start transition-opacity duration-300 pointer-events-none ${hoveredProductId === p.id ? 'opacity-100' : 'opacity-0'}`}>
+                                                        <span className={`px-2 py-0.5 rounded-md text-xs truncate max-w-full ${isDark ? 'bg-black/60 text-gray-200 backdrop-blur-sm' : 'bg-white/80 text-gray-800 backdrop-blur-sm'}`}>
+                                                            {p.name}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
