@@ -1,0 +1,19 @@
+rules_version = '2';
+
+// Copie este conteúdo EXCLUSIVAMENTE para a aba "Storage" > "Rules" no Console do Firebase.
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Regra global para todos os arquivos
+    match /{allPaths=**} {
+      
+      // Permite leitura pública: Necessário para que clientes vejam as fotos na vitrine.
+      allow read: if true;
+      
+      // Permite escrita (upload/delete): Necessário para que o app salve as fotos.
+      // A restrição `request.auth != null` exige que o usuário esteja logado no app.
+      // Isso resolve o erro de permissão/carregamento infinito ao salvar produtos.
+      allow write: if request.auth != null;
+    }
+  }
+}

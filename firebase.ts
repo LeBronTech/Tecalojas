@@ -28,7 +28,8 @@ import {
     where,
     orderBy
 } from "firebase/firestore";
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+// Change: Imported uploadString
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, uploadString } from "firebase/storage";
 
 import { User, Product, DynamicBrand, CatalogPDF, SaleRequest, CartItem, StoreName, PosCartItem, Variation } from './types';
 import { firebaseConfig } from './firebaseConfig';
@@ -198,6 +199,8 @@ export const onAuthStateChanged = (callback: (user: User | null) => void) => {
 };
 
 // --- STORAGE ---
+
+// General file upload (PDFs, etc) - Uses uploadBytesResumable for progress
 export const uploadFile = (path: string, file: File | Blob, onProgress?: (progress: number) => void): { promise: Promise<string>, cancel: () => void } => {
     const fileRef = ref(storage, path);
     const uploadTask = uploadBytesResumable(fileRef, file);
@@ -212,8 +215,17 @@ export const uploadFile = (path: string, file: File | Blob, onProgress?: (progre
                 }
             },
             (error) => {
-                console.error("Upload failed:", error);
-                reject(error);
+                if (error.code === 'storage/canceled') {
+                    console.log("Upload canceled.");
+                } else if (error.code === 'storage/unauthorized') {
+                    console.error("Storage Permission Error:", error);
+                    reject(new Error("Permissão negada no Storage. Verifique as regras de segurança no Firebase Console (Storage > Rules)."));
+                } else if (error.code === 'storage/retry-limit-exceeded') {
+                    reject(new Error("Tempo limite de conexão excedido. Sua internet pode estar instável."));
+                } else {
+                    console.error("Upload failed:", error);
+                    reject(error);
+                }
             },
             async () => {
                 try {
@@ -233,27 +245,29 @@ export const uploadFile = (path: string, file: File | Blob, onProgress?: (progre
     return { promise, cancel };
 };
 
+// Simplified and Robust Base64 Image Upload using uploadString
+// This avoids the overhead of converting to Blob/Uint8Array manually which can freeze the UI on large strings
 export const uploadBase64Image = (path: string, base64DataUrl: string, onProgress?: (progress: number) => void): { promise: Promise<string>, cancel: () => void } => {
-    const parts = base64DataUrl.split(',');
-    const mimeTypePart = parts[0].match(/:(.*?);/);
-    if (!mimeTypePart || !parts[1]) {
-        return {
-            promise: Promise.reject(new Error('Invalid base64 data URL.')),
-            cancel: () => {}
-        };
-    }
-    const mimeType = mimeTypePart[1];
-    const base64 = parts[1];
+    if (onProgress) onProgress(10); 
 
-    const byteCharacters = atob(base64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: mimeType });
+    const fileRef = ref(storage, path);
+    
+    // uploadString automatically handles 'data:image/...' URLs efficiently
+    const promise = uploadString(fileRef, base64DataUrl, 'data_url').then(async (snapshot) => {
+        if (onProgress) onProgress(100);
+        return await getDownloadURL(snapshot.ref);
+    }).catch((error) => {
+        console.error("Base64 Upload Error:", error);
+        if (error.code === 'storage/unauthorized') {
+            throw new Error("ERRO DE PERMISSÃO: Vá no Firebase Console > Storage > Rules e cole as regras do arquivo storage.rules.");
+        } else if (error.code === 'storage/retry-limit-exceeded') {
+            throw new Error("O upload falhou após várias tentativas. Verifique sua conexão.");
+        } else {
+            throw new Error(`Erro no upload: ${error.message}`);
+        }
+    });
 
-    return uploadFile(path, blob, onProgress);
+    return { promise, cancel: () => {} }; // Cancellation is not supported for atomic uploadString
 };
 
 async function uploadAllProductImagesInProduct(productData: Product | Omit<Product, 'id'>): Promise<any> {
@@ -263,8 +277,18 @@ async function uploadAllProductImagesInProduct(productData: Product | Omit<Produ
     // Helper to upload an image only if it's a new base64 string
     const uploadIfNeeded = async (imageUrl: string, path: string): Promise<string> => {
         if (imageUrl && imageUrl.startsWith('data:')) {
-            const { promise } = uploadBase64Image(path, imageUrl);
-            return promise; // Return the promise for the new URL
+            try {
+                // Use the new simplified uploadBase64Image
+                const { promise } = uploadBase64Image(path, imageUrl);
+                return await promise; 
+            } catch (e: any) {
+                console.error(`Falha no upload da imagem para ${path}:`, e);
+                // Propagate specific permission errors directly to the UI
+                if (e.message.includes("ERRO DE PERMISSÃO") || e.code === 'storage/unauthorized') {
+                    throw e; 
+                }
+                throw new Error(`Falha ao enviar imagem: ${e.message}`);
+            }
         }
         return imageUrl; // Already a URL, return as is
     };
@@ -272,13 +296,14 @@ async function uploadAllProductImagesInProduct(productData: Product | Omit<Produ
     // --- Serial Uploads to prevent race conditions ---
 
     // 1. Base Image
-    productToUpload.baseImageUrl = await uploadIfNeeded(
-        productToUpload.baseImageUrl,
-        `products/${productId}/baseImage_${Date.now()}.jpg`
-    );
+    if (productToUpload.baseImageUrl) {
+        productToUpload.baseImageUrl = await uploadIfNeeded(
+            productToUpload.baseImageUrl,
+            `products/${productId}/baseImage_${Date.now()}.jpg`
+        );
+    }
 
     // 2. Variations
-    // Use a for...of loop to process items sequentially
     const updatedVariations = [];
     for (const [index, variation] of productToUpload.variations.entries()) {
         const newImageUrl = await uploadIfNeeded(
@@ -292,7 +317,6 @@ async function uploadAllProductImagesInProduct(productData: Product | Omit<Produ
 
     // 3. Background Images
     if (productToUpload.backgroundImages) {
-        // Use a for...in loop to process environments sequentially
         for (const env in productToUpload.backgroundImages) {
             const key = env as keyof Product['backgroundImages'];
             const images = productToUpload.backgroundImages[key];
@@ -303,7 +327,6 @@ async function uploadAllProductImagesInProduct(productData: Product | Omit<Produ
                     `products/${productId}/bg_${key}_${Date.now()}.jpg`
                 );
             } else if (typeof images === 'object' && images !== null) {
-                // Use another for...in loop for colors within an environment
                 for (const color in images) {
                     images[color] = await uploadIfNeeded(
                         images[color],
@@ -365,59 +388,6 @@ export const deleteProduct = (productId: string): Promise<void> => {
     return deleteDoc(productDoc);
 };
 
-/* 
-  =================================================================
-  🔥🔥🔥 AÇÃO NECESSÁRIA: CORREÇÃO DE PERMISSÕES (FIRESTORE) 🔥🔥🔥
-  =================================================================
-  O erro "Missing or insufficient permissions" na tela de Vendas ocorre
-  porque as regras de segurança do Firestore не estão configuradas
-  corretamente para permitir que administradores acessem os pedidos.
-
-  Para corrigir, siga DOIS PASSOS:
-
-  PASSO 1: ESTRUTURA DO USUÁRIO ADMINISTRADOR
-  -------------------------------------------
-  No seu Firestore, na coleção 'users', o documento do usuário
-  que deve ser administrador PRECISA ter um campo `role` com o valor
-  exato de `"admin"` (em minúsculas).
-
-  Exemplo da estrutura do documento para um usuário admin:
-  - Coleção: `users`
-  - Documento ID: `[UID_DO_USUARIO_ADMIN]`
-  - Campos:
-    - `email`: "admin@email.com"
-    - `role`: "admin"   <-- IMPORTANTE!
-
-  
-  PASSO 2: REGRAS DE SEGURANÇA
-  -------------------------------------------
-  Vá para o seu projeto no Firebase > Firestore Database > Rules e
-  adicione ou modifique a regra para `saleRequests` para que fique
-  exatamente como abaixo. Isso garante que apenas usuários com `role: "admin"`
-  possam ler os pedidos.
-
-  ```
-  rules_version = '2';
-  service cloud.firestore {
-    match /databases/{database}/documents {
-    
-      // ... (suas outras regras, como a de 'products')
-
-      match /saleRequests/{requestId} {
-        // Permite que qualquer usuário autenticado crie um pedido.
-        allow create: if request.auth != null;
-        
-        // Permite que APENAS administradores leiam, listem e atualizem pedidos.
-        allow read, list, update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-      }
-
-      // ... (suas outras regras)
-    }
-  }
-  ```
-  =================================================================
-*/
-
 // --- FIRESTORE (SALES) ---
 export const addSaleRequest = (saleData: { items: CartItem[] | PosCartItem[], totalPrice: number, paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Cartão (Online)', customerName?: string }): Promise<any> => {
     return addDoc(saleRequestsCollection, {
@@ -445,7 +415,7 @@ export const completeSaleRequest = async (requestId: string, details: { discount
     const saleRequestDocRef = doc(db, "saleRequests", requestId);
     const saleRequestSnap = await getDoc(saleRequestDocRef);
     if (!saleRequestSnap.exists()) {
-        throw new Error("Solicitação de venda не encontrada.");
+        throw new Error("Solicitação de venda não encontrada.");
     }
     const saleRequestData = saleRequestSnap.data() as SaleRequest;
 

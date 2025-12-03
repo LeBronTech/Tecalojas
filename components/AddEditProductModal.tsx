@@ -85,7 +85,7 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center">
+    <div className="fixed inset-0 bg-black z-[120] flex flex-col items-center justify-center">
       {error ? (
         <div className="text-white text-center p-4">
           <p>{error}</p>
@@ -176,7 +176,7 @@ const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, 
 
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-end justify-center z-50 p-4 transition-opacity duration-300">
+    <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-end justify-center z-[120] p-4 transition-opacity duration-300">
       <div className={`border rounded-t-3xl shadow-2xl w-full max-w-md p-6 relative transform transition-all duration-300 translate-y-full opacity-0 animate-slide-in-up ${modalBgClasses}`}>
         <style>{`
           @keyframes slide-in-up {
@@ -270,7 +270,7 @@ const initialFormState: Omit<Product, 'id'> = {
 const ButtonSpinner = () => (
     <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 12 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
 
@@ -297,7 +297,7 @@ const FormInput = ({ label, children, ...props }: { label: string, children?: Re
 };
 
 
-const resizeImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promise<string> => {
+const resizeImage = (base64Str: string, maxWidth = 500, maxHeight = 500): Promise<string> => {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.src = base64Str;
@@ -325,7 +325,8 @@ const resizeImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promis
             }
             ctx.drawImage(img, 0, 0, width, height);
             
-            resolve(canvas.toDataURL('image/jpeg', 0.8));
+            // Reduced quality to 0.6 to significantly improve upload speed
+            resolve(canvas.toDataURL('image/jpeg', 0.6));
         };
         img.onerror = (error) => {
             reject(error);
@@ -385,6 +386,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [addVariationSize, setAddVariationSize] = useState<CushionSize | ''>('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [bgGenerating, setBgGenerating] = useState<Record<string, boolean>>({});
   const [isBatchColorMode, setIsBatchColorMode] = useState(false);
   const [selectedNewColors, setSelectedNewColors] = useState<{name: string, hex: string}[]>([]);
@@ -399,6 +401,9 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [generationProgress, setGenerationProgress] = useState('');
   const [generatingColor, setGeneratingColor] = useState<Partial<Record<'sala' | 'quarto', string | null>>>({});
   const [deleteConfirmation, setDeleteConfirmation] = useState<'sala' | 'quarto' | null>(null);
+  
+  const isMounted = useRef(true);
+  const safetyTimeoutRef = useRef<any>(null);
 
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -481,6 +486,11 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setSelectedNewColors([]);
     setImageRotation(0);
   }, [product]);
+  
+  useEffect(() => {
+      isMounted.current = true;
+      return () => { isMounted.current = false; };
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -622,9 +632,12 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
         const newImageUrl = `data:${generatedImagePart.inlineData.mimeType};base64,${generatedImagePart.inlineData.data}`;
         const resizedImageUrl = await resizeImage(newImageUrl);
-        const updatedVariations = [...formData.variations];
-        updatedVariations[index].imageUrl = resizedImageUrl;
-        setFormData(prev => ({ ...prev, variations: updatedVariations }));
+        setFormData(prev => {
+            if (!isMounted.current) return prev;
+            const updatedVariations = [...prev.variations];
+            updatedVariations[index].imageUrl = resizedImageUrl;
+            return { ...prev, variations: updatedVariations };
+        });
     } catch (error: any) { 
         console.error("AI image generation failed:", error); 
         if (error.message && error.message.includes('429')) {
@@ -641,7 +654,11 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             setSaveError(error.message || "Falha na IA. Tente novamente.");
         }
     } 
-    finally { setAiGenerating(prev => ({ ...prev, [variation.size]: false })); }
+    finally { 
+        if (isMounted.current) {
+            setAiGenerating(prev => ({ ...prev, [variation.size]: false })); 
+        }
+    }
   };
 
   const generateShowcaseImage = async () => {
@@ -672,7 +689,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
         const newImageUrl = `data:${imagePartResponse.inlineData.mimeType};base64,${imagePartResponse.inlineData.data}`;
         const resizedImageUrl = await resizeImage(newImageUrl);
-        setFormData(prev => ({ ...prev, baseImageUrl: resizedImageUrl }));
+        setFormData(prev => {
+            if (!isMounted.current) return prev;
+            return { ...prev, baseImageUrl: resizedImageUrl };
+        });
     } catch (error: any) { 
         console.error("AI showcase image generation failed:", error); 
         if (error.message && error.message.includes('429')) {
@@ -689,7 +709,9 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             setSaveError(error.message || "Falha na IA. Tente novamente.");
         }
     } 
-    finally { setIsGeneratingShowcase(false); }
+    finally { 
+        if (isMounted.current) setIsGeneratingShowcase(false); 
+    }
   };
   
     const backgroundOptions = useMemo(() => {
@@ -739,6 +761,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         const newImageUrl = `data:${imagePartResponse.inlineData.mimeType};base64,${imagePartResponse.inlineData.data}`;
         const resizedImageUrl = await resizeImage(newImageUrl);
         setFormData(prev => {
+            if (!isMounted.current) return prev;
             const newBgs = { ...prev.backgroundImages };
             if (contextKey === 'sala' || contextKey === 'quarto') {
                 newBgs[contextKey] = { ...newBgs[contextKey], 'Bege': resizedImageUrl };
@@ -763,7 +786,11 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             setSaveError(error.message || "Falha na IA. Tente novamente.");
         }
     } 
-    finally { setBgGenerating(prev => ({ ...prev, [contextKey]: false })); }
+    finally { 
+        if (isMounted.current) {
+            setBgGenerating(prev => ({ ...prev, [contextKey]: false })); 
+        }
+    }
   };
 
   const handleGenerateColoredBackgrounds = async (context: 'sala' | 'quarto', colorsToGenerate: string[]) => {
@@ -784,6 +811,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     let currentData: Product = formData;
 
     for (const color of colorsToGenerate) {
+        if (!isMounted.current) break;
         setGeneratingColor(prev => ({ ...prev, [context]: color }));
         setGenerationProgress(`Gerando ${furniture} ${color}...`);
         try {
@@ -819,7 +847,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             setGenerationProgress(`Imagem de ${furniture} ${color} gerada! Salvando...`);
             const savedProduct = await onSave(updatedData, { closeModal: false });
             currentData = savedProduct; // Use the saved product for the next iteration
-            setFormData(savedProduct); // Update UI state immediately
+            if (isMounted.current) setFormData(savedProduct);
 
         } catch (error: any) {
             console.error(`Error generating for color ${color}:`, error);
@@ -830,17 +858,19 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             } else if (error.message.includes('SAFETY')) {
                 errorMessage = "Geração bloqueada por políticas de segurança.";
             }
-            setSaveError(errorMessage);
+            if (isMounted.current) setSaveError(errorMessage);
             setGenerationProgress(`Falha ao gerar ${furniture} ${color}.`);
             await new Promise(res => setTimeout(res, 2000)); // show error message for a bit
         } finally {
-            setGeneratingColor(prev => ({ ...prev, [context]: null }));
+            if (isMounted.current) setGeneratingColor(prev => ({ ...prev, [context]: null }));
         }
     }
 
-    setGenerationProgress('Concluído!');
-    setTimeout(() => setGenerationProgress(''), 2000);
-    setIsGeneratingColors(false);
+    if (isMounted.current) {
+        setGenerationProgress('Concluído!');
+        setTimeout(() => isMounted.current && setGenerationProgress(''), 2000);
+        setIsGeneratingColors(false);
+    }
   };
 
     const handleColorSelect = (color: { name: string; hex: string }) => {
@@ -942,7 +972,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             setSaveError("Falha na IA. Tente novamente.");
         }
     } finally {
-        setIsNameAiLoading(false);
+        if (isMounted.current) setIsNameAiLoading(false);
     }
   };
 
@@ -950,6 +980,19 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     e.preventDefault();
     setIsSaving(true);
     setSaveError(null);
+    setLoadingMessage('Validando...');
+
+    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+    
+    // Safety timeout increased to 120 seconds to allow for slow uploads
+    safetyTimeoutRef.current = setTimeout(() => {
+        if (isMounted.current) {
+            setIsSaving(false);
+            setLoadingMessage('');
+            setSaveError("O salvamento está demorando muito. Verifique sua conexão ou tente novamente.");
+        }
+    }, 120000); 
+
     try {
         const productToSave = { ...formData };
 
@@ -969,12 +1012,29 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             throw new Error(`Já existe um produto com o nome exato "${productToSave.name}".`);
         }
 
-        await onSave(productToSave); 
+        if (productToSave.baseImageUrl && productToSave.baseImageUrl.startsWith('data:')) {
+            setLoadingMessage('Enviando imagens... (pode demorar)');
+        } else {
+            setLoadingMessage('Salvando dados...');
+        }
+
+        await onSave(productToSave);
+        if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
     } catch (error: any) { 
+        if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
         console.error("Failed to save product:", error);
-        setSaveError(error.message || "Ocorreu um erro desconhecido ao salvar.");
+        let msg = error.message || "Ocorreu um erro desconhecido ao salvar.";
+        if (msg.includes('permission') || msg.includes('Permissão')) {
+            msg = "Permissão negada. Verifique se você está logado como administrador e se as regras do Firebase permitem escrita.";
+        } else if (msg.includes('network') || msg.includes('timeout') || msg.includes('retry')) {
+            msg = "Erro de rede. O upload falhou. Tente novamente com uma conexão melhor.";
+        }
+        if (isMounted.current) setSaveError(msg);
     } finally { 
-      setIsSaving(false); 
+      if (isMounted.current) {
+          setIsSaving(false);
+          setLoadingMessage('');
+      }
     }
   };
   
@@ -1012,14 +1072,16 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         await onCreateVariations(savedParentProduct, selectedNewColors);
 
         // Update the form with the potentially updated parent product (e.g., with a new variationGroupId)
-        setFormData(savedParentProduct); 
-        setSelectedNewColors([]);
-        setIsBatchColorMode(false);
+        if (isMounted.current) {
+            setFormData(savedParentProduct); 
+            setSelectedNewColors([]);
+            setIsBatchColorMode(false);
+        }
 
     } catch (err: any) {
-        setSaveError(err.message || 'Falha ao criar variações de cor.');
+        if (isMounted.current) setSaveError(err.message || 'Falha ao criar variações de cor.');
     } finally {
-        setIsCreatingVariations(false);
+        if (isMounted.current) setIsCreatingVariations(false);
     }
   };
   
@@ -1453,7 +1515,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     </div>
                      <div className="flex items-center gap-4">
                          {saveError && <p className="text-sm text-red-500 font-semibold">{saveError}</p>}
-                         <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100">{isSaving ? 'Salvando...' : 'Salvar'}</button>
+                         <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100">{isSaving ? (loadingMessage || 'Salvando...') : 'Salvar'}</button>
                     </div>
                 </div>
             </form>
