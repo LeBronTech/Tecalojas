@@ -179,6 +179,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
     const [hoveredProductId, setHoveredProductId] = useState<string | null>(null);
 
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
 
 
     useEffect(() => {
@@ -575,6 +576,16 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         setDraggedIndex(index);
     };
 
+    const handleDragEnter = (index: number) => {
+        if (index !== draggedIndex) {
+            setDropTargetIndex(index);
+        }
+    };
+
+    const handleDragLeave = () => {
+        setDropTargetIndex(null);
+    };
+
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault(); // Necessary to allow dropping
     };
@@ -589,10 +600,12 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             [newComposition[draggedIndex], newComposition[targetIndex]] = [newComposition[targetIndex], newComposition[draggedIndex]];
             return newComposition;
         });
+        setDropTargetIndex(null);
     };
     
     const handleDragEnd = () => {
         setDraggedIndex(null);
+        setDropTargetIndex(null);
     };
     
     const titleClasses = isDark ? "text-white" : "text-gray-900";
@@ -735,10 +748,12 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                                 key={`${p.id}-${index}`} 
                                                 draggable="true"
                                                 onDragStart={() => handleDragStart(index)}
+                                                onDragEnter={() => handleDragEnter(index)}
+                                                onDragLeave={handleDragLeave}
                                                 onDragOver={handleDragOver}
                                                 onDrop={() => handleDrop(index)}
                                                 onDragEnd={handleDragEnd}
-                                                className={`flex flex-col items-center transition-all duration-300 ease-in-out cursor-grab ${draggedIndex === index ? 'opacity-50' : ''}`}
+                                                className={`flex flex-col items-center transition-all duration-300 ease-in-out cursor-grab ${draggedIndex === index ? 'opacity-50' : ''} ${dropTargetIndex === index ? 'ring-2 ring-fuchsia-500 rounded-lg' : ''}`}
                                                 style={{ 
                                                     zIndex: hoveredProductId === p.id ? 20 : index,
                                                     transform: hoveredProductId === p.id ? 'scale(1.1) translateY(-10px)' : 'scale(1)',
@@ -793,10 +808,12 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                                     key={`${p.id}-${index}`}
                                                     draggable="true"
                                                     onDragStart={() => handleDragStart(index)}
+                                                    onDragEnter={() => handleDragEnter(index)}
+                                                    onDragLeave={handleDragLeave}
                                                     onDragOver={handleDragOver}
                                                     onDrop={() => handleDrop(index)}
                                                     onDragEnd={handleDragEnd}
-                                                    className="flex flex-col items-center cursor-grab"
+                                                    className={`flex flex-col items-center cursor-grab transition-all duration-200 ${dropTargetIndex === index ? 'ring-2 ring-fuchsia-500 rounded-lg' : ''}`}
                                                     style={hoverStyle}
                                                     onMouseEnter={() => setHoveredProductId(p.id)}
                                                     onMouseLeave={() => setHoveredProductId(null)}
