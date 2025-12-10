@@ -1,3 +1,4 @@
+
 import React, { useState, useContext, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Product, View, SavedComposition, CushionSize } from '../types';
 import { ThemeContext } from '../types';
@@ -607,6 +608,39 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         setDraggedIndex(null);
         setDropTargetIndex(null);
     };
+
+    // --- Touch Handlers ---
+    const handleTouchStart = (index: number, e: React.TouchEvent) => {
+        // e.stopPropagation(); // Removed to allow interaction, but set dragged index
+        setDraggedIndex(index);
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (draggedIndex === null) return;
+        
+        const touch = e.touches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        
+        if (target) {
+            const pillowContainer = target.closest('[data-pillow-index]');
+            if (pillowContainer) {
+                const indexStr = pillowContainer.getAttribute('data-pillow-index');
+                if (indexStr) {
+                    const index = parseInt(indexStr, 10);
+                    if (index !== draggedIndex && index !== dropTargetIndex) {
+                        setDropTargetIndex(index);
+                    }
+                }
+            }
+        }
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        if (draggedIndex !== null && dropTargetIndex !== null) {
+            handleDrop(dropTargetIndex);
+        }
+        handleDragEnd();
+    };
     
     const titleClasses = isDark ? "text-white" : "text-gray-900";
     const subtitleClasses = isDark ? "text-gray-400" : "text-gray-600";
@@ -659,7 +693,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                              <div className="relative flex items-center">
                                                 <input type="text" value={sofaColor} onChange={e => setSofaColor(e.target.value)} placeholder="Cor customizada" className={`text-xs p-1.5 rounded-md w-28 border-2 ${isDark ? 'bg-black/20 border-purple-500/80 focus:border-purple-400' : 'bg-white border-purple-400 focus:border-purple-600'} focus:ring-0 outline-none`} />
                                                 <div className="absolute left-full ml-2 flex items-center whitespace-nowrap text-purple-400 text-xs pointer-events-none">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 transform -scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 transform -scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                                                     <span>digite a cor</span>
                                                 </div>
                                             </div>
@@ -747,6 +781,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                             <div 
                                                 key={`${p.id}-${index}`} 
                                                 draggable="true"
+                                                data-pillow-index={index}
                                                 onDragStart={() => handleDragStart(index)}
                                                 onDragEnter={() => handleDragEnter(index)}
                                                 onDragLeave={handleDragLeave}
@@ -799,13 +834,16 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                             const isBeingDragged = draggedIndex === index;
                                             const hoverStyle: React.CSSProperties = {
                                                 ...style,
+                                                touchAction: 'none', // Critical for custom touch drag
                                                 ...(hoveredProductId === p.id && !isBeingDragged ? { transform: `${style.transform || ''} scale(1.1) translateY(-10px)`, zIndex: 20 } : {}),
                                                 ...(isBeingDragged ? { opacity: 0.5, transform: `${style.transform || ''} scale(1.1)` } : {}),
+                                                ...(dropTargetIndex === index && draggedIndex !== index ? { outline: '2px solid #d946ef', borderRadius: '0.5rem' } : {}),
                                             };
                                             
                                             return (
                                                 <div
                                                     key={`${p.id}-${index}`}
+                                                    data-pillow-index={index}
                                                     draggable="true"
                                                     onDragStart={() => handleDragStart(index)}
                                                     onDragEnter={() => handleDragEnter(index)}
@@ -813,15 +851,16 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                                     onDragOver={handleDragOver}
                                                     onDrop={() => handleDrop(index)}
                                                     onDragEnd={handleDragEnd}
-                                                    className={`flex flex-col items-center cursor-grab transition-all duration-200 ${dropTargetIndex === index ? 'ring-2 ring-fuchsia-500 rounded-lg' : ''}`}
+                                                    onTouchStart={(e) => handleTouchStart(index, e)}
+                                                    onTouchMove={handleTouchMove}
+                                                    onTouchEnd={handleTouchEnd}
+                                                    className={`flex flex-col items-center cursor-grab transition-all duration-200`}
                                                     style={hoverStyle}
                                                     onMouseEnter={() => setHoveredProductId(p.id)}
                                                     onMouseLeave={() => setHoveredProductId(null)}
                                                 >
                                                     <div
-                                                        className="w-28 h-28 rounded-lg shadow-lg relative"
-                                                        onClick={() => setViewingProduct(p)}
-                                                        aria-label={`Ver detalhes de ${p.name}`}
+                                                        className="w-28 h-28 rounded-lg shadow-lg relative pointer-events-none" // pointer-events-none on children ensures the parent div catches the touch
                                                     >
                                                         <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover rounded-lg" />
                                                     </div>
@@ -833,7 +872,8 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                                                 setAssignedPillowSizes(prev => ({ ...prev, [index]: newSize }));
                                                             }}
                                                             onClick={(e) => e.stopPropagation()}
-                                                            className={`-mt-1 text-xs p-1 rounded-md border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${isDark ? 'bg-gray-800 text-gray-200 border-white/10' : 'bg-white text-gray-700 border-gray-200'} relative z-20`}
+                                                            onTouchStart={(e) => e.stopPropagation()} // Prevent drag start when interacting with select
+                                                            className={`-mt-1 text-xs p-1 rounded-md border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${isDark ? 'bg-gray-800 text-gray-200 border-white/10' : 'bg-white text-gray-700 border-gray-200'} relative z-20 pointer-events-auto`}
                                                         >
                                                             {selectedSizes.map(size => (
                                                                 <option key={size} value={size}>{size}</option>
