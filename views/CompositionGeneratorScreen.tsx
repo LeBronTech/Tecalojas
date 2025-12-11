@@ -126,25 +126,26 @@ const getPillowMobileStyle = (index: number, total: number): React.CSSProperties
         transition: 'transform 0.3s ease-out, z-index 0.3s ease-out',
     };
 
+    // Adjusted top positions to account for text appearing ABOVE the image
     switch (total) {
         case 6: // 2 back, 2 middle, 2 front
-            if (index < 2) return { ...baseStyle, zIndex: 1, transform: 'scale(0.8)', top: '0%', left: index === 0 ? '15%' : '55%' };
-            if (index < 4) return { ...baseStyle, zIndex: 2, transform: 'scale(0.9)', top: '25%', left: index === 2 ? '5%' : '65%' };
-            return { ...baseStyle, zIndex: 3, transform: 'scale(1)', top: '50%', left: index === 4 ? '20%' : '50%' };
+            if (index < 2) return { ...baseStyle, zIndex: 1, transform: 'scale(0.8)', top: '12%', left: index === 0 ? '15%' : '55%' };
+            if (index < 4) return { ...baseStyle, zIndex: 2, transform: 'scale(0.9)', top: '32%', left: index === 2 ? '5%' : '65%' };
+            return { ...baseStyle, zIndex: 3, transform: 'scale(1)', top: '52%', left: index === 4 ? '20%' : '50%' };
         case 5: // 2 back, 2 middle, 1 front
-            if (index < 2) return { ...baseStyle, zIndex: 1, transform: 'scale(0.8)', top: '0%', left: index === 0 ? '15%' : '55%' };
-            if (index < 4) return { ...baseStyle, zIndex: 2, transform: 'scale(0.9)', top: '25%', left: index === 2 ? '5%' : '65%' };
-            return { ...baseStyle, zIndex: 3, transform: 'scale(1)', top: '50%', left: '35%' }; // Centered
+            if (index < 2) return { ...baseStyle, zIndex: 1, transform: 'scale(0.8)', top: '12%', left: index === 0 ? '15%' : '55%' };
+            if (index < 4) return { ...baseStyle, zIndex: 2, transform: 'scale(0.9)', top: '32%', left: index === 2 ? '5%' : '65%' };
+            return { ...baseStyle, zIndex: 3, transform: 'scale(1)', top: '52%', left: '35%' }; // Centered
         case 4: // 2 back, 2 front
-            if (index < 2) return { ...baseStyle, zIndex: 1, transform: 'scale(0.9)', top: '15%', left: index === 0 ? '15%' : '55%' };
+            if (index < 2) return { ...baseStyle, zIndex: 1, transform: 'scale(0.9)', top: '20%', left: index === 0 ? '15%' : '55%' };
             return { ...baseStyle, zIndex: 2, transform: 'scale(1)', top: '45%', left: index === 2 ? '5%' : '65%' };
         case 3: // 1 back, 2 front
-            if (index < 1) return { ...baseStyle, zIndex: 1, transform: 'scale(0.9)', top: '15%', left: '35%' };
+            if (index < 1) return { ...baseStyle, zIndex: 1, transform: 'scale(0.9)', top: '20%', left: '35%' };
             return { ...baseStyle, zIndex: 2, transform: 'scale(1)', top: '45%', left: index === 1 ? '10%' : '60%' };
         case 2: // Side by side
-            return { ...baseStyle, zIndex: 1, transform: 'scale(1)', top: '35%', left: index === 0 ? '10%' : '60%' };
+            return { ...baseStyle, zIndex: 1, transform: 'scale(1)', top: '40%', left: index === 0 ? '10%' : '60%' };
         case 1: // Center
-            return { ...baseStyle, zIndex: 1, transform: 'scale(1)', top: '35%', left: '35%' };
+            return { ...baseStyle, zIndex: 1, transform: 'scale(1)', top: '40%', left: '35%' };
         default:
             return {};
     }
@@ -767,7 +768,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     ) : (
                         // RESULT VIEW
                         <div className="flex-grow flex flex-col items-center gap-4">
-                             <div className={`w-full md:aspect-[4/3] aspect-square rounded-xl border p-4 flex flex-col ${cardClasses}`}>
+                             <div className={`w-full md:aspect-[4/3] aspect-[3/4] rounded-xl border p-4 flex flex-col ${cardClasses}`}>
                                 <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
                                     <button onClick={handleShuffle} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}><ShuffleIcon /> Ordem</button>
                                     <button onClick={handleGenerateNewCombination} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}><StarIcon /> Gerar Nova</button>
@@ -859,11 +860,14 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                                     onMouseEnter={() => setHoveredProductId(p.id)}
                                                     onMouseLeave={() => setHoveredProductId(null)}
                                                 >
-                                                    <div
-                                                        className="w-28 h-28 rounded-lg shadow-lg relative pointer-events-none" // pointer-events-none on children ensures the parent div catches the touch
-                                                    >
-                                                        <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover rounded-lg" />
+                                                    {/* Name Badge - Moved Top */}
+                                                    <div className={`mb-1 w-28 h-6 flex justify-center items-end transition-opacity duration-300 pointer-events-none ${hoveredProductId === p.id ? 'opacity-100' : 'opacity-0'}`}>
+                                                        <span className={`px-2 py-0.5 rounded-md text-xs truncate max-w-full ${isDark ? 'bg-black/60 text-gray-200 backdrop-blur-sm' : 'bg-white/80 text-gray-800 backdrop-blur-sm'}`}>
+                                                            {p.name}
+                                                        </span>
                                                     </div>
+
+                                                    {/* Size Selector - Moved Top */}
                                                     {selectedSizes.length > 1 && (
                                                         <select
                                                             value={assignedPillowSizes[index] || ''}
@@ -873,17 +877,19 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                                             }}
                                                             onClick={(e) => e.stopPropagation()}
                                                             onTouchStart={(e) => e.stopPropagation()} // Prevent drag start when interacting with select
-                                                            className={`-mt-1 text-xs p-1 rounded-md border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${isDark ? 'bg-gray-800 text-gray-200 border-white/10' : 'bg-white text-gray-700 border-gray-200'} relative z-20 pointer-events-auto`}
+                                                            className={`mb-1 text-xs p-1 rounded-md border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${isDark ? 'bg-gray-800 text-gray-200 border-white/10' : 'bg-white text-gray-700 border-gray-200'} relative z-20 pointer-events-auto`}
                                                         >
                                                             {selectedSizes.map(size => (
                                                                 <option key={size} value={size}>{size}</option>
                                                             ))}
                                                         </select>
                                                     )}
-                                                     <div className={`mt-2 w-28 h-8 flex justify-center items-start transition-opacity duration-300 pointer-events-none ${hoveredProductId === p.id ? 'opacity-100' : 'opacity-0'}`}>
-                                                        <span className={`px-2 py-0.5 rounded-md text-xs truncate max-w-full ${isDark ? 'bg-black/60 text-gray-200 backdrop-blur-sm' : 'bg-white/80 text-gray-800 backdrop-blur-sm'}`}>
-                                                            {p.name}
-                                                        </span>
+
+                                                    {/* Image - Moved Bottom */}
+                                                    <div
+                                                        className="w-28 h-28 rounded-lg shadow-lg relative pointer-events-none" // pointer-events-none on children ensures the parent div catches the touch
+                                                    >
+                                                        <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover rounded-lg" />
                                                     </div>
                                                 </div>
                                             );
