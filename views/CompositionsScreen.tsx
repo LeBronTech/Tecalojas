@@ -1,8 +1,11 @@
+
 import React, { useState, useContext, useMemo } from 'react';
 import { ThemeContext } from '../types';
 import { SavedComposition, View, Product } from '../types';
 import CompositionViewerModal from '../components/CompositionViewerModal';
 import ProductDetailModal from '../components/ProductDetailModal';
+import ColorSelector from '../components/ColorSelector';
+import { PREDEFINED_COLORS } from '../constants';
 
 interface CompositionsScreenProps {
   savedCompositions: SavedComposition[];
@@ -24,15 +27,17 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
   const [viewerState, setViewerState] = useState<{ open: boolean; startIndex: number }>({ open: false, startIndex: 0 });
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedColor, setSelectedColor] = useState<{ name: string; hex: string } | null>(null);
 
   const filteredCompositions = useMemo(() => {
-    if (!searchQuery.trim()) {
-        return savedCompositions;
-    }
-    return savedCompositions.filter(comp => 
-        comp.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [savedCompositions, searchQuery]);
+    return savedCompositions.filter(comp => {
+        const nameMatch = comp.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const colorMatch = !selectedColor || comp.products.some(prod => 
+            prod.colors.some(c => c.name === selectedColor.name)
+        );
+        return nameMatch && colorMatch;
+    });
+  }, [savedCompositions, searchQuery, selectedColor]);
 
   const handleDelete = (e: React.MouseEvent, idToDelete: string) => {
     e.stopPropagation();
@@ -83,6 +88,20 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
+            </div>
+
+            <div className="mb-6">
+                <h3 className={`text-sm font-bold -mt-3 mb-1 ${subtitleClasses}`}>Filtrar por Cor</h3>
+                <ColorSelector 
+                    allColors={PREDEFINED_COLORS}
+                    onSelectColor={(color) => setSelectedColor(color)}
+                    selectedColor={selectedColor || undefined}
+                />
+                {selectedColor && (
+                    <button onClick={() => setSelectedColor(null)} className="mt-3 text-sm text-fuchsia-500 hover:underline">
+                        Limpar filtro de cor
+                    </button>
+                )}
             </div>
           
           {savedCompositions.length > 0 ? (
@@ -163,6 +182,7 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
               // FIX: Added missing properties to satisfy the component's required props.
               onAddToCart={() => {}}
               onNavigate={onNavigate}
+              sofaColors={[]}
           />
       )}
     </>

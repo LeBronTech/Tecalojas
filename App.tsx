@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType, CartItem, SaleRequest, CardFees } from './types';
 // FIX: Import PREDEFINED_COLORS to be used when creating color variations for products.
@@ -513,6 +514,7 @@ export default function App() {
   const [saleRequests, setSaleRequests] = useState<SaleRequest[]>([]);
   const [saleRequestError, setSaleRequestError] = useState<string | null>(null);
   const loginRedirect = useRef<View | null>(null);
+  const notifiedRequestIds = useRef(new Set<string>());
   const [cardFees, setCardFees] = useState<CardFees>(() => {
     const storedFees = localStorage.getItem(CARD_FEES_STORAGE_KEY);
     return storedFees ? JSON.parse(storedFees) : { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 };
@@ -662,7 +664,50 @@ export default function App() {
   }, []);
 
   const hasNewSaleRequests = useMemo(() => saleRequests.some(r => r.status === 'pending'), [saleRequests]);
+  
+  const handleNavigate = useCallback((newView: View) => {
+    if (newView === View.PAYMENT && cart.reduce((sum, item) => sum + item.quantity, 0) > 0 && !customerName) {
+        setIsCustomerNameModalOpen(true);
+        return; 
+    }
+    
+    const protectedViews = [View.STOCK, View.SETTINGS, View.CATALOG, View.ASSISTANT, View.DIAGNOSTICS, View.SALES, View.PAYMENT, View.QR_CODES];
+    const isProtectedView = protectedViews.includes(newView);
 
+    if (isProtectedView && !currentUser) {
+        loginRedirect.current = newView;
+    } else {
+        loginRedirect.current = null;
+    }
+    setView(newView);
+  }, [currentUser, cart, customerName]);
+
+  // --- NOTIFICATION LOGIC ---
+  useEffect(() => {
+    // Only show notification if the user is an admin, permission is granted, and the window is not focused.
+    if (isAdmin && hasNewSaleRequests && ('Notification' in window) && Notification.permission === 'granted' && document.visibilityState === 'hidden') {
+        const newRequests = saleRequests.filter(r => r.status === 'pending' && !notifiedRequestIds.current.has(r.id));
+        
+        if (newRequests.length > 0) {
+            const latestRequest = newRequests[newRequests.length - 1]; // Notify about the most recent one
+            const body = `Pedido de ${latestRequest.customerName || `${latestRequest.items.length} item(s)`} no valor de R$ ${latestRequest.totalPrice.toFixed(2)}`;
+            
+            const notification = new Notification('Nova Venda Recebida!', {
+                body: body,
+                icon: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png',
+                tag: 'new-sale-request' // Use a tag to prevent multiple notifications from stacking up if user is away.
+            });
+
+            // Add all new request IDs to the notified set
+            newRequests.forEach(r => notifiedRequestIds.current.add(r.id));
+
+            notification.onclick = () => {
+                window.focus(); // Bring the window to focus
+                handleNavigate(View.SALES); // Navigate to the sales screen
+            };
+        }
+    }
+  }, [isAdmin, hasNewSaleRequests, saleRequests, handleNavigate]);
 
   // Effect for loading colors and compositions from localStorage
   useEffect(() => {
@@ -819,23 +864,6 @@ export default function App() {
   const toggleTheme = useCallback(() => {
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
   }, []);
-  
-  const handleNavigate = useCallback((newView: View) => {
-    if (newView === View.PAYMENT && cart.reduce((sum, item) => sum + item.quantity, 0) > 0 && !customerName) {
-        setIsCustomerNameModalOpen(true);
-        return; 
-    }
-    
-    const protectedViews = [View.STOCK, View.SETTINGS, View.CATALOG, View.ASSISTANT, View.DIAGNOSTICS, View.SALES, View.PAYMENT, View.QR_CODES];
-    const isProtectedView = protectedViews.includes(newView);
-
-    if (isProtectedView && !currentUser) {
-        loginRedirect.current = newView;
-    } else {
-        loginRedirect.current = null;
-    }
-    setView(newView);
-  }, [currentUser, cart, customerName]);
   
   const handleLogin = useCallback(async (email: string, pass: string) => {
       await api.signIn(email, pass);

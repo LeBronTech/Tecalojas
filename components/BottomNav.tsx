@@ -1,3 +1,4 @@
+
 import React, { useContext } from 'react';
 import { View, ThemeContext } from '../types';
 
@@ -98,7 +99,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsT
     : "bg-white/70 backdrop-blur-2xl border-gray-200/80 shadow-lg";
 
   return (
-    <div className={`absolute bottom-4 left-4 right-4 h-20 rounded-3xl flex justify-around items-center z-30 ${navClasses}`}>
+    <div className={`fixed bottom-4 left-4 right-4 h-20 rounded-3xl flex justify-around items-center z-30 ${navClasses}`}>
       <NavButton label="Vitrine" view={View.SHOWCASE} isActive={activeView === View.SHOWCASE} onNavigate={onNavigate}>
         <HomeIcon />
       </NavButton>

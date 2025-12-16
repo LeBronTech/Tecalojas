@@ -1,3 +1,4 @@
+
 import React, { useState, useContext, useRef, useMemo, useEffect } from 'react';
 import { ThemeContext, DynamicBrand, Brand, CardFees } from '../types';
 import ApiKeyModal from '../components/ApiKeyModal';
@@ -79,6 +80,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const [fees, setFees] = useState(cardFees);
   const [feesSaved, setFeesSaved] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState('Notification' in window ? Notification.permission : 'denied');
+
 
   useEffect(() => {
      setFees(cardFees);
@@ -152,6 +155,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setSofaColorNameError(null);
 };
 
+const handleRequestNotificationPermission = () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+            setNotificationPermission(permission);
+        });
+    }
+};
+
 
  const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
  
@@ -174,6 +185,20 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                      Gerenciar Chave de API
                  </button>
              </Card>
+
+             <Card>
+                <SectionTitle>Notificações</SectionTitle>
+                <p className={subtitleClasses}>Receba um alerta no seu dispositivo quando uma nova venda for solicitada.</p>
+                <button
+                    onClick={handleRequestNotificationPermission}
+                    disabled={notificationPermission !== 'default'}
+                    className="mt-4 bg-fuchsia-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {notificationPermission === 'granted' && 'Notificações Ativadas'}
+                    {notificationPermission === 'denied' && 'Permissão Negada'}
+                    {notificationPermission === 'default' && 'Ativar Notificações'}
+                </button>
+            </Card>
 
              <Card>
                  <SectionTitle>Gerenciar Marcas</SectionTitle>

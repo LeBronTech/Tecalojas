@@ -1,3 +1,4 @@
+
 import React, { useState, useContext, useMemo } from 'react';
 import { ThemeContext } from '../types';
 
@@ -5,7 +6,7 @@ import { ThemeContext } from '../types';
 interface ColorSelectorProps {
   allColors: { name: string; hex: string }[];
   disabledColors?: string[];
-  onAddCustomColor: (color: { name: string; hex: string }) => void;
+  onAddCustomColor?: (color: { name: string; hex: string }) => void;
   onDeleteColor?: (colorName: string) => void;
   // Single selection mode
   selectedColor?: { name: string; hex: string };
@@ -35,6 +36,7 @@ const ColorSelector: React.FC<ColorSelectorProps> = ({ allColors, disabledColors
   );
 
   const handleAddNewColor = () => {
+    if (!onAddCustomColor) return;
     if (!newColor.name.trim()) {
       setNameError(true);
       return;
@@ -128,44 +130,46 @@ const ColorSelector: React.FC<ColorSelectorProps> = ({ allColors, disabledColors
                 )
             })}
         </div>
-        <div className="border-t pt-4 mt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-            <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Adicionar nova cor</label>
-            
-            <div className="flex items-center gap-3 mb-3">
-                <input 
-                    type="color" 
-                    value={newColor.hex} 
-                    onChange={handleColorInputChange} 
-                    className={`w-12 h-12 p-1 rounded-lg bg-transparent border-0 cursor-pointer ${isColorPickerPristine ? 'rainbow-bg' : ''}`}
-                />
-                <div className={`flex items-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16l-4-4m0 0l4-4m-4 4h18" /></svg>
-                    <span>Escolha a cor</span>
-                </div>
-            </div>
-            
-            <div className="flex flex-wrap gap-2 items-end justify-between">
-                <div className="flex-grow">
-                     <label className={`text-xs font-semibold mb-1 block ${labelClasses}`}>Nome da nova cor</label>
+        {onAddCustomColor && (
+            <div className="border-t pt-4 mt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+                <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Adicionar nova cor</label>
+                
+                <div className="flex items-center gap-3 mb-3">
                     <input 
-                        type="text" 
-                        placeholder="Ex: Verde Oliva" 
-                        value={newColor.name} 
-                        onChange={handleNameInputChange} 
-                        onKeyDown={handleKeyDown} 
-                        className={`w-full text-sm p-2 rounded ${inputClasses} border-2 ${nameError ? 'border-red-500' : 'border-transparent'}`} 
+                        type="color" 
+                        value={newColor.hex} 
+                        onChange={handleColorInputChange} 
+                        className={`w-12 h-12 p-1 rounded-lg bg-transparent border-0 cursor-pointer ${isColorPickerPristine ? 'rainbow-bg' : ''}`}
                     />
+                    <div className={`flex items-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16l-4-4m0 0l4-4m-4 4h18" /></svg>
+                        <span>Escolha a cor</span>
+                    </div>
                 </div>
+                
+                <div className="flex flex-wrap gap-2 items-end justify-between">
+                    <div className="flex-grow">
+                         <label className={`text-xs font-semibold mb-1 block ${labelClasses}`}>Nome da nova cor</label>
+                        <input 
+                            type="text" 
+                            placeholder="Ex: Verde Oliva" 
+                            value={newColor.name} 
+                            onChange={handleNameInputChange} 
+                            onKeyDown={handleKeyDown} 
+                            className={`w-full text-sm p-2 rounded ${inputClasses} border-2 ${nameError ? 'border-red-500' : 'border-transparent'}`} 
+                        />
+                    </div>
 
-                <div className="flex flex-col items-center ml-2">
-                    <button type="button" onClick={handleAddNewColor} title="Adicionar e Salvar Nova Cor" className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold p-2 rounded-lg hover:opacity-80 transition-opacity flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                    </button>
-                    <span className={`text-xs mt-1 ${colorNameClasses}`}>Add Cor</span>
+                    <div className="flex flex-col items-center ml-2">
+                        <button type="button" onClick={handleAddNewColor} title="Adicionar e Salvar Nova Cor" className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold p-2 rounded-lg hover:opacity-80 transition-opacity flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                        </button>
+                        <span className={`text-xs mt-1 ${colorNameClasses}`}>Add Cor</span>
+                    </div>
                 </div>
+                {nameError && <p className="text-xs text-red-500 mt-1 font-semibold">O nome da cor é obrigatório ou já existe.</p>}
             </div>
-            {nameError && <p className="text-xs text-red-500 mt-1 font-semibold">O nome da cor é obrigatório.</p>}
-        </div>
+        )}
     </div>
   );
 };
