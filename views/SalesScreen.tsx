@@ -268,23 +268,35 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const pendingRequests = saleRequests.filter(r => r.status === 'pending');
     const completedRequests = saleRequests.filter(r => r.status === 'completed');
 
+    // Filtragem por Período
     const filteredCompletedRequests = useMemo(() => {
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        if (timeFilter === 'all') return completedRequests;
-        return completedRequests.filter(req => {
-            if (!req.createdAt?.toDate) return false;
-            const reqDate = req.createdAt.toDate();
-            switch (timeFilter) {
-                case 'today': return reqDate >= startOfToday;
-                case 'week': return reqDate >= startOfWeek;
-                case 'month': return reqDate >= startOfMonth;
-                default: return true;
-            }
-        });
+
+        let filtered = completedRequests;
+        if (timeFilter === 'today') filtered = completedRequests.filter(req => req.createdAt?.toDate() >= startOfToday);
+        else if (timeFilter === 'week') filtered = completedRequests.filter(req => req.createdAt?.toDate() >= startOfWeek);
+        else if (timeFilter === 'month') filtered = completedRequests.filter(req => req.createdAt?.toDate() >= startOfMonth);
+
+        return filtered;
     }, [completedRequests, timeFilter]);
+
+    // Agrupamento por Dia
+    const groupedCompletedRequests = useMemo(() => {
+        const groups: Record<string, { requests: SaleRequest[], total: number }> = {};
+        
+        filteredCompletedRequests.forEach(req => {
+            if (!req.createdAt) return;
+            const dateStr = req.createdAt.toDate().toLocaleDateString('pt-BR');
+            if (!groups[dateStr]) groups[dateStr] = { requests: [], total: 0 };
+            groups[dateStr].requests.push(req);
+            groups[dateStr].total += (req.finalPrice ?? req.totalPrice);
+        });
+
+        return groups;
+    }, [filteredCompletedRequests]);
     
     const completedSalesTotal = useMemo(() => filteredCompletedRequests.reduce((sum, req) => sum + (req.finalPrice ?? req.totalPrice), 0), [filteredCompletedRequests]);
 
@@ -379,6 +391,9 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const titleClasses = isDark ? 'text-white' : 'text-gray-900';
     const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
     const cardClasses = isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm';
+    // FIX: Define labelClasses and inputClasses which were used in the render block below but were missing definitions.
+    const labelClasses = isDark ? 'text-gray-400' : 'text-gray-600';
+    const inputClasses = isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-100 text-gray-900 border-gray-300';
     
     return (
         <>
@@ -396,7 +411,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                         {activeTab === 'requests' ? (
                             <div>
                                 {pendingRequests.length > 0 && <div className="mb-6"><h3 className={`font-bold mb-3 ${titleClasses}`}>Pendentes de Confirmação</h3>{pendingRequests.map(req => (
-                                    <div key={req.id} className={`p-4 rounded-xl flex items-center justify-between mb-2 relative ${cardClasses}`} onClick={() => { setSelectedRequest(req); setIsProcessing(true); }}>
+                                    <div key={req.id} className={`p-4 rounded-xl flex items-center justify-between mb-2 relative cursor-pointer border ${cardClasses}`} onClick={() => { setSelectedRequest(req); setIsProcessing(true); }}>
                                         <div><p className={`font-bold ${titleClasses}`}>Pedido de {req.customerName || `${req.items.length} item(s)`}</p><p className={`text-sm ${subtitleClasses}`}>Total: R$ {req.totalPrice.toFixed(2)} via {req.paymentMethod}</p></div>
                                         <div className="flex items-center gap-3">
                                             <div className="w-3 h-3 bg-green-500 rounded-full blinking-dot"></div>
@@ -409,22 +424,64 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                                         </div>
                                     </div>
                                 ))}</div>}
-                                <div className="flex justify-between items-center mb-3"><h3 className={`font-bold ${titleClasses}`}>Vendas Confirmadas</h3><p className={`font-bold text-lg ${isDark ? 'text-green-400' : 'text-green-600'}`}>{completedSalesTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
-                                {filteredCompletedRequests.map(req => (
-                                    <div key={req.id} className={`p-4 rounded-xl flex items-center justify-between mb-2 ${cardClasses}`}>
-                                        <div><p className={`font-bold ${titleClasses}`}>Venda de {req.customerName || 'Cliente'}</p><p className={`text-sm ${subtitleClasses}`}>Total: R$ {(req.finalPrice ?? req.totalPrice).toFixed(2)}</p></div>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); setDeletingRequestId(req.id); }}
-                                            className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-red-500/20 hover:text-red-400' : 'text-gray-500 hover:bg-red-100 hover:text-red-600'}`}
+                                
+                                <div className="mt-8">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className={`font-bold ${titleClasses}`}>Vendas Confirmadas</h3>
+                                        <select 
+                                            value={timeFilter} 
+                                            onChange={e => setTimeFilter(e.target.value as TimeFilter)}
+                                            className={`text-xs p-2 rounded-lg border focus:outline-none ${isDark ? 'bg-black/40 text-white border-white/10' : 'bg-white border-gray-200'}`}
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        </button>
+                                            <option value="all">Todos</option>
+                                            <option value="today">Hoje</option>
+                                            <option value="week">Esta Semana</option>
+                                            <option value="month">Este Mês</option>
+                                        </select>
                                     </div>
-                                ))}
+                                    
+                                    <div className={`p-4 rounded-xl mb-6 text-center border ${isDark ? 'bg-green-500/10 border-green-500/30' : 'bg-green-50 border-green-100'}`}>
+                                        <p className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-green-300' : 'text-green-700'}`}>Total do Período</p>
+                                        <p className={`text-2xl font-black ${isDark ? 'text-green-400' : 'text-green-600'}`}>{completedSalesTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        {/* FIX: Explicitly typed the entries of groupedCompletedRequests to prevent TypeScript from inferring 'unknown' type for 'data'. */}
+                                        {(Object.entries(groupedCompletedRequests) as [string, { requests: SaleRequest[], total: number }][]).sort((a, b) => {
+                                            const dateA = a[0].split('/').reverse().join('-');
+                                            const dateB = b[0].split('/').reverse().join('-');
+                                            return dateB.localeCompare(dateA);
+                                        }).map(([date, data]) => (
+                                            <div key={date}>
+                                                <div className="flex justify-between items-center mb-2 px-1">
+                                                    <span className={`text-sm font-bold ${isDark ? 'text-purple-300' : 'text-purple-600'}`}>{date}</span>
+                                                    <span className={`text-xs font-bold px-2 py-1 rounded bg-black/10 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Subtotal: {data.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {data.requests.map(req => (
+                                                        <div key={req.id} className={`p-4 rounded-xl flex items-center justify-between border ${cardClasses}`}>
+                                                            <div>
+                                                                <p className={`font-bold ${titleClasses}`}>Venda de {req.customerName || 'Cliente'}</p>
+                                                                <p className={`text-xs ${subtitleClasses}`}>Status: {req.paymentMethod} • {(req.createdAt?.toDate() || new Date()).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</p>
+                                                                <p className="text-sm font-black text-fuchsia-500">R$ {(req.finalPrice ?? req.totalPrice).toFixed(2)}</p>
+                                                            </div>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); setDeletingRequestId(req.id); }}
+                                                                className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-red-500/20 hover:text-red-400' : 'text-gray-500 hover:bg-red-100 hover:text-red-600'}`}
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         ) : (
-                            <div className={`p-6 rounded-2xl ${cardClasses}`}>
-                                <h3 className={`font-bold text-lg mb-4 ${titleClasses}`}>Ponto de Venda</h3>
+                            <div className={`p-6 rounded-2xl border ${cardClasses}`}>
+                                <h3 className={`font-bold text-lg mb-4 ${titleClasses}`}>Ponto de Venda (Imediato)</h3>
                                 <div className="space-y-4">
                                     <div className={`min-h-[100px] max-h-60 overflow-y-auto p-2 rounded-lg ${isDark ? 'bg-black/30' : 'bg-gray-50'}`}>
                                         {posCart.map(item => (
@@ -433,6 +490,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                                                 <div className="flex items-center gap-2"><button onClick={() => setPosCart(prev => prev.map(i => i.id === item.id ? {...i, quantity: i.quantity - 1} : i).filter(i => i.quantity > 0))} className="w-6 h-6 rounded bg-black/20 text-white font-bold">-</button><span>{item.quantity}</span><button onClick={() => setPosCart(prev => prev.map(i => i.id === item.id ? {...i, quantity: i.quantity + 1} : i))} className="w-6 h-6 rounded bg-black/20 text-white font-bold">+</button></div>
                                             </div>
                                         ))}
+                                        {posCart.length === 0 && <p className={`text-center py-4 text-xs ${subtitleClasses}`}>Seu carrinho de PDV está vazio.</p>}
                                     </div>
                                     <div className="flex justify-between items-center font-bold text-xl"><p className={titleClasses}>Total:</p><p className={isDark ? 'text-fuchsia-400' : 'text-purple-600'}>R$ {posTotal.toFixed(2)}</p></div>
                                     <div className="grid grid-cols-2 gap-3">
@@ -452,10 +510,16 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                  <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { setIsProcessing(false); setSelectedRequest(null); }}>
                     <div className={`border rounded-3xl shadow-2xl w-full max-w-sm p-6 ${cardClasses}`} onClick={e => e.stopPropagation()}>
                         <h3 className={`font-bold text-lg mb-4 ${titleClasses}`}>Processar Pedido {selectedRequest.customerName ? `de ${selectedRequest.customerName}`: ''}</h3>
-                        <div className="space-y-4 border-t pt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+                        <div className="space-y-4">
+                            <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Confirmar Valor</label><input type="number" value={discount || ''} onChange={e => setDiscount(parseFloat(e.target.value) || 0)} placeholder="Desconto (Opcional)" className={`w-full p-2 rounded ${inputClasses}`} /></div>
+                        </div>
+                        <div className="space-y-4 border-t pt-4 mt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
                             <div className="flex justify-between items-center text-lg font-bold"><span className={titleClasses}>Total Final:</span><span className={isDark ? 'text-fuchsia-400' : 'text-purple-600'}>R$ {finalPrice.toFixed(2)}</span></div>
                         </div>
-                        <div className="mt-6 flex flex-col gap-3"><button onClick={handleConfirmPayment} className="w-full bg-green-600 text-white font-bold py-3 rounded-lg">Confirmar Pagamento</button><button onClick={() => { setIsProcessing(false); setSelectedRequest(null); }} className={`w-full font-bold py-2 rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>Cancelar</button></div>
+                        <div className="mt-6 flex flex-col gap-3">
+                            <button onClick={handleConfirmPayment} className="w-full bg-green-600 text-white font-bold py-3 rounded-lg shadow-lg">Confirmar Venda</button>
+                            <button onClick={() => { setIsProcessing(false); setSelectedRequest(null); }} className={`w-full font-bold py-2 rounded-lg ${isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}>Cancelar</button>
+                        </div>
                     </div>
                  </div>
             )}
@@ -465,7 +529,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
             <ItemTypeChoiceModal isOpen={!!itemForPosTypeChoice} onClose={() => setItemForPosTypeChoice(null)} onSelect={handlePosItemTypeSelected} productName={itemForPosTypeChoice ? `${itemForPosTypeChoice.product.name} (${itemForPosTypeChoice.variation.size})` : ''} isDark={isDark} />
             {isCustomValueModalOpen && <CustomValueModal onClose={() => setIsCustomValueModalOpen(false)} onConfirm={(n, p) => setPosCart(prev => [...prev, { id: `custom-${Date.now()}`, name: n, price: p, quantity: 1, isCustom: true }])} />}
             {isFinalizeSaleModalOpen && <FinalizeSaleModal isOpen={isFinalizeSaleModalOpen} onClose={() => setIsFinalizeSaleModalOpen(false)} onConfirm={handleFinalizeSale} total={posTotal} />}
-            <ConfirmationModal isOpen={!!deletingRequestId} onClose={() => setDeletingRequestId(null)} onConfirm={async () => { if(deletingRequestId) { try { await api.deleteSaleRequest(deletingRequestId); setDeletingRequestId(null); } catch(e: any) { alert("Erro ao excluir: " + e.message); } } }} title="Confirmar Exclusão" message="Tem certeza que deseja excluir este registro de venda?" />
+            <ConfirmationModal isOpen={!!deletingRequestId} onClose={() => setDeletingRequestId(null)} onConfirm={async () => { if(deletingRequestId) { try { await api.deleteSaleRequest(deletingRequestId); setDeletingRequestId(null); } catch(e: any) { alert("Erro ao excluir: " + e.message); } } }} title="Confirmar Exclusão" message="Tem certeza que deseja excluir permanentemente este registro de venda?" />
         </>
     );
 };

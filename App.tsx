@@ -587,11 +587,18 @@ export default function App() {
   const hasNewSaleRequests = useMemo(() => saleRequests.some(r => r.status === 'pending'), [saleRequests]);
   
   const handleNavigate = useCallback((newView: View) => {
-    if (newView === View.PAYMENT && cart.reduce((sum, item) => sum + item.quantity, 0) > 0 && !customerName) {
-        setIsCustomerNameModalOpen(true);
-        return; 
+    if (newView === View.PAYMENT) {
+        const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+        if (totalItems > 0 && !customerName) {
+            setIsCustomerNameModalOpen(true);
+            return;
+        } else if (totalItems === 0) {
+            setView(View.SHOWCASE);
+            return;
+        }
     }
-    const protectedViews = [View.STOCK, View.SETTINGS, View.CATALOG, View.ASSISTANT, View.DIAGNOSTICS, View.SALES, View.PAYMENT, View.QR_CODES];
+    
+    const protectedViews = [View.STOCK, View.SETTINGS, View.CATALOG, View.ASSISTANT, View.DIAGNOSTICS, View.SALES, View.QR_CODES];
     if (protectedViews.includes(newView) && !currentUser) {
         loginRedirect.current = newView;
     } else {
@@ -604,20 +611,35 @@ export default function App() {
   useEffect(() => {
     if (!isAdmin) return;
     
-    // Filtra todas as vendas para notificar (tanto solicitações pendentes quanto imediatas do PDV)
-    const newSales = saleRequests.filter(r => !notifiedRequestIds.current.has(r.id));
+    // Filtra todas as vendas pendentes para notificar
+    const newSales = saleRequests.filter(r => r.status === 'pending' && !notifiedRequestIds.current.has(r.id));
     
     if (newSales.length > 0) {
+        // Alerta sonoro de emergência/venda (mobile e desktop)
+        try {
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        } catch (e) {}
+
         if (('Notification' in window) && Notification.permission === 'granted') {
             const latest = newSales[0];
-            const isPending = latest.status === 'pending';
-            const title = isPending ? 'Nova Solicitação de Venda!' : 'Venda Realizada com Sucesso!';
+            const title = 'Nova Solicitação de Venda!';
             const body = `${latest.customerName || 'Cliente'} - R$ ${(latest.finalPrice || latest.totalPrice).toFixed(2)}`;
             
             const notification = new Notification(title, {
                 body: body,
                 icon: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png',
-                tag: 'sale-update'
+                tag: 'sale-update',
+                requireInteraction: true
             });
 
             notification.onclick = () => {
@@ -988,7 +1010,7 @@ export default function App() {
             {isApiKeyModalOpen && <ApiKeyModal onClose={() => setIsApiKeyModalOpen(false)} onSave={handleSaveApiKey} />}
             {deletingProductId && <ConfirmationModal isOpen={!!deletingProductId} onClose={() => setDeletingProductId(null)} onConfirm={confirmDeleteProduct} title="Confirmar Exclusão" message="Tem certeza que deseja excluir este produto? A ação não pode ser desfeita." />}
             {isCustomerNameModalOpen && <CustomerNameModal onClose={() => setIsCustomerNameModalOpen(false)} onConfirm={(name) => { setCustomerName(name); setIsCustomerNameModalOpen(false); setView(View.PAYMENT); }} />}
-             <InfoModal isOpen={infoModalState.isOpen} onClose={() => { setInfoModalState({ ...infoModalState, isOpen: false }); if(infoModalState.title === "Pedido Registrado") handleNavigate(View.SHOWCASE); }} title={infoModalState.title} message={infoModalState.message} onConfirm={infoModalState.onConfirm} />
+             <InfoModal isOpen={infoModalState.isOpen} onClose={() => { setInfoModalState({ ...infoModalState, isOpen: false }); if(infoModalState.title === "Pedido Registrado") setView(View.SHOWCASE); }} title={infoModalState.title} message={infoModalState.message} onConfirm={infoModalState.onConfirm} />
         </div>
     </ThemeContext.Provider>
   );
