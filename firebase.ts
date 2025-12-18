@@ -53,6 +53,20 @@ const catalogsCollection = collection(db, "catalogs");
 const saleRequestsCollection = collection(db, "saleRequests");
 const provider = new GoogleAuthProvider();
 
+// --- HELPERS ---
+/**
+ * Removes undefined keys from an object to prevent Firestore errors.
+ */
+const cleanObject = (obj: any) => {
+    const newObj = { ...obj };
+    Object.keys(newObj).forEach(key => {
+        if (newObj[key] === undefined) {
+            delete newObj[key];
+        }
+    });
+    return newObj;
+};
+
 // --- AUTHENTICATION ---
 const getUserProfile = async (uid: string): Promise<Pick<User, 'role'>> => {
     const userDocRef = doc(db, 'users', uid);
@@ -477,9 +491,12 @@ export const completeSaleRequest = async (requestId: string, details: { discount
         }
     }
 
+    // FIX: Limpar o objeto 'details' de valores undefined antes de atualizar o documento
+    const cleanedDetails = cleanObject(details);
+
     await updateDoc(saleRequestDocRef, { 
         status: "completed",
-        ...details
+        ...cleanedDetails
     });
 };
 

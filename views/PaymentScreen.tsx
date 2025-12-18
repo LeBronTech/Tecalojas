@@ -1,3 +1,4 @@
+
 import React, { useContext, useState } from 'react';
 import { CartItem, View, ThemeContext } from '../types';
 
@@ -61,6 +62,18 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
     const [isLoading, setIsLoading] = useState(false);
     const [isCardTypeModalOpen, setIsCardTypeModalOpen] = useState(false);
     const [isCardMethodModalOpen, setIsCardMethodModalOpen] = useState(false);
+
+    // Fallback para evitar tela branca se o carrinho sumir ou dados falharem
+    if (!cart || cart.length === 0) {
+        return (
+            <div className="h-full w-full flex items-center justify-center p-6 text-center">
+                <div className="max-w-xs">
+                    <p className={`text-lg font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Seu carrinho está vazio ou ocorreu um erro.</p>
+                    <button onClick={() => onNavigate(View.SHOWCASE)} className="w-full bg-fuchsia-600 text-white font-bold py-3 rounded-lg">Voltar para a Vitrine</button>
+                </div>
+            </div>
+        );
+    }
 
     const handlePaymentSelection = async (method: 'PIX' | 'Débito' | 'Crédito') => {
         setIsLoading(true);

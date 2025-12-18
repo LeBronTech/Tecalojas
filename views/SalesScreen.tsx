@@ -260,7 +260,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
 
     const finalPrice = useMemo(() => {
         if (!selectedRequest) return 0;
-        return selectedRequest.totalPrice - discount;
+        return selectedRequest.totalPrice - (discount || 0);
     }, [selectedRequest, discount]);
     
     const posTotal = useMemo(() => posCart.reduce((sum, item) => sum + item.price * item.quantity, 0), [posCart]);
@@ -288,7 +288,8 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
         const groups: Record<string, { requests: SaleRequest[], total: number }> = {};
         
         filteredCompletedRequests.forEach(req => {
-            if (!req.createdAt) return;
+            if (!req.createdAt || !req.createdAt.toDate) return;
+            // Forçamos locale pt-BR para consistência
             const dateStr = req.createdAt.toDate().toLocaleDateString('pt-BR');
             if (!groups[dateStr]) groups[dateStr] = { requests: [], total: 0 };
             groups[dateStr].requests.push(req);
@@ -391,7 +392,6 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const titleClasses = isDark ? 'text-white' : 'text-gray-900';
     const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
     const cardClasses = isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm';
-    // FIX: Define labelClasses and inputClasses which were used in the render block below but were missing definitions.
     const labelClasses = isDark ? 'text-gray-400' : 'text-gray-600';
     const inputClasses = isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-100 text-gray-900 border-gray-300';
     
@@ -446,7 +446,6 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                                     </div>
 
                                     <div className="space-y-6">
-                                        {/* FIX: Explicitly typed the entries of groupedCompletedRequests to prevent TypeScript from inferring 'unknown' type for 'data'. */}
                                         {(Object.entries(groupedCompletedRequests) as [string, { requests: SaleRequest[], total: number }][]).sort((a, b) => {
                                             const dateA = a[0].split('/').reverse().join('-');
                                             const dateB = b[0].split('/').reverse().join('-');
@@ -462,7 +461,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                                                         <div key={req.id} className={`p-4 rounded-xl flex items-center justify-between border ${cardClasses}`}>
                                                             <div>
                                                                 <p className={`font-bold ${titleClasses}`}>Venda de {req.customerName || 'Cliente'}</p>
-                                                                <p className={`text-xs ${subtitleClasses}`}>Status: {req.paymentMethod} • {(req.createdAt?.toDate() || new Date()).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</p>
+                                                                <p className={`text-xs ${subtitleClasses}`}>Forma: {req.paymentMethod} • {(req.createdAt?.toDate ? req.createdAt.toDate() : new Date()).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</p>
                                                                 <p className="text-sm font-black text-fuchsia-500">R$ {(req.finalPrice ?? req.totalPrice).toFixed(2)}</p>
                                                             </div>
                                                             <button 
@@ -571,7 +570,7 @@ const FinalizeSaleModal: React.FC<{ isOpen: boolean; onClose: () => void; onConf
     const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'Débito' | 'Crédito'>('Débito');
     const [discount, setDiscount] = useState(0);
     const [installments, setInstallments] = useState(1);
-    const finalPrice = total - discount;
+    const finalPrice = total - (discount || 0);
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[130] p-4" onClick={onClose}>
