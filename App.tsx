@@ -65,7 +65,7 @@ const ConfigurationRequiredModal = () => {
             <div className={`rounded-3xl shadow-2xl w-full max-w-2xl p-8 border ${cardBg}`}>
                 <div className="text-center">
                     <svg className={`mx-auto h-12 w-12 ${isDark ? 'text-amber-400' : 'text-amber-500'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                     <h1 className={`text-2xl font-bold mt-4 ${titleColor}`}>Ação Necessária: Configure o Firebase</h1>
                     <p className={`mt-2 ${textColor}`}>O aplicativo não pode se conectar ao banco de dados porque a chave de configuração (API Key) do Firebase não foi definida. Siga os passos abaixo para corrigir.</p>
@@ -468,6 +468,7 @@ export default function App() {
 
   const [isCustomerNameModalOpen, setIsCustomerNameModalOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
+  const [toastNotification, setToastNotification] = useState<{ message: string; sub: string } | null>(null);
   const [infoModalState, setInfoModalState] = useState<{
     isOpen: boolean;
     title: string;
@@ -494,20 +495,33 @@ export default function App() {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
   }, [cart]);
   
-  const handleAddToCart = useCallback((product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number) => {
+  const handleAddToCart = useCallback((product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number, isPreOrder: boolean = false) => {
     setCart(prevCart => {
-      const stock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
-      const otherTypeInCart = prevCart.find(item => item.productId === product.id && item.variationSize === variation.size && item.type !== itemType);
-      const otherQuantity = otherTypeInCart?.quantity || 0;
-      const existingItem = prevCart.find(item => item.productId === product.id && item.variationSize === variation.size && item.type === itemType);
-      const maxAllowedForThisItem = stock - otherQuantity;
-      const finalQuantity = Math.min(quantity, maxAllowedForThisItem);
+        // If it's a physical order, we need to respect the stock limit. 
+        // If it's a pre-order, we allow it to grow.
+        let finalQuantity = quantity;
+        
+        if (!isPreOrder) {
+            const physicalStock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
+            const otherTypeInCart = prevCart.find(item => item.productId === product.id && item.variationSize === variation.size && item.type !== itemType && !item.isPreOrder);
+            const otherQuantity = otherTypeInCart?.quantity || 0;
+            const maxAllowedForThisItem = physicalStock - otherQuantity;
+            finalQuantity = Math.min(quantity, maxAllowedForThisItem);
+        }
 
-      if (finalQuantity <= 0 && !existingItem) return prevCart;
-      if (finalQuantity <= 0 && existingItem) return prevCart.filter(item => item !== existingItem);
+      if (finalQuantity <= 0) return prevCart;
       
-      if (existingItem) {
-        return prevCart.map(item => item === existingItem ? { ...item, quantity: finalQuantity } : item);
+      const existingItemIndex = prevCart.findIndex(item => 
+        item.productId === product.id && 
+        item.variationSize === variation.size && 
+        item.type === itemType &&
+        !!item.isPreOrder === isPreOrder
+      );
+
+      if (existingItemIndex > -1) {
+        const updatedCart = [...prevCart];
+        updatedCart[existingItemIndex] = { ...updatedCart[existingItemIndex], quantity: finalQuantity };
+        return updatedCart;
       } else {
         const newItem: CartItem = {
           productId: product.id,
@@ -517,6 +531,7 @@ export default function App() {
           price: price,
           quantity: finalQuantity,
           type: itemType,
+          isPreOrder: isPreOrder
         };
         return [...prevCart, newItem];
       }
@@ -525,19 +540,27 @@ export default function App() {
 
   const handleUpdateCartQuantity = useCallback((productId: string, variationSize: CushionSize, itemType: 'cover' | 'full', newQuantity: number) => {
     setCart(prevCart => {
+      const existingItem = prevCart.find(item => item.productId === productId && item.variationSize === variationSize && item.type === itemType);
+      if (!existingItem) return prevCart;
+
       const product = products.find(p => p.id === productId);
       const variation = product?.variations.find(v => v.size === variationSize);
       if (!variation) return prevCart;
-      const stock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
-      const otherTypeInCart = prevCart.find(item => item.productId === productId && item.variationSize === variationSize && item.type !== itemType);
-      const otherQuantity = otherTypeInCart?.quantity || 0;
-      const maxAllowed = stock - otherQuantity;
-      const clampedQuantity = Math.max(0, Math.min(newQuantity, maxAllowed));
+
+      let clampedQuantity = Math.max(0, newQuantity);
+      
+      if (!existingItem.isPreOrder) {
+          const physicalStock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
+          const otherTypeInCart = prevCart.find(item => item.productId === productId && item.variationSize === variationSize && item.type !== itemType && !item.isPreOrder);
+          const otherQuantity = otherTypeInCart?.quantity || 0;
+          const maxAllowed = physicalStock - otherQuantity;
+          clampedQuantity = Math.min(clampedQuantity, maxAllowed);
+      }
 
       if (clampedQuantity === 0) {
-        return prevCart.filter(item => !(item.productId === productId && item.variationSize === variationSize && item.type === itemType));
+        return prevCart.filter(item => item !== existingItem);
       }
-      return prevCart.map(item => (item.productId === productId && item.variationSize === variationSize && item.type === itemType) ? { ...item, quantity: clampedQuantity } : item);
+      return prevCart.map(item => item === existingItem ? { ...item, quantity: clampedQuantity } : item);
     });
   }, [products]);
 
@@ -580,7 +603,7 @@ export default function App() {
         await api.completeSaleRequest(requestId, details);
       } catch (error) {
         console.error("Failed to complete sale request:", error);
-        alert(`Error: ${(error as Error).message}`);
+        alert(`Erro: ${(error as Error).message}`);
       }
   }, []);
 
@@ -589,10 +612,14 @@ export default function App() {
   const handleNavigate = useCallback((newView: View) => {
     if (newView === View.PAYMENT) {
         const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-        if (totalItems > 0 && !customerName) {
-            setIsCustomerNameModalOpen(true);
+        if (totalItems > 0) {
+            if (!customerName) {
+                setIsCustomerNameModalOpen(true);
+                return;
+            }
+            setView(View.PAYMENT);
             return;
-        } else if (totalItems === 0) {
+        } else {
             setView(View.SHOWCASE);
             return;
         }
@@ -615,7 +642,7 @@ export default function App() {
     const newSales = saleRequests.filter(r => r.status === 'pending' && !notifiedRequestIds.current.has(r.id));
     
     if (newSales.length > 0) {
-        // Alerta sonoro de emergência/venda (mobile e desktop)
+        // Alerta sonoro e vibração
         try {
             const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
             const osc = audioCtx.createOscillator();
@@ -627,29 +654,28 @@ export default function App() {
             gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
             osc.start();
             osc.stop(audioCtx.currentTime + 0.5);
-            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
         } catch (e) {}
 
+        const latest = newSales[0];
+        const title = 'Nova Venda Pendente!';
+        const body = `${latest.customerName || 'Cliente'} - R$ ${(latest.totalPrice).toFixed(2)}`;
+
+        // Mostra Toast interno para Mobile
+        setToastNotification({ message: title, sub: body });
+        setTimeout(() => setToastNotification(null), 5000);
+
         if (('Notification' in window) && Notification.permission === 'granted') {
-            const latest = newSales[0];
-            const title = 'Nova Solicitação de Venda!';
-            const body = `${latest.customerName || 'Cliente'} - R$ ${(latest.finalPrice || latest.totalPrice).toFixed(2)}`;
-            
-            const notification = new Notification(title, {
+            new Notification(title, {
                 body: body,
                 icon: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png',
                 tag: 'sale-update',
                 requireInteraction: true
             });
-
-            notification.onclick = () => {
-                window.focus();
-                handleNavigate(View.SALES);
-            };
         }
         newSales.forEach(r => notifiedRequestIds.current.add(r.id));
     }
-  }, [isAdmin, saleRequests, handleNavigate]);
+  }, [isAdmin, saleRequests]);
 
   useEffect(() => {
     try {
@@ -740,8 +766,8 @@ export default function App() {
 
   useEffect(() => {
     const onDeviceReady = () => console.log('Dispositivo pronto.');
-    document.addEventListener('deviceready', onDeviceReady, false);
-    return () => document.removeEventListener('deviceready', onDeviceReady, false);
+    document.addEventListener('devready', onDeviceReady, false);
+    return () => document.removeEventListener('devready', onDeviceReady, false);
   }, []);
   
   useEffect(() => {
@@ -952,7 +978,7 @@ export default function App() {
 
     switch (view) {
       case View.SHOWCASE:
-        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} />;
+        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
       case View.STOCK:
         return <StockManagementScreen products={products} onEditProduct={setEditingProduct} onAddProduct={() => setIsWizardOpen(true)} onDeleteProduct={(id) => setDeletingProductId(id)} onUpdateStock={handleUpdateStock} canManageStock={isAdmin} hasFetchError={hasFetchError} brands={brands} onMenuClick={handleMenuClick} />;
        case View.SETTINGS:
@@ -976,7 +1002,7 @@ export default function App() {
                     try {
                         await api.addSaleRequest({ items: cart, totalPrice, paymentMethod, customerName });
                         handleClearCart();
-                        setInfoModalState({ isOpen: true, title: "Pedido Registrado", message: successMessage, onConfirm: () => { if (onSuccess) onSuccess(); handleNavigate(View.SHOWCASE); } });
+                        setInfoModalState({ isOpen: true, title: "Pedido Registrado", message: successMessage, onConfirm: () => { if (onSuccess) onSuccess(); setView(View.SHOWCASE); } });
                     } catch (err: any) { setInfoModalState({ isOpen: true, title: "Erro no Pedido", message: `Falha: ${err.message}` }); }
                 }} onNavigate={handleNavigate} onPixClick={() => setIsPixModalOpen(true)} customerName={customerName} />;
       case View.SALES:
@@ -984,7 +1010,7 @@ export default function App() {
       case View.QR_CODES:
         return <QrCodeScreen products={products} />;
       default:
-        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} />;
+        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
     }
   };
 
@@ -995,6 +1021,19 @@ export default function App() {
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
         {!isConfigValid && <ConfigurationRequiredModal />}
         <div className={`min-h-screen ${bgClass} font-sans ${!isConfigValid ? 'blur-sm pointer-events-none' : ''}`}>
+            {toastNotification && (
+                <div className="fixed top-20 left-4 right-4 z-[200] animate-bounce">
+                    <div className="bg-green-600 text-white p-4 rounded-2xl shadow-2xl border-2 border-white flex items-center gap-4">
+                        <div className="bg-white/20 p-2 rounded-full"><SalesIcon /></div>
+                        <div>
+                            <p className="font-bold">{toastNotification.message}</p>
+                            <p className="text-xs opacity-90">{toastNotification.sub}</p>
+                        </div>
+                        <button onClick={() => setView(View.SALES)} className="ml-auto bg-white text-green-700 text-xs font-black px-3 py-1.5 rounded-lg">VER</button>
+                    </div>
+                </div>
+            )}
+
             <div className={`w-full max-w-6xl mx-auto h-screen ${mainContainerBgClass} md:rounded-[40px] md:shadow-2xl flex flex-col relative md:my-4 md:h-[calc(100vh-2rem)] max-h-[1200px]`}>
                 <Header onMenuClick={handleMenuClick} cartItemCount={cart.reduce((sum, item) => sum + item.quantity, 0)} onCartClick={() => handleNavigate(view === View.CART ? View.SHOWCASE : View.CART)} activeView={view} isAdmin={isAdmin} onNavigate={handleNavigate} />
                 {renderView()}

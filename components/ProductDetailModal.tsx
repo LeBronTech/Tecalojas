@@ -1,6 +1,7 @@
+
 // FIX: Import 'useCallback' from React.
 import React, { useState, useContext, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Product, Variation, WaterResistanceLevel, SavedComposition, ThemeContext, View, StoreName, CushionSize } from '../types';
+import { Product, Variation, WaterResistanceLevel, SavedComposition, ThemeContext, View, StoreName, CushionSize, CartItem } from '../types';
 import { WATER_RESISTANCE_INFO, BRAND_LOGOS, PREDEFINED_COLORS } from '../constants';
 import { GoogleGenAI, Modality } from '@google/genai';
 
@@ -15,9 +16,10 @@ interface ProductDetailModalProps {
     onRequestApiKey: () => void;
     savedCompositions: SavedComposition[];
     onViewComposition: (compositions: SavedComposition[], startIndex: number) => void;
-    onAddToCart: (product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number) => void;
+    onAddToCart: (product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number, isPreOrder?: boolean) => void;
     onNavigate: (view: View) => void;
     sofaColors: { name: string; hex: string }[];
+    cart: CartItem[];
 }
 
 const ButtonSpinner = () => (
@@ -45,7 +47,6 @@ const getBase64FromImageUrl = async (imageUrl: string): Promise<{ base64Data: st
             reader.onerror = reject;
             reader.readAsDataURL(blob);
         });
-        // FIX: The return type expects `base64Data`, not `data`.
         return { mimeType: blob.type, base64Data: base64Data };
     }
 };
@@ -95,13 +96,26 @@ const FurnitureColorPopover: React.FC<FurnitureColorPopoverProps> = ({ isOpen, o
 };
 
 
-const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct, apiKey, onRequestApiKey, onAddToCart, onNavigate, sofaColors }) => {
+const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct, apiKey, onRequestApiKey, onAddToCart, onNavigate, sofaColors, cart }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
-    const [variationQuantities, setVariationQuantities] = useState<Record<CushionSize, { cover: number, full: number }>>({} as Record<CushionSize, { cover: number, full: number }>);
-    const [addStatus, setAddStatus] = useState<Record<CushionSize, 'idle' | 'added' | 'goToCart'>>({} as Record<CushionSize, 'idle' | 'added' | 'goToCart'>);
-    const [stockAlert, setStockAlert] = useState<Partial<Record<CushionSize, boolean>>>({});
+    // Snapshot of the cart at the moment the modal is opened.
+    // This prevents the "pre-order" warning from appearing instantly when adding the last item.
+    const cartSnapshot = useMemo(() => {
+        const snapshot: Record<string, number> = {};
+        product.variations.forEach(v => {
+            snapshot[v.size] = cart
+                .filter(item => item.productId === product.id && item.variationSize === v.size && !item.isPreOrder)
+                .reduce((sum, item) => sum + item.quantity, 0);
+        });
+        return snapshot;
+    }, [product.id]);
+
+    const [variationQuantities, setVariationQuantities] = useState<Record<string, { cover: number, full: number }>>({});
+    const [addStatus, setAddStatus] = useState<Record<string, 'idle' | 'added' | 'goToCart'>>({});
+    const [stockAlert, setStockAlert] = useState<Partial<Record<string, boolean>>>({});
+    const [preOrderInfo, setPreOrderInfo] = useState<Partial<Record<string, boolean>>>({});
     
     const familyProducts = useMemo(() => {
         if (!product.variationGroupId) return [];
@@ -111,10 +125,11 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     const waterResistanceDetails = WATER_RESISTANCE_INFO[product.waterResistance];
 
     useEffect(() => {
-        setVariationQuantities({} as Record<CushionSize, { cover: number, full: number }>);
-        setAddStatus({} as Record<CushionSize, 'idle' | 'added' | 'goToCart'>);
+        setVariationQuantities({});
+        setAddStatus({});
         setStockAlert({});
-    }, [product]);
+        setPreOrderInfo({});
+    }, [product.id]);
 
     const handleQuantityChange = (variationSize: CushionSize, type: 'cover' | 'full', change: number) => {
         const variation = product.variations.find(v => v.size === variationSize);
@@ -123,30 +138,33 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         const currentCover = variationQuantities[variationSize]?.cover || 0;
         const currentFull = variationQuantities[variationSize]?.full || 0;
         
-        let newCover = currentCover;
-        let newFull = currentFull;
-
-        if (type === 'cover') {
-            newCover = currentCover + change;
-        } else {
-            newFull = currentFull + change;
-        }
+        let newCover = Math.max(0, currentCover + (type === 'cover' ? change : 0));
+        let newFull = Math.max(0, currentFull + (type === 'full' ? change : 0));
         
-        const totalNewQty = newCover + newFull;
-        const stock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
+        const totalSelectedInModal = newCover + newFull;
+        
+        // Use the snapshot to calculate what's "actually" available based on when the user opened the screen
+        const physicalStock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
+        const inCartSnapshotCount = cartSnapshot[variationSize] || 0;
+        const availableNow = Math.max(0, physicalStock - inCartSnapshotCount);
 
-        if (change > 0 && totalNewQty > stock) {
-            setStockAlert(prev => ({ ...prev, [variationSize]: true }));
-            setTimeout(() => setStockAlert(prev => ({ ...prev, [variationSize]: false })), 2000);
-            return;
+        if (change > 0 && totalSelectedInModal > availableNow) {
+            // If it was already out of stock when opened, it's a pre-order
+            if (availableNow <= 0) {
+                if (!preOrderInfo[variationSize]) {
+                    setPreOrderInfo(prev => ({ ...prev, [variationSize]: true }));
+                }
+            } else {
+                // If it had stock but user is exceeding it, block and alert
+                setStockAlert(prev => ({ ...prev, [variationSize]: true }));
+                setTimeout(() => setStockAlert(prev => ({ ...prev, [variationSize]: false })), 2000);
+                return;
+            }
         }
 
         setVariationQuantities(prev => ({
             ...prev,
-            [variationSize]: {
-                cover: Math.max(0, newCover),
-                full: Math.max(0, newFull)
-            },
+            [variationSize]: { cover: newCover, full: newFull },
         }));
 
         setAddStatus(prev => ({ ...prev, [variationSize]: 'idle' }));
@@ -157,35 +175,41 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         const coverQty = variationQuantities[variation.size]?.cover || 0;
         const fullQty = variationQuantities[variation.size]?.full || 0;
         
-        let addedSomething = false;
-
-        if (coverQty > 0) {
-            onAddToCart(product, variation, coverQty, 'cover', variation.priceCover);
-            addedSomething = true;
-        } else {
-            onAddToCart(product, variation, 0, 'cover', variation.priceCover);
-        }
+        const physicalStock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
+        const inCartSnapshotCount = cartSnapshot[variation.size] || 0;
+        const availableNow = Math.max(0, physicalStock - inCartSnapshotCount);
         
-        if (fullQty > 0) {
-            onAddToCart(product, variation, fullQty, 'full', variation.priceFull);
+        // It's a pre-order only if it was already empty when the modal opened
+        const isPreOrder = availableNow <= 0;
+        
+        let addedSomething = false;
+        if (coverQty > 0) {
+            onAddToCart(product, variation, coverQty, 'cover', variation.priceCover, isPreOrder);
             addedSomething = true;
-        } else {
-            onAddToCart(product, variation, 0, 'full', variation.priceFull);
+        }
+        if (fullQty > 0) {
+            onAddToCart(product, variation, fullQty, 'full', variation.priceFull, isPreOrder);
+            addedSomething = true;
         }
 
         if (addedSomething) {
             setAddStatus(prev => ({ ...prev, [variation.size]: 'added' }));
             setTimeout(() => {
-                setAddStatus(prev => ({ ...prev, [variation.size]: 'goToCart' }));
-            }, 500);
+                if (isMounted.current) setAddStatus(prev => ({ ...prev, [variation.size]: 'goToCart' }));
+            }, 800);
         }
     };
     
-    // AI Environments State and Logic
     const [activeEnvIndex, setActiveEnvIndex] = useState(0);
     const [isColorPopoverOpen, setIsColorPopoverOpen] = useState(false);
     const [activeSofaColor, setActiveSofaColor] = useState('Bege');
     const [activeBedColor, setActiveBedColor] = useState('Bege');
+    const isMounted = useRef(true);
+
+    useEffect(() => {
+        isMounted.current = true;
+        return () => { isMounted.current = false; };
+    }, []);
 
     const envKeys = useMemo(() => Object.keys(product.backgroundImages || {}).filter(key => {
         const value = product.backgroundImages![key as keyof typeof product.backgroundImages];
@@ -200,25 +224,16 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         if (typeof bgData === 'string') return bgData;
         if (typeof bgData === 'object' && bgData !== null) {
             const color = activeEnvKey === 'sala' ? activeSofaColor : activeBedColor;
-            // Fallback chain: selected color -> Bege -> first available color
             return bgData[color] || bgData['Bege'] || Object.values(bgData)[0];
         }
         return product.baseImageUrl;
     }, [activeEnvKey, activeSofaColor, activeBedColor, product]);
     
-    const envDisplayNames: Record<string, string> = {
-        sala: 'Sala',
-        quarto: 'Quarto',
-        varanda: 'Varanda',
-        piscina: 'Piscina',
-    };
-
+    const envDisplayNames: Record<string, string> = { sala: 'Sala', quarto: 'Quarto', varanda: 'Varanda', piscina: 'Piscina' };
     const availableSalaColors = product.backgroundImages?.sala;
     const availableQuartoColors = product.backgroundImages?.quarto;
-    
     const showSalaColorButton = typeof availableSalaColors === 'object' && availableSalaColors !== null && Object.keys(availableSalaColors).length > 1;
     const showQuartoColorButton = typeof availableQuartoColors === 'object' && availableQuartoColors !== null && Object.keys(availableQuartoColors).length > 1;
-
 
     const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
     const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
@@ -346,12 +361,19 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                             {product.variations.map((variation) => {
                                 const coverQty = variationQuantities[variation.size]?.cover || 0;
                                 const fullQty = variationQuantities[variation.size]?.full || 0;
-                                const totalStock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
+                                
+                                const physicalStock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
+                                const inCartSnapshotCount = cartSnapshot[variation.size] || 0;
+                                const availableAtOpen = Math.max(0, physicalStock - inCartSnapshotCount);
+                                
                                 const isStockAlertVisible = stockAlert[variation.size];
+                                const isPreOrderMode = availableAtOpen <= 0;
 
                                 const status = addStatus[variation.size] || 'idle';
-                                let buttonText = 'Adicionar ao Carrinho';
-                                let buttonClasses = 'bg-fuchsia-600 disabled:bg-gray-500 hover:bg-fuchsia-700';
+                                let buttonText = isPreOrderMode ? 'Pedir por Encomenda' : 'Adicionar ao Carrinho';
+                                let buttonClasses = isPreOrderMode 
+                                    ? 'bg-amber-600 hover:bg-amber-700' 
+                                    : 'bg-fuchsia-600 disabled:bg-gray-500 hover:bg-fuchsia-700';
                                 let buttonAction: () => void = () => handleAddVariationToCart(variation);
 
                                 if (status === 'added') {
@@ -372,7 +394,9 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                         <img src={variation.imageUrl || product.baseImageUrl} alt={variation.size} className="w-full h-full object-cover" />
                                     </div>
                                     <p className={`font-bold text-sm ${titleClasses}`}>{variation.size}</p>
-                                    <p className={`text-xs ${subtitleClasses}`}>{totalStock} em estoque</p>
+                                    <p className={`text-xs font-bold ${isPreOrderMode ? 'text-amber-500' : subtitleClasses}`}>
+                                        {isPreOrderMode ? 'Sem estoque físico' : `${availableAtOpen} disponível (físico)`}
+                                    </p>
 
                                     <div className="w-full mt-3 space-y-2">
                                         {/* Cover */}
@@ -401,7 +425,12 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                         </div>
                                     </div>
                                     {isStockAlertVisible && (
-                                        <p className="text-xs text-center text-red-500 font-semibold mt-2 animate-pulse">Estoque excedido!</p>
+                                        <p className="text-xs text-center text-red-500 font-semibold mt-2 animate-pulse">Estoque físico insuficiente!</p>
+                                    )}
+                                    {isPreOrderMode && (
+                                        <p className="text-[10px] text-center text-amber-500 font-bold mt-2 leading-tight">
+                                            Esta almofada não tem mais estoque físico disponível. Ela será adicionada como encomenda.
+                                        </p>
                                     )}
                                     <div className="w-full mt-3">
                                         <button

@@ -1,3 +1,4 @@
+
 import { createContext } from 'react';
 
 // FIX: Defined and exported the StoreName enum here to resolve a circular dependency.
@@ -95,6 +96,7 @@ export interface CartItem {
   quantity: number;
   type: 'cover' | 'full';
   price: number;
+  isPreOrder?: boolean;
 }
 
 export interface PosCartItem {

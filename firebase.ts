@@ -55,7 +55,7 @@ const provider = new GoogleAuthProvider();
 
 // --- HELPERS ---
 /**
- * Removes undefined keys from an object to prevent Firestore errors.
+ * Removes undefined keys from an object and ensures numbers are valid.
  */
 const cleanObject = (obj: any) => {
     const newObj = { ...obj };
@@ -450,6 +450,11 @@ export const completeSaleRequest = async (requestId: string, details: { discount
             continue;
         }
 
+        // Se for encomenda, não mexe no estoque agora
+        if ('isPreOrder' in item && item.isPreOrder) {
+            continue;
+        }
+
         const productId = 'productId' in item ? item.productId : (item as any).productId;
         const variationSize = 'variationSize' in item ? item.variationSize : (item as any).variationSize;
         
@@ -491,8 +496,13 @@ export const completeSaleRequest = async (requestId: string, details: { discount
         }
     }
 
-    // FIX: Limpar o objeto 'details' de valores undefined antes de atualizar o documento
-    const cleanedDetails = cleanObject(details);
+    // FIX: Limpar o objeto 'details' e garantir que campos opcionais sejam 0/null em vez de undefined
+    const finalDetails = {
+        discount: details.discount || 0,
+        finalPrice: details.finalPrice || (saleRequestData.totalPrice - (details.discount || 0)),
+        installments: details.installments || 1
+    };
+    const cleanedDetails = cleanObject(finalDetails);
 
     await updateDoc(saleRequestDocRef, { 
         status: "completed",
@@ -500,9 +510,53 @@ export const completeSaleRequest = async (requestId: string, details: { discount
     });
 };
 
-export const deleteSaleRequest = (requestId: string): Promise<void> => {
-    const saleRequestDoc = doc(db, "saleRequests", requestId);
-    return deleteDoc(saleRequestDoc);
+/**
+ * Exclui uma solicitação de venda. 
+ * Se o status era 'completed', devolve os produtos ao estoque.
+ */
+export const deleteSaleRequest = async (requestId: string): Promise<void> => {
+    const saleRequestDocRef = doc(db, "saleRequests", requestId);
+    const saleRequestSnap = await getDoc(saleRequestDocRef);
+    
+    if (!saleRequestSnap.exists()) {
+        throw new Error("Registro não encontrado.");
+    }
+
+    const saleData = saleRequestSnap.data() as SaleRequest;
+
+    // Se a venda estava concluída, precisamos estornar o estoque
+    if (saleData.status === 'completed') {
+        for (const item of saleData.items as (CartItem | PosCartItem)[]) {
+            if ('isCustom' in item && item.isCustom) continue;
+            if ('isPreOrder' in item && item.isPreOrder) continue;
+
+            const productId = 'productId' in item ? item.productId : (item as any).productId;
+            const variationSize = 'variationSize' in item ? item.variationSize : (item as any).variationSize;
+
+            if (!productId || !variationSize) continue;
+
+            const productDocRef = doc(db, "products", productId);
+            const productSnap = await getDoc(productDocRef);
+
+            if (productSnap.exists()) {
+                const productData = productSnap.data() as Product;
+                const updatedVariations = productData.variations.map(v => {
+                    if (v.size === variationSize) {
+                        // Devolve para a loja principal (Têca) por padrão no estorno
+                        v.stock[StoreName.TECA] = (v.stock[StoreName.TECA] || 0) + item.quantity;
+                    }
+                    return v;
+                });
+                
+                await updateDoc(productDocRef, { 
+                    variations: updatedVariations,
+                    unitsSold: Math.max(0, (productData.unitsSold || 0) - item.quantity)
+                });
+            }
+        }
+    }
+
+    return deleteDoc(saleRequestDocRef);
 };
 
 export const finalizePosSale = async (
