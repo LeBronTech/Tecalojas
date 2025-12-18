@@ -290,7 +290,7 @@ const CatalogIcon = () => (
 );
 const CompositionIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
     </svg>
 );
 const ReplacementIcon = () => (
@@ -365,7 +365,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginC
                         <div className="relative">
                             <SalesIcon />
                             {hasNewSaleRequests && (
-                               <span className="absolute -top-1 -right-1 block h-3 w-3 rounded-full bg-red-500 ring-2 ring-white dark:ring-[#1A1129] blinking-dot" />
+                               <span className="absolute -top-1 -right-1 block h-3 w-3 rounded-full bg-green-500 ring-2 ring-white dark:ring-[#1A1129] blinking-dot" />
                             )}
                         </div>
                     } 
@@ -555,7 +555,6 @@ export default function App() {
       setSaleRequestError(null);
       const unsubscribe = api.onSaleRequestsUpdate(
         (requests) => {
-            // Se for o primeiro carregamento, preenche o Set com os IDs atuais para não notificar vendas antigas
             if (isFirstRequestsLoad.current) {
                 requests.forEach(r => notifiedRequestIds.current.add(r.id));
                 isFirstRequestsLoad.current = false;
@@ -598,25 +597,27 @@ export default function App() {
     } else {
         loginRedirect.current = null;
     }
-    setView(newView);
+    
+    setView(newView ?? View.SHOWCASE);
   }, [currentUser, cart, customerName]);
 
   useEffect(() => {
     if (!isAdmin) return;
     
-    // Filtra apenas os pedidos pendentes que ainda não foram notificados nesta sessão
-    const newRequests = saleRequests.filter(r => r.status === 'pending' && !notifiedRequestIds.current.has(r.id));
+    // Filtra todas as vendas para notificar (tanto solicitações pendentes quanto imediatas do PDV)
+    const newSales = saleRequests.filter(r => !notifiedRequestIds.current.has(r.id));
     
-    if (newRequests.length > 0) {
-        // Notifica apenas se as permissões estiverem garantidas
+    if (newSales.length > 0) {
         if (('Notification' in window) && Notification.permission === 'granted') {
-            const latestRequest = newRequests[newRequests.length - 1];
-            const body = `Pedido de ${latestRequest.customerName || `${latestRequest.items.length} item(s)`} no valor de R$ ${latestRequest.totalPrice.toFixed(2)}`;
+            const latest = newSales[0];
+            const isPending = latest.status === 'pending';
+            const title = isPending ? 'Nova Solicitação de Venda!' : 'Venda Realizada com Sucesso!';
+            const body = `${latest.customerName || 'Cliente'} - R$ ${(latest.finalPrice || latest.totalPrice).toFixed(2)}`;
             
-            const notification = new Notification('Nova Venda Recebida!', {
+            const notification = new Notification(title, {
                 body: body,
                 icon: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png',
-                tag: 'new-sale-request'
+                tag: 'sale-update'
             });
 
             notification.onclick = () => {
@@ -624,8 +625,7 @@ export default function App() {
                 handleNavigate(View.SALES);
             };
         }
-        // Marca todos como notificados imediatamente
-        newRequests.forEach(r => notifiedRequestIds.current.add(r.id));
+        newSales.forEach(r => notifiedRequestIds.current.add(r.id));
     }
   }, [isAdmin, saleRequests, handleNavigate]);
 
@@ -988,7 +988,7 @@ export default function App() {
             {isApiKeyModalOpen && <ApiKeyModal onClose={() => setIsApiKeyModalOpen(false)} onSave={handleSaveApiKey} />}
             {deletingProductId && <ConfirmationModal isOpen={!!deletingProductId} onClose={() => setDeletingProductId(null)} onConfirm={confirmDeleteProduct} title="Confirmar Exclusão" message="Tem certeza que deseja excluir este produto? A ação não pode ser desfeita." />}
             {isCustomerNameModalOpen && <CustomerNameModal onClose={() => setIsCustomerNameModalOpen(false)} onConfirm={(name) => { setCustomerName(name); setIsCustomerNameModalOpen(false); setView(View.PAYMENT); }} />}
-             <InfoModal isOpen={infoModalState.isOpen} onClose={() => setInfoModalState({ ...infoModalState, isOpen: false })} title={infoModalState.title} message={infoModalState.message} onConfirm={infoModalState.onConfirm} />
+             <InfoModal isOpen={infoModalState.isOpen} onClose={() => { setInfoModalState({ ...infoModalState, isOpen: false }); if(infoModalState.title === "Pedido Registrado") handleNavigate(View.SHOWCASE); }} title={infoModalState.title} message={infoModalState.message} onConfirm={infoModalState.onConfirm} />
         </div>
     </ThemeContext.Provider>
   );
