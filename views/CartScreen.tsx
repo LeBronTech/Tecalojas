@@ -61,7 +61,7 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
 
     return (
         <div className="h-full w-full flex flex-col relative overflow-hidden">
-            <main className="flex-grow overflow-y-auto px-4 pt-24 pb-60 md:pb-6 no-scrollbar z-10">
+            <main className="flex-grow overflow-y-auto px-4 pt-24 pb-80 md:pb-6 no-scrollbar z-10">
                 <div className="max-w-2xl mx-auto">
                     <h1 className={`text-2xl font-bold mb-1 ${titleClasses}`}>Seu Carrinho</h1>
                     <p className={`text-sm mb-6 ${subtitleClasses}`}>
@@ -128,7 +128,7 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
             </main>
 
             {cart.length > 0 && (
-                <div className={`fixed bottom-24 md:bottom-4 left-4 right-4 p-5 z-20 rounded-3xl border shadow-2xl ${isDark ? 'bg-[#2D1F49]/95 backdrop-blur-xl border-white/10' : 'bg-white/95 backdrop-blur-xl border-gray-200'}`}>
+                <div className={`fixed bottom-24 md:bottom-4 left-4 right-4 p-5 z-20 rounded-3xl border shadow-2xl safe-area-bottom ${isDark ? 'bg-[#2D1F49]/95 backdrop-blur-xl border-white/10' : 'bg-white/95 backdrop-blur-xl border-gray-200'}`}>
                     <div className="max-w-2xl mx-auto">
                         <div className="flex justify-between items-center mb-3">
                             <p className={`text-sm font-semibold ${subtitleClasses}`}>Valor Total:</p>

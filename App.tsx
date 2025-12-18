@@ -497,8 +497,6 @@ export default function App() {
   
   const handleAddToCart = useCallback((product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number, isPreOrder: boolean = false) => {
     setCart(prevCart => {
-        // If it's a physical order, we need to respect the stock limit. 
-        // If it's a pre-order, we allow it to grow.
         let finalQuantity = quantity;
         
         if (!isPreOrder) {
@@ -638,22 +636,23 @@ export default function App() {
   useEffect(() => {
     if (!isAdmin) return;
     
-    // Filtra todas as vendas pendentes para notificar
     const newSales = saleRequests.filter(r => r.status === 'pending' && !notifiedRequestIds.current.has(r.id));
     
     if (newSales.length > 0) {
-        // Alerta sonoro e vibração
         try {
-            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.5);
+            const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+            if (AudioContextClass) {
+              const audioCtx = new AudioContextClass();
+              const osc = audioCtx.createOscillator();
+              const gain = audioCtx.createGain();
+              osc.connect(gain);
+              gain.connect(audioCtx.destination);
+              osc.type = 'triangle';
+              osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+              gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+              osc.start();
+              osc.stop(audioCtx.currentTime + 0.5);
+            }
             if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
         } catch (e) {}
 
@@ -661,17 +660,17 @@ export default function App() {
         const title = 'Nova Venda Pendente!';
         const body = `${latest.customerName || 'Cliente'} - R$ ${(latest.totalPrice).toFixed(2)}`;
 
-        // Mostra Toast interno para Mobile
         setToastNotification({ message: title, sub: body });
         setTimeout(() => setToastNotification(null), 5000);
 
-        if (('Notification' in window) && Notification.permission === 'granted') {
-            new Notification(title, {
-                body: body,
-                icon: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png',
-                tag: 'sale-update',
-                requireInteraction: true
-            });
+        if (('Notification' in window) && (Notification as any).permission === 'granted') {
+            try {
+              new Notification(title, {
+                  body: body,
+                  icon: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png',
+                  tag: 'sale-update'
+              });
+            } catch (e) {}
         }
         newSales.forEach(r => notifiedRequestIds.current.add(r.id));
     }

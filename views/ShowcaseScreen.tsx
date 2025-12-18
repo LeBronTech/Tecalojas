@@ -1,4 +1,3 @@
-
 import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { Product, View, DynamicBrand, SavedComposition, ThemeContext, Variation, CushionSize, CartItem } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
@@ -10,7 +9,7 @@ type ProductGroup = Product[];
 const FireIcon = ({ className }: { className: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
         <path fillRule="evenodd" d="M11.828 6.065c.348-.348.348-.913 0-1.261a.89.89 0 0 0-1.261 0c-1.121 1.121-1.859 2.62-1.859 4.289 0 .548.152 1.07.42 1.536l-.805 1.209a.89.89 0 0 0 1.503 1.002l.805-1.209c.466.268.988.42 1.536.42 1.668 0 3.167-.738 4.288-1.86a.89.89 0 0 0 0-1.26c-.347-.348-.912-.348-1.26 0l-1.06 1.06c-.495-.713-.88-1.52-1.077-2.389.336-.264.63-.578.875-.923l1.06 1.061Z" clipRule="evenodd" />
-        <path d="M4.172 13.935c-.348.348-.348.913 0 1.261a.89.89 0 0 0 1.261 0c1.121-1.121 1.859-2.62-1.859-4.289 0-.548-.152-1.07-.42-1.536l.805-1.209a.89.89 0 0 0-1.503-1.002l-.805 1.209c-.466-.268-.988-.42-1.536-.42-1.668 0-3.167.738-4.288 1.86a.89.89 0 0 0 0 1.26c.347.348.912-.348 1.26 0l1.06-1.06c.495.713.88 1.52 1.077 2.389-.336-.264-.63-.578-.875-.923l-1.06 1.061Z" />
+        <path d="M4.172 13.935c-.348.348-.348.913 0 1.261a.89.89 0 0 0 1.261 0c1.121-1.121 1.859-2.62-1.859-4.289 0-.548-.152-1.07-.42-1.536l.805-1.209a.89.89 0 0 0-1.503-1.002l-.805 1.209c-.466-.268-.988-.42-1.536-.42-1.668 0-3.167.738-4.288 1.86a.89.89 0 0 0 0 1.26c.347.348.912-.348 1.26 0l1.06-1.06c.495.713.88-1.52-1.077-2.389.336-.264.63-.578.875-.923l-1.06 1.061Z" />
     </svg>
 );
 
@@ -437,10 +436,12 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
               product={selectedProduct}
               products={products}
               onClose={() => setSelectedProduct(null)}
+              // FIX: Use prop 'canManageStock' instead of undefined 'isAdmin'
               canManageStock={canManageStock}
               onEditProduct={handleEdit}
               onSwitchProduct={handleSwitchProduct}
               apiKey={apiKey}
+              // FIX: Use prop 'onRequestApiKey' instead of undefined 'setIsApiKeyModalOpen'
               onRequestApiKey={onRequestApiKey}
               savedCompositions={savedCompositions}
               onViewComposition={handleViewComposition}
@@ -456,6 +457,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
               startIndex={compositionToView.startIndex}
               onClose={() => setCompositionToView(null)}
               apiKey={apiKey}
+              // FIX: Use prop 'onRequestApiKey' instead of undefined 'setIsApiKeyModalOpen'
               onRequestApiKey={onRequestApiKey}
               onViewProduct={() => {}}
               onSaveComposition={() => {}}
