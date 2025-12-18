@@ -20,8 +20,6 @@ interface SettingsScreenProps {
   onDeleteSofaColor: (colorName: string) => void;
 }
 
-// --- Helper Components (Moved Outside to prevent re-rendering bugs) ---
-
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
@@ -52,8 +50,6 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
     );
 });
 
-// --- Main Component ---
-
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ 
     onSaveApiKey, onAddNewBrand, onMenuClick, canManageStock, brands, 
     allColors, onAddColor, onDeleteColor, 
@@ -64,29 +60,23 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const isDark = theme === 'dark';
   
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
-  
   const [newBrandName, setNewBrandName] = useState('');
   const [newBrandLogoUrl, setNewBrandLogoUrl] = useState('');
   const [newBrandLogoFile, setNewBrandLogoFile] = useState<File | null>(null);
   const [isSavingBrand, setIsSavingBrand] = useState(false);
   const [brandError, setBrandError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [newProductColor, setNewProductColor] = useState({ name: '', hex: '#ffffff' });
   const [productColorNameError, setProductColorNameError] = useState<string|null>(null);
-
   const [newSofaColor, setNewSofaColor] = useState({ name: '', hex: '#ffffff' });
   const [sofaColorNameError, setSofaColorNameError] = useState<string|null>(null);
-
   const [fees, setFees] = useState(cardFees);
   const [feesSaved, setFeesSaved] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState('Notification' in window ? Notification.permission : 'denied');
 
-
   useEffect(() => {
      setFees(cardFees);
   }, [cardFees]);
-
 
   const handleFeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const { name, value } = e.target;
@@ -109,7 +99,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const handleAddBrand = async (e: React.FormEvent) => {
      e.preventDefault();
      if (!newBrandName.trim() || (!newBrandLogoUrl.trim() && !newBrandLogoFile)) {
-       setBrandError('Nome da marca e logo (URL ou arquivo) são obrigatórios.');
+       setBrandError('Nome da marca e logo são obrigatórios.');
        return;
      }
      setIsSavingBrand(true);
@@ -156,13 +146,29 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 };
 
 const handleRequestNotificationPermission = () => {
-    if ('Notification' in window && Notification.permission === 'default') {
+    if ('Notification' in window) {
         Notification.requestPermission().then(permission => {
             setNotificationPermission(permission);
+            if (permission === 'granted') {
+                new Notification("Notificações Ativadas!", {
+                    body: "Você agora receberá alertas de novas vendas.",
+                    icon: "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"
+                });
+            }
         });
     }
 };
 
+const testNotification = () => {
+    if (notificationPermission === 'granted') {
+        new Notification("Teste de Venda", {
+            body: "Este é um alerta de teste para confirmar o som e vibração.",
+            icon: "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"
+        });
+    } else {
+        handleRequestNotificationPermission();
+    }
+};
 
  const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
  
@@ -172,9 +178,27 @@ const handleRequestNotificationPermission = () => {
        <div className="max-w-4xl mx-auto space-y-8">
          <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Configurações</h1>
          
+         <Card className={isDark ? 'border-fuchsia-500/30' : 'border-purple-200'}>
+            <div className="flex items-center justify-between">
+                <div>
+                    <SectionTitle>Status da Conta</SectionTitle>
+                    <p className={subtitleClasses}>Verificação de privilégios do sistema.</p>
+                </div>
+                <div className={`px-4 py-2 rounded-full font-bold flex items-center gap-2 ${canManageStock ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                    <div className={`w-2 h-2 rounded-full ${canManageStock ? 'bg-green-400 animate-pulse' : 'bg-amber-400'}`}></div>
+                    {canManageStock ? 'Administrador' : 'Usuário Comum'}
+                </div>
+            </div>
+            {!canManageStock && (
+                <p className="mt-4 text-sm text-amber-500 font-semibold">
+                    Aviso: Para ativar notificações de vendas e gerenciar estoque, seu usuário precisa ter a role 'admin' no Firebase Console.
+                </p>
+            )}
+         </Card>
+
          {!canManageStock ? (
              <Card>
-                 <p className={subtitleClasses}>Você não tem permissão para acessar esta área.</p>
+                 <p className={subtitleClasses}>Você não tem permissão para gerenciar as configurações avançadas.</p>
              </Card>
          ) : (
            <>
@@ -187,17 +211,27 @@ const handleRequestNotificationPermission = () => {
              </Card>
 
              <Card>
-                <SectionTitle>Notificações</SectionTitle>
-                <p className={subtitleClasses}>Receba um alerta no seu dispositivo quando uma nova venda for solicitada.</p>
-                <button
-                    onClick={handleRequestNotificationPermission}
-                    disabled={notificationPermission !== 'default'}
-                    className="mt-4 bg-fuchsia-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {notificationPermission === 'granted' && 'Notificações Ativadas'}
-                    {notificationPermission === 'denied' && 'Permissão Negada'}
-                    {notificationPermission === 'default' && 'Ativar Notificações'}
-                </button>
+                <SectionTitle>Notificações de Venda</SectionTitle>
+                <p className={subtitleClasses}>Receba alertas no seu dispositivo quando um cliente solicitar um pedido.</p>
+                <div className="flex flex-wrap gap-3 mt-4">
+                    <button
+                        onClick={handleRequestNotificationPermission}
+                        className={`font-bold py-2 px-6 rounded-lg transition ${notificationPermission === 'granted' ? 'bg-green-600 text-white' : 'bg-fuchsia-600 text-white hover:bg-fuchsia-700'}`}
+                    >
+                        {notificationPermission === 'granted' ? 'Permissão Concedida ✓' : 'Ativar Notificações'}
+                    </button>
+                    {notificationPermission === 'granted' && (
+                        <button
+                            onClick={testNotification}
+                            className={`font-bold py-2 px-6 rounded-lg border-2 ${isDark ? 'border-white/10 text-white hover:bg-white/10' : 'border-gray-200 text-gray-700 hover:bg-gray-100'}`}
+                        >
+                            Testar Alerta
+                        </button>
+                    )}
+                </div>
+                {notificationPermission === 'denied' && (
+                    <p className="mt-2 text-xs text-red-500 font-semibold">As notificações foram bloqueadas no seu navegador. Ative-as nas configurações do site (ícone de cadeado na barra de endereços).</p>
+                )}
             </Card>
 
              <Card>

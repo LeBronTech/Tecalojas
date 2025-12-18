@@ -1,3 +1,4 @@
+
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { 
     getAuth,
@@ -28,7 +29,6 @@ import {
     where,
     orderBy
 } from "firebase/firestore";
-// ALTERADO: Usando uploadBytesResumable para maior estabilidade
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 import { User, Product, DynamicBrand, CatalogPDF, SaleRequest, CartItem, StoreName, PosCartItem, Variation } from './types';
@@ -303,13 +303,10 @@ export const processImageUploadsForProduct = async (product: Product): Promise<v
                 await updateDoc(productDocRef, { [fieldPath]: downloadURL });
             } catch (error) {
                 console.error(`Failed to upload and link image for ${fieldPath}:`, error);
-                // We don't re-throw the error, allowing other uploads to continue.
-                // The UI will keep the local base64 image as a placeholder.
             }
         }
     };
     
-    // Sequentially process all images to avoid network congestion and memory issues.
     await uploadAndQueueUpdate('baseImageUrl', product.baseImageUrl);
 
     for (let i = 0; i < product.variations.length; i++) {
@@ -376,10 +373,32 @@ export const deleteProduct = (productId: string): Promise<void> => {
     return deleteDoc(productDoc);
 };
 
+// Helper to sanitize items for Firestore storage
+const sanitizeCartItems = (items: CartItem[] | PosCartItem[]) => {
+    return items.map(item => {
+        // Create a copy without the heavy 'product' and 'variation' objects
+        const { product, variation, ...leanItem } = item as any;
+        
+        // Ensure productId and variationSize are present at the root level for easy recovery
+        if (product?.id && !leanItem.productId) leanItem.productId = product.id;
+        if (variation?.size && !leanItem.variationSize) leanItem.variationSize = variation.size;
+        
+        // Remove potentially large images from the sale record to save space
+        if ('baseImageUrl' in leanItem && leanItem.baseImageUrl?.startsWith('data:')) {
+            delete leanItem.baseImageUrl;
+        }
+        
+        return leanItem;
+    });
+};
+
 // --- FIRESTORE (SALES) ---
 export const addSaleRequest = (saleData: { items: CartItem[] | PosCartItem[], totalPrice: number, paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Cartão (Online)', customerName?: string }): Promise<any> => {
+    const sanitizedItems = sanitizeCartItems(saleData.items);
+    
     return addDoc(saleRequestsCollection, {
         ...saleData,
+        items: sanitizedItems,
         status: 'pending',
         createdAt: serverTimestamp()
     });
@@ -412,15 +431,13 @@ export const completeSaleRequest = async (requestId: string, details: { discount
         return;
     }
     
-    // Update product stock and units sold for each item
     for (const item of saleRequestData.items as (CartItem | PosCartItem)[]) {
-        // Skip stock deduction for custom items in POS
         if ('isCustom' in item && item.isCustom) {
             continue;
         }
 
-        const productId = 'productId' in item ? item.productId : item.product?.id;
-        const variationSize = 'variationSize' in item ? item.variationSize : item.variation?.size;
+        const productId = 'productId' in item ? item.productId : (item as any).productId;
+        const variationSize = 'variationSize' in item ? item.variationSize : (item as any).variationSize;
         
         if (!productId || !variationSize) continue;
 
@@ -434,7 +451,6 @@ export const completeSaleRequest = async (requestId: string, details: { discount
             const updatedVariations = productData.variations.map(v => {
                 if (v.size === variationSize) {
                     variationFound = true;
-                    // Simple deduction logic: deduct from Têca first, then Ione.
                     let qtyToDeduct = item.quantity;
                     const tecaStock = v.stock[StoreName.TECA] || 0;
                     const ioneStock = v.stock[StoreName.IONE] || 0;
@@ -461,7 +477,6 @@ export const completeSaleRequest = async (requestId: string, details: { discount
         }
     }
 
-    // Finally, update the sale request status to completed
     await updateDoc(saleRequestDocRef, { 
         status: "completed",
         ...details
@@ -479,17 +494,17 @@ export const finalizePosSale = async (
   paymentMethod: 'PIX' | 'Débito' | 'Crédito',
   details: { discount?: number; finalPrice?: number; installments?: number }
 ): Promise<void> => {
-  // 1. Create the sale request document
+  const sanitizedItems = sanitizeCartItems(cart);
+
   const saleRequestData = {
-    items: cart,
+    items: sanitizedItems,
     totalPrice: totalPrice,
     paymentMethod,
-    status: 'pending', // Initially pending
+    status: 'pending',
     createdAt: serverTimestamp(),
   };
   const newDocRef = await addDoc(saleRequestsCollection, saleRequestData);
 
-  // 2. Immediately call completeSaleRequest to update stock and finalize
   await completeSaleRequest(newDocRef.id, details);
 };
 
