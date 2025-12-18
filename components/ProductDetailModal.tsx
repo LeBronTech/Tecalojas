@@ -100,8 +100,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
-    // Snapshot of the cart at the moment the modal is opened.
-    // This prevents the "pre-order" warning from appearing instantly when adding the last item.
+    // Snapshot do carrinho no momento da abertura
     const cartSnapshot = useMemo(() => {
         const snapshot: Record<string, number> = {};
         product.variations.forEach(v => {
@@ -110,12 +109,10 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                 .reduce((sum, item) => sum + item.quantity, 0);
         });
         return snapshot;
-    }, [product.id]);
+    }, [product.id, cart]);
 
     const [variationQuantities, setVariationQuantities] = useState<Record<string, { cover: number, full: number }>>({});
     const [addStatus, setAddStatus] = useState<Record<string, 'idle' | 'added' | 'goToCart'>>({});
-    const [stockAlert, setStockAlert] = useState<Partial<Record<string, boolean>>>({});
-    const [preOrderInfo, setPreOrderInfo] = useState<Partial<Record<string, boolean>>>({});
     
     const familyProducts = useMemo(() => {
         if (!product.variationGroupId) return [];
@@ -127,40 +124,17 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     useEffect(() => {
         setVariationQuantities({});
         setAddStatus({});
-        setStockAlert({});
-        setPreOrderInfo({});
     }, [product.id]);
 
     const handleQuantityChange = (variationSize: CushionSize, type: 'cover' | 'full', change: number) => {
-        const variation = product.variations.find(v => v.size === variationSize);
-        if (!variation) return;
-
         const currentCover = variationQuantities[variationSize]?.cover || 0;
         const currentFull = variationQuantities[variationSize]?.full || 0;
         
-        let newCover = Math.max(0, currentCover + (type === 'cover' ? change : 0));
-        let newFull = Math.max(0, currentFull + (type === 'full' ? change : 0));
-        
-        const totalSelectedInModal = newCover + newFull;
-        
-        // Use the snapshot to calculate what's "actually" available based on when the user opened the screen
-        const physicalStock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
-        const inCartSnapshotCount = cartSnapshot[variationSize] || 0;
-        const availableNow = Math.max(0, physicalStock - inCartSnapshotCount);
+        let newCover = currentCover;
+        let newFull = currentFull;
 
-        if (change > 0 && totalSelectedInModal > availableNow) {
-            // If it was already out of stock when opened, it's a pre-order
-            if (availableNow <= 0) {
-                if (!preOrderInfo[variationSize]) {
-                    setPreOrderInfo(prev => ({ ...prev, [variationSize]: true }));
-                }
-            } else {
-                // If it had stock but user is exceeding it, block and alert
-                setStockAlert(prev => ({ ...prev, [variationSize]: true }));
-                setTimeout(() => setStockAlert(prev => ({ ...prev, [variationSize]: false })), 2000);
-                return;
-            }
-        }
+        if (type === 'cover') newCover = Math.max(0, currentCover + change);
+        else newFull = Math.max(0, currentFull + change);
 
         setVariationQuantities(prev => ({
             ...prev,
@@ -176,28 +150,37 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         const fullQty = variationQuantities[variation.size]?.full || 0;
         
         const physicalStock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
-        const inCartSnapshotCount = cartSnapshot[variation.size] || 0;
-        const availableNow = Math.max(0, physicalStock - inCartSnapshotCount);
+        const inCartCount = cartSnapshot[variation.size] || 0;
+        const availableNow = Math.max(0, physicalStock - inCartCount);
         
-        // It's a pre-order only if it was already empty when the modal opened
-        const isPreOrder = availableNow <= 0;
-        
-        let addedSomething = false;
-        if (coverQty > 0) {
-            onAddToCart(product, variation, coverQty, 'cover', variation.priceCover, isPreOrder);
-            addedSomething = true;
-        }
-        if (fullQty > 0) {
-            onAddToCart(product, variation, fullQty, 'full', variation.priceFull, isPreOrder);
-            addedSomething = true;
-        }
+        const processItem = (qty: number, type: 'cover' | 'full', price: number) => {
+            if (qty <= 0) return;
+            
+            // Lógica de divisão: Se o que estou adicionando supera o estoque disponível AGORA
+            if (availableNow > 0) {
+                const canTakeFromStock = Math.min(qty, availableNow);
+                const overflow = qty - canTakeFromStock;
+                
+                // Parte Física
+                onAddToCart(product, variation, canTakeFromStock, type, price, false);
+                
+                // Parte Encomenda
+                if (overflow > 0) {
+                    onAddToCart(product, variation, overflow, type, price, true);
+                }
+            } else {
+                // Tudo Encomenda
+                onAddToCart(product, variation, qty, type, price, true);
+            }
+        };
 
-        if (addedSomething) {
-            setAddStatus(prev => ({ ...prev, [variation.size]: 'added' }));
-            setTimeout(() => {
-                if (isMounted.current) setAddStatus(prev => ({ ...prev, [variation.size]: 'goToCart' }));
-            }, 800);
-        }
+        processItem(coverQty, 'cover', variation.priceCover);
+        processItem(fullQty, 'full', variation.priceFull);
+
+        setAddStatus(prev => ({ ...prev, [variation.size]: 'added' }));
+        setTimeout(() => {
+            if (isMounted.current) setAddStatus(prev => ({ ...prev, [variation.size]: 'goToCart' }));
+        }, 800);
     };
     
     const [activeEnvIndex, setActiveEnvIndex] = useState(0);
@@ -361,13 +344,14 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                             {product.variations.map((variation) => {
                                 const coverQty = variationQuantities[variation.size]?.cover || 0;
                                 const fullQty = variationQuantities[variation.size]?.full || 0;
-                                
+                                const totalSelected = coverQty + fullQty;
+
                                 const physicalStock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
-                                const inCartSnapshotCount = cartSnapshot[variation.size] || 0;
-                                const availableAtOpen = Math.max(0, physicalStock - inCartSnapshotCount);
+                                const inCartCount = cartSnapshot[variation.size] || 0;
+                                const availableAtOpen = Math.max(0, physicalStock - inCartCount);
                                 
-                                const isStockAlertVisible = stockAlert[variation.size];
                                 const isPreOrderMode = availableAtOpen <= 0;
+                                const hasOverflow = totalSelected > availableAtOpen && availableAtOpen > 0;
 
                                 const status = addStatus[variation.size] || 'idle';
                                 let buttonText = isPreOrderMode ? 'Pedir por Encomenda' : 'Adicionar ao Carrinho';
@@ -424,14 +408,18 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                             </div>
                                         </div>
                                     </div>
-                                    {isStockAlertVisible && (
-                                        <p className="text-xs text-center text-red-500 font-semibold mt-2 animate-pulse">Estoque físico insuficiente!</p>
+
+                                    {hasOverflow && (
+                                        <p className="text-[10px] text-center text-amber-500 font-bold mt-2 leading-tight animate-pulse">
+                                            Temos apenas {availableAtOpen} em estoque. As outras {totalSelected - availableAtOpen} serão encomendas.
+                                        </p>
                                     )}
                                     {isPreOrderMode && (
                                         <p className="text-[10px] text-center text-amber-500 font-bold mt-2 leading-tight">
-                                            Esta almofada não tem mais estoque físico disponível. Ela será adicionada como encomenda.
+                                            Sem estoque físico. Adicionando como encomenda.
                                         </p>
                                     )}
+                                    
                                     <div className="w-full mt-3">
                                         <button
                                             onClick={buttonAction}
