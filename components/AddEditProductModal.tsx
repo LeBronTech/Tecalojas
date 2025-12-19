@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react';
 import { Product, StoreName, Variation, CushionSize, Brand, WaterResistanceLevel, DynamicBrand, ThemeContext } from '../types';
 import { VARIATION_DEFAULTS, BRAND_FABRIC_MAP, STORE_NAMES, BRANDS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
@@ -5,6 +6,7 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import ColorSelector from './ColorSelector';
 import ConfirmationModal from './ConfirmationModal';
 
+// --- Moved Helper Component ---
 const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> = ({ colors, size = 4 }) => {
     const className = `w-${size} h-${size}`;
     const gradient = useMemo(() => {
@@ -24,6 +26,7 @@ const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> =
 };
 
 
+// --- CameraView Component ---
 interface CameraViewProps {
   onCapture: (imageDataUrl: string) => void;
   onClose: () => void;
@@ -70,7 +73,7 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.6); 
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6); // Slightly lower quality for camera captures
         onCapture(dataUrl);
         cleanupCamera();
       }
@@ -100,7 +103,7 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
               Cancelar
             </button>
             <button onClick={handleCapture} className="w-20 h-20 bg-white rounded-full border-4 border-gray-400 focus:outline-none focus:ring-2 focus:ring-fuchsia-500"></button>
-            <div className="w-16"></div> 
+            <div className="w-16"></div> {/* Spacer */}
           </div>
         </>
       )}
@@ -109,6 +112,7 @@ const CameraView: React.FC<CameraViewProps> = ({ onCapture, onClose }) => {
 };
 
 
+// --- ImagePickerModal Component ---
 interface ImagePickerModalProps {
   onSelect: (imageUrl: string) => void;
   onClose: () => void;
@@ -180,7 +184,7 @@ const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, 
             0% { transform: translateY(100%); opacity: 0; }
             100% { transform: translateY(0); opacity: 1; }
           }
-          .animate-slide-in-up { animation: slide-in-up 0.3s forwards; }
+          .animate-slide-in-up { animation: slide-in-up 0.3s forwards ease-out; }
         `}</style>
         
         <div className="flex justify-between items-center mb-6">
@@ -225,6 +229,7 @@ const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, 
   );
 };
 
+// --- Main AddEditProductModal Component ---
 
 interface AddEditProductModalProps {
   product: Product;
@@ -266,7 +271,7 @@ const initialFormState: Omit<Product, 'id'> = {
 const ButtonSpinner = () => (
     <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 12 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
 
@@ -320,6 +325,8 @@ const resizeImage = (base64Str: string, maxWidth = 512, maxHeight = 512): Promis
                 return reject(new Error('Could not get canvas context'));
             }
             ctx.drawImage(img, 0, 0, width, height);
+            
+            // More aggressive compression for faster uploads
             resolve(canvas.toDataURL('image/jpeg', 0.6));
         };
         img.onerror = (error) => {
@@ -333,10 +340,13 @@ const pluralize = (word: string): string => {
     const trimmed = word.trim();
     if (!trimmed) return '';
     
-    // Especial rule for Waterblock as requested
-    if (trimmed.toLowerCase() === 'waterblock') return 'Waterblocks';
+    // Explicit override for waterblock/waterblocks
+    if (trimmed.toLowerCase() === 'waterblock' || trimmed.toLowerCase() === 'waterblocks') {
+        return 'Waterblocks';
+    }
     
     let capitalized = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    
     const lower = capitalized.toLowerCase();
 
     if (lower.endsWith('s')) return capitalized;
@@ -354,6 +364,7 @@ const pluralize = (word: string): string => {
 const standardizeProductName = (name: string, productColors: {name: string, hex: string}[], allPossibleColors: {name: string, hex: string}[]): string => {
     let productName = name.trim();
     
+    // First, strip out ANY existing color from the name to get a clean base name
     const sortedAllColors = [...allPossibleColors].sort((a, b) => b.name.length - a.name.length);
     for (const color of sortedAllColors) {
         const regex = new RegExp(`\\b${color.name}\\b|\\(${color.name}\\)`, 'ig');
@@ -420,7 +431,17 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
   const subCategorySuggestions = useMemo(() => {
     const fromSubCategories = products.map(p => p.subCategory).filter((sc): sc is string => !!sc);
-    return [...new Set([...fromSubCategories])];
+    const fromFabricTypes = products.map(p => {
+        const parts = p.fabricType.split(' ');
+        if (parts.length > 1) {
+            const lastPart = parts[parts.length - 1];
+            if (!lastPart.includes('®') && lastPart.length > 2) {
+                return lastPart.charAt(0).toUpperCase() + lastPart.slice(1);
+            }
+        }
+        return null;
+    }).filter((ft): ft is string => !!ft);
+    return [...new Set([...fromSubCategories, ...fromFabricTypes])];
   }, [products]);
 
 
@@ -444,7 +465,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
 
   useEffect(() => {
-    const migratedData = JSON.parse(JSON.stringify(product));
+    const migratedData = JSON.parse(JSON.stringify(product)); // Deep copy
     if (migratedData.backgroundImages) {
         const salaBg = migratedData.backgroundImages.sala;
         if (salaBg && typeof salaBg === 'string') {
@@ -503,6 +524,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             if (fabricInfo) {
                newState.description = fabricInfo[newFabricType] || '';
             }
+            // Automatically set water resistance for specific fabrics
             if (newFabricType.toLowerCase().includes('waterblock')) {
                 newState.waterResistance = WaterResistanceLevel.FULL;
             }
@@ -622,7 +644,19 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         });
     } catch (error: any) { 
         console.error("AI image generation failed:", error); 
-        setSaveError(error.message || "Falha na IA. Tente novamente.");
+        if (error.message && error.message.includes('429')) {
+            let message = "Limite de uso da API atingido. Verifique seu plano e tente mais tarde.";
+            const retryMatch = error.message.match(/retry in ([\d.]+)s/);
+            if (retryMatch && retryMatch[1]) {
+                const waitTime = Math.ceil(parseFloat(retryMatch[1]));
+                message = `Limite de uso da API atingido. Tente novamente em ${waitTime} segundos.`;
+            }
+            setSaveError(message);
+        } else if (error.message.includes('SAFETY')) {
+            setSaveError("Geração bloqueada por políticas de segurança.");
+        } else {
+            setSaveError(error.message || "Falha na IA. Tente novamente.");
+        }
     } 
     finally { 
         if (isMounted.current) {
@@ -665,7 +699,19 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         });
     } catch (error: any) { 
         console.error("AI showcase image generation failed:", error); 
-        setSaveError(error.message || "Falha na IA. Tente novamente.");
+        if (error.message && error.message.includes('429')) {
+            let message = "Limite de uso da API atingido. Verifique seu plano e tente mais tarde.";
+            const retryMatch = error.message.match(/retry in ([\d.]+)s/);
+            if (retryMatch && retryMatch[1]) {
+                const waitTime = Math.ceil(parseFloat(retryMatch[1]));
+                message = `Limite de uso da API atingido. Tente novamente em ${waitTime} segundos.`;
+            }
+            setSaveError(message);
+        } else if (error.message.includes('SAFETY')) {
+            setSaveError("Geração bloqueada por políticas de segurança.");
+        } else {
+            setSaveError(error.message || "Falha na IA. Tente novamente.");
+        }
     } 
     finally { 
         if (isMounted.current) setIsGeneratingShowcase(false); 
@@ -730,7 +776,19 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         });
     } catch (error: any) { 
         console.error(`AI background generation for ${background} failed:`, error); 
-        setSaveError(error.message || "Falha na IA. Tente novamente.");
+        if (error.message && error.message.includes('429')) {
+            let message = "Limite de uso da API atingido. Verifique seu plano e tente mais tarde.";
+            const retryMatch = error.message.match(/retry in ([\d.]+)s/);
+            if (retryMatch && retryMatch[1]) {
+                const waitTime = Math.ceil(parseFloat(retryMatch[1]));
+                message = `Limite de uso da API atingido. Tente novamente em ${waitTime} segundos.`;
+            }
+            setSaveError(message);
+        } else if (error.message.includes('SAFETY')) {
+            setSaveError("Geração bloqueada por políticas de segurança.");
+        } else {
+            setSaveError(error.message || "Falha na IA. Tente novamente.");
+        }
     } 
     finally { 
         if (isMounted.current) {
@@ -792,14 +850,21 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             
             setGenerationProgress(`Imagem de ${furniture} ${color} gerada! Salvando...`);
             const savedProduct = await onSave(updatedData, { closeModal: false });
-            currentData = savedProduct; 
+            currentData = savedProduct; // Use the saved product for the next iteration
             if (isMounted.current) setFormData(savedProduct);
 
         } catch (error: any) {
             console.error(`Error generating for color ${color}:`, error);
-            if (isMounted.current) setSaveError(error.message || "Falha na IA.");
+            let errorMessage = `Falha em ${color}: ${error.message}`;
+            if (error.message && error.message.includes('429')) {
+                const retryMatch = error.message.match(/retry in ([\d.]+)s/);
+                errorMessage = `API ocupada. Tente novamente em ${retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : 'alguns'} segundos.`;
+            } else if (error.message.includes('SAFETY')) {
+                errorMessage = "Geração bloqueada por políticas de segurança.";
+            }
+            if (isMounted.current) setSaveError(errorMessage);
             setGenerationProgress(`Falha ao gerar ${furniture} ${color}.`);
-            await new Promise(res => setTimeout(res, 2000));
+            await new Promise(res => setTimeout(res, 2000)); // show error message for a bit
         } finally {
             if (isMounted.current) setGeneratingColor(prev => ({ ...prev, [context]: null }));
         }
@@ -828,7 +893,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                 if (currentColors.length < 3) {
                     return { ...prev, colors: [...currentColors, color] };
                 }
-                return prev; 
+                return prev; // Limit reached
             }
         });
     };
@@ -845,6 +910,11 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
           if (keyLower === aiFabricLower) return key;
           const keyBase = keyLower.split('(')[0].trim();
           if (keyBase === aiFabricLower) return key;
+      }
+      for (const key of fabricKeys) {
+          if (key.toLowerCase().includes(aiFabricLower) || aiFabricLower.includes(key.toLowerCase().split('(')[0].trim())) {
+              return key;
+          }
       }
       return null;
   }
@@ -864,13 +934,19 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             config: { responseMimeType: "application/json" }
         });
 
-        const resultJson = JSON.parse(response.text.trim());
+        const resultText = response.text.trim();
+        const resultJson = JSON.parse(resultText);
         const { name, fabricType, colorName, category } = resultJson;
 
         setFormData(prev => {
             let newState = { ...prev };
-            if (name) newState.name = name;
-            if (category) newState.category = pluralize(category);
+
+            if (name) {
+                newState.name = name;
+            }
+            if (category) {
+                newState.category = category;
+            }
             if (fabricType) {
                 const matchedFabric = findMatchingFabricType(fabricType, newState.brand);
                 if (matchedFabric) {
@@ -880,13 +956,25 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             }
             if (colorName) {
                 const matchedColor = allColors.find(c => c.name.toLowerCase() === colorName.toLowerCase());
-                if (matchedColor) newState.colors = [matchedColor];
+                if (matchedColor) {
+                    newState.colors = [matchedColor];
+                }
             }
             return newState;
         });
     } catch (e: any) {
         console.error("AI Name Correction Failed:", e);
-        if (isMounted.current) setSaveError("Falha na IA. Tente novamente.");
+        if (e.message && e.message.includes('429')) {
+            let message = "Limite de uso da API atingido. Verifique seu plano e tente mais tarde.";
+            const retryMatch = e.message.match(/retry in ([\d.]+)s/);
+            if (retryMatch && retryMatch[1]) {
+                const waitTime = Math.ceil(parseFloat(retryMatch[1]));
+                message = `Limite de uso da API atingido. Tente novamente em ${waitTime} segundos.`;
+            }
+            setSaveError(message);
+        } else {
+            setSaveError("Falha na IA. Tente novamente.");
+        }
     } finally {
         if (isMounted.current) setIsNameAiLoading(false);
     }
@@ -900,7 +988,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     try {
         const productToSave = { ...formData };
 
-        // Ensure PLURALIZATION as requested
         productToSave.category = pluralize(productToSave.category);
         if(productToSave.subCategory) {
             productToSave.subCategory = pluralize(productToSave.subCategory);
@@ -921,9 +1008,14 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     } catch (error: any) { 
         console.error("Failed to save product:", error);
         let msg = error.message || "Ocorreu um erro desconhecido ao salvar.";
+        if (msg.includes('permission') || msg.includes('Permissão')) {
+            msg = "Permissão negada. Verifique se você está logado como administrador.";
+        }
         if (isMounted.current) setSaveError(msg);
     } finally { 
-      if (isMounted.current) setIsSaving(false);
+      if (isMounted.current) {
+          setIsSaving(false);
+      }
     }
   };
   
@@ -939,12 +1031,13 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     } else { setIsCameraOpen(true); }
   };
 
-  // FIX: Implemented handleToggleNewColor to manage selection of new colors in batch mode.
-  const handleToggleNewColor = (color: { name: string; hex: string }) => {
+  const handleToggleNewColor = (color: {name: string, hex: string}) => {
     setSelectedNewColors(prev => {
-        const isSelected = prev.some(c => c.name === color.name);
-        if (isSelected) return prev.filter(c => c.name !== color.name);
-        return [...prev, color];
+        if (prev.some(c => c.name === color.name)) {
+            return prev.filter(c => c.name !== color.name);
+        } else {
+            return [...prev, color];
+        }
     });
   };
 
@@ -953,14 +1046,19 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setIsCreatingVariations(true);
     setSaveError(null);
     try {
+        // Step 1: Save the current product to ensure its data (especially variationGroupId) is up-to-date.
         const savedParentProduct = await onSave(formData, { closeModal: false });
+        
+        // Step 2: Call the dedicated function to create only the new variations.
         await onCreateVariations(savedParentProduct, selectedNewColors);
 
+        // Update the form with the potentially updated parent product (e.g., with a new variationGroupId)
         if (isMounted.current) {
             setFormData(savedParentProduct); 
             setSelectedNewColors([]);
             setIsBatchColorMode(false);
         }
+
     } catch (err: any) {
         if (isMounted.current) setSaveError(err.message || 'Falha ao criar variações de cor.');
     } finally {
@@ -984,13 +1082,21 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     }
 
     const data = JSON.stringify({ productId: formData.id, variationSize: variation.size });
+    
     const tempDiv = document.createElement('div');
     tempDiv.style.position = 'absolute';
     tempDiv.style.top = '-9999px';
     tempDiv.style.left = '-9999px';
     document.body.appendChild(tempDiv);
     
-    new QRCode(tempDiv, { text: data, width: 128, height: 128, correctLevel: QRCode.CorrectLevel.H });
+    tempDiv.innerHTML = '';
+
+    new QRCode(tempDiv, {
+        text: data,
+        width: 128,
+        height: 128,
+        correctLevel: QRCode.CorrectLevel.H
+    });
 
     setTimeout(() => {
         const canvas = tempDiv.querySelector('canvas');
@@ -1006,6 +1112,26 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     }, 100);
 };
 
+  const handleManualGroup = (targetProductId: string) => {
+      const target = products.find(p => p.id === targetProductId);
+      if (!target) return;
+      
+      // If target has a group ID, use it. If not, generate a new one for both.
+      // Note: This only updates the local state. The user must click "Save" to persist.
+      // Note 2: This doesn't automatically update the target product if it didn't have an ID.
+      // Ideally, both products should share the ID.
+      
+      const newGroupId = target.variationGroupId || `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      setFormData(prev => ({ ...prev, variationGroupId: newGroupId }));
+      
+      if (!target.variationGroupId) {
+          // Warning: The other product won't be updated until the user edits it or we do a batch update.
+          // For simplicity in this view, we just set it on the current product. 
+          // Proper implementation would require a backend call to update the target product too.
+          alert(`Nota: O produto alvo "${target.name}" não tinha família definida. Você precisará editá-lo e colar este ID de grupo manualmente ou usar a função de agrupamento lá também.`);
+      }
+  };
+
 
   const modalBgClasses = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
   const titleClasses = isDark ? "text-gray-200" : "text-gray-900";
@@ -1018,6 +1144,11 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   
   const availableFabricTypes = Object.keys(BRAND_FABRIC_MAP[formData.brand] || {});
   const canCreateVariations = formData.name.trim() && formData.category.trim();
+
+  // Filter products for manual grouping (exclude self)
+  const potentialFamilyTargets = useMemo(() => {
+      return products.filter(p => p.id !== formData.id).sort((a, b) => a.name.localeCompare(b.name));
+  }, [products, formData.id]);
 
   return (
       <>
@@ -1032,6 +1163,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                 </div>
 
                 <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar pr-2 -mr-2 space-y-6 pb-24">
+                    {/* Main Image Section */}
                     <div className="flex items-start gap-4">
                         <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
                             {formData.baseImageUrl ? (
@@ -1050,6 +1182,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                     type="button"
                                     onClick={handleRotateImage}
                                     className="absolute bottom-1 right-1 w-8 h-8 rounded-full z-10 bg-black/20 hover:bg-black/40 flex items-center justify-center transition-colors"
+                                    aria-label="Girar imagem"
                                 >
                                     <img src="https://i.postimg.cc/C1qXzX3z/20251019-214841-0000.png" alt="Girar Imagem" className="w-6 h-6" />
                                 </button>
@@ -1058,7 +1191,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         <div className="flex-grow">
                              <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Imagem Principal</label>
                             <button type="button" onClick={handleOpenImagePicker} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Alterar Imagem</button>
-                            <button type="button" onClick={generateShowcaseImage} disabled={isGeneratingShowcase || !formData.baseImageUrl} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
+                            <button type="button" onClick={generateShowcaseImage} disabled={isGeneratingShowcase || !formData.baseImageUrl} title={!apiKey ? noApiKeyTitle : "Gerar imagem de vitrine com IA"} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
                                 {isGeneratingShowcase ? <ButtonSpinner /> : 'Gerar Vitrine com IA'}
                             </button>
                         </div>
@@ -1072,12 +1205,13 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             onChange={handleChange}
                             required
                         >
-                             <button type="button" onClick={handleAiCorrectName} disabled={isNameAiLoading || !apiKey} className={`absolute top-1/2 right-2 -translate-y-1/2 text-xs font-bold py-2 px-3 rounded-md transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                             <button type="button" onClick={handleAiCorrectName} disabled={isNameAiLoading || !apiKey} title="Corrigir Nome com IA" className={`absolute top-1/2 right-2 -translate-y-1/2 text-xs font-bold py-2 px-3 rounded-md transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
                                 {isNameAiLoading ? <ButtonSpinner /> : 'Corrigir texto'}
                             </button>
                         </FormInput>
                     </div>
 
+                    {/* Collapsible Category Section */}
                     <div>
                         <div className="flex justify-between items-center mb-2 cursor-pointer" onClick={() => setIsCategorySectionVisible(!isCategorySectionVisible)}>
                             <h3 className={`text-lg font-bold ${titleClasses}`}>Categoria & Sub-categoria</h3>
@@ -1101,7 +1235,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                             </button>
                                         ))}
                                     </div>
-                                    <input list="categories-list" name="category" value={formData.category} onChange={handleChange} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 transition ${inputClasses}`} />
+                                    <input list="categories-list" name="category" value={formData.category} onChange={handleChange} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
                                     <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
                                 </div>
                                 <div>
@@ -1118,7 +1252,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                             </button>
                                         ))}
                                     </div>
-                                    <input type="text" name="subCategory" value={formData.subCategory} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 transition ${inputClasses}`} />
+                                    <input type="text" name="subCategory" value={formData.subCategory} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
                                 </div>
                             </div>
                         </div>
@@ -1127,11 +1261,11 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div>
                             <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
-                            <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 transition ${inputClasses}`}>{allBrandNames.map(brandName => <option key={brandName} value={brandName}>{brandName}</option>)}</select>
+                            <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(brandName => <option key={brandName} value={brandName}>{brandName}</option>)}</select>
                         </div>
                         <div>
                             <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
-                            <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 transition ${inputClasses}`}>{availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
+                            <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
                         </div>
                     </div>
                      <div>
@@ -1142,7 +1276,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.FULL} checked={formData.waterResistance === WaterResistanceLevel.FULL} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.FULL]?.label}</span></label>
                         </div>
                     </div>
-                    <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label><textarea name="description" value={formData.description} onChange={handleChange} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 transition ${inputClasses}`}></textarea></div>
+                    <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label><textarea name="description" value={formData.description} onChange={handleChange} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}></textarea></div>
                     
                     <div>
                         <h3 className={`text-lg font-bold mb-2 ${titleClasses}`}>Cor do Produto</h3>
@@ -1172,6 +1306,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         />
                     </div>
                     
+                    {/* Collapsible Size Variations */}
                     <div>
                         <div className="flex justify-between items-center mb-3">
                             <h3 className={`text-lg font-bold ${titleClasses}`}>Variações de Tamanho e Estoque</h3>
@@ -1195,9 +1330,111 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                     </div>
                                     <div className="mt-3 flex items-center gap-4">
                                         <div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>{v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}</div>
-                                        <button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>{aiGenerating[v.size] ? <ButtonSpinner /> : 'Gerar Imagem IA'}</button>
+                                        <button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} title={!apiKey ? noApiKeyTitle : `Gerar imagem para variação ${v.size}`} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>{aiGenerating[v.size] ? <ButtonSpinner /> : 'Gerar Imagem IA'}</button>
+                                    </div>
+                                    <div className="mt-3 flex items-center gap-4">
+                                        <div className={`w-16 h-16 rounded-lg p-1 flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-white' : 'border-gray-200 bg-white'}`}>
+                                            {v.qrCodeUrl ? <img src={v.qrCodeUrl} alt="QR Code" className="w-full h-full object-contain"/> : <span className="text-xs text-gray-500">Sem QR Code</span>}
+                                        </div>
+                                        <button type="button" onClick={() => handleGenerateQrCode(i)} disabled={!formData.id} title={!formData.id ? "Salve o produto primeiro" : "Gerar QR Code para esta variação"} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                                            {v.qrCodeUrl ? 'Gerar Novo QR Code' : 'Gerar QR Code'}
+                                        </button>
                                     </div>
                                 </div>))}
+                                <div className={`flex gap-2 mt-4 p-2 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+                                     <select value={addVariationSize} onChange={e => setAddVariationSize(e.target.value as CushionSize)} className={`flex-grow border-2 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}><option value="" disabled>Selecione um tamanho</option>{Object.values(CushionSize).map(size => (<option key={size} value={size} disabled={formData.variations.some(v => v.size === size)}>{size}</option>))}</select>
+                                    <button type="button" onClick={handleAddVariation} className="bg-fuchsia-600 text-white font-bold p-3 rounded-lg hover:bg-fuchsia-700 transition-transform transform hover:scale-105"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Collapsible Backgrounds */}
+                    <div>
+                         <div className="flex justify-between items-center mb-3">
+                            <h3 className={`text-lg font-bold ${titleClasses}`}>Fundos de Vitrine (IA)</h3>
+                             <button type="button" onClick={() => setIsBackgroundsVisible(!isBackgroundsVisible)} className="p-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isBackgroundsVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                        </div>
+                         <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isBackgroundsVisible ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <p className={`text-sm mb-3 ${subtitleClasses}`}>Gere imagens do produto em diferentes ambientes. Estas imagens serão salvas e exibidas na vitrine.</p>
+                            {generationProgress && <p className={`text-sm text-center font-semibold mb-2 ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>{generationProgress}</p>}
+                            <div className="grid grid-cols-2 gap-4">
+                                {backgroundOptions.map(bg => { 
+                                    const contextKey = bg.toLowerCase() as 'sala' | 'quarto' | 'varanda' | 'piscina'; 
+                                    const imagesForContext = formData.backgroundImages?.[contextKey];
+                                    const isColorVaried = typeof imagesForContext === 'object' && imagesForContext !== null;
+                                    const imageUrl = isColorVaried ? (imagesForContext['Bege'] || Object.values(imagesForContext)[0]) : (typeof imagesForContext === 'string' ? imagesForContext : undefined);
+                                    const isGenerating = bgGenerating[contextKey]; 
+                                    
+                                    return (
+                                    <div key={bg} className="flex flex-col items-center p-2 rounded-lg bg-black/10">
+                                        <div className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>{isGenerating ? (<ButtonSpinner />) : imageUrl ? (<img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />) : (<span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>)}</div>
+                                        <div className="w-full flex flex-col gap-2">
+                                            <button type="button" onClick={() => handleGenerateBackgroundImage(bg)} disabled={isGenerating || !formData.baseImageUrl || isGeneratingColors} title={!apiKey ? noApiKeyTitle : `Gerar fundo padrão de ${bg}`} className={`w-full text-center font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                                                {isGenerating ? <ButtonSpinner/> : `Gerar Padrão (${bg})`}
+                                            </button>
+                                            {isColorVaried && (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const existingColors = Object.keys(formData.backgroundImages?.[contextKey as 'sala' | 'quarto'] || {});
+                                                            const allSofaColorNames = sofaColors.map(c => c.name);
+                                                            const missingColors = allSofaColorNames.filter(name => !existingColors.includes(name));
+                                                            if (missingColors.length === 0) {
+                                                                alert('Todas as cores já foram geradas.');
+                                                                return;
+                                                            }
+                                                            handleGenerateColoredBackgrounds(contextKey as 'sala' | 'quarto', missingColors);
+                                                        }}
+                                                        disabled={isGeneratingColors || !formData.baseImageUrl}
+                                                        title={!apiKey ? noApiKeyTitle : `Gerar múltiplas cores para ${bg}`}
+                                                        className={`w-full text-center font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}
+                                                    >
+                                                        {isGeneratingColors ? <ButtonSpinner /> : 'Gerar Cores'}
+                                                    </button>
+                                                    {isColorVaried && Object.keys(imagesForContext || {}).length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDeleteConfirmation(contextKey as 'sala' | 'quarto')}
+                                                            disabled={isGeneratingColors}
+                                                            title={`Excluir imagens de ${bg}`}
+                                                            className={`w-full text-center font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-red-500/20 text-red-300 hover:bg-red-500/40' : 'bg-red-100 text-red-700 hover:bg-red-200'} disabled:opacity-50`}
+                                                        >
+                                                            Excluir Imagens
+                                                        </button>
+                                                    )}
+                                                    <div className="flex flex-wrap justify-center gap-2 mt-2">
+                                                        {sofaColors.map(color => {
+                                                            const isGenerated = !!(imagesForContext as any)?.[color.name];
+                                                            const isCurrentlyGenerating = generatingColor[contextKey as 'sala' | 'quarto'] === color.name;
+                                                            return (
+                                                                <div
+                                                                    key={color.name}
+                                                                    title={isGenerated ? `Gerado: ${color.name}` : `Pendente: ${color.name}`}
+                                                                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${isGenerated ? 'border-green-500' : (isDark ? 'border-gray-600' : 'border-gray-300')}`}
+                                                                    style={{ backgroundColor: color.hex, opacity: isGenerated ? 1 : 0.4 }}
+                                                                >
+                                                                    {isCurrentlyGenerating && (
+                                                                        <div className="w-full h-full rounded-full bg-black/50 flex items-center justify-center">
+                                                                            <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                                            </svg>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
@@ -1226,17 +1463,48 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                                 </div>
                                             </div>
                                         </div>
-                                        <button type="button" onClick={() => handleSwitch(p)} className={`flex-shrink-0 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Editar esse</button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSwitch(p)}
+                                            title={`Editar ${p.name}`}
+                                            className={`flex-shrink-0 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+                                        >
+                                            Editar esse
+                                        </button>
                                     </div>
                                 ))}
                             </div>
                         ) : (
                              <p className={`text-sm mb-3 ${subtitleClasses}`}>Nenhum outro produto encontrado nesta família.</p>
                         )}
-                        <div className="flex items-center">
-                            <label htmlFor="isBatchColorMode" className={`text-sm font-semibold mr-3 ${labelClasses} ${!canCreateVariations ? 'opacity-50' : ''}`}>Criar produtos para novas cores?</label>
-                            <input type="checkbox" id="isBatchColorMode" checked={isBatchColorMode} onChange={(e) => setIsBatchColorMode(e.target.checked)} className="h-5 w-5 rounded text-fuchsia-600 focus:ring-fuchsia-500 disabled:opacity-50" disabled={!canCreateVariations} />
+                        
+                        {/* NEW: Manual Family Grouping Option */}
+                        <div className={`mt-4 pt-4 border-t ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
+                            <h4 className={`text-sm font-bold mb-2 ${titleClasses}`}>Agrupamento Manual (Correção de Família)</h4>
+                            <p className={`text-xs mb-3 ${subtitleClasses}`}>Se este produto estiver "órfão" na vitrine, selecione abaixo um produto da família correta para uni-los.</p>
+                            <select 
+                                onChange={(e) => {
+                                    if(e.target.value) handleManualGroup(e.target.value);
+                                }}
+                                className={`w-full text-sm p-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}
+                                defaultValue=""
+                            >
+                                <option value="" disabled>Escolher família para unir...</option>
+                                {potentialFamilyTargets.map(p => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.name} ({p.brand})
+                                    </option>
+                                ))}
+                            </select>
                         </div>
+
+                        <div className="flex items-center mt-6">
+                            <label htmlFor="isBatchColorMode" className={`text-sm font-semibold mr-3 ${labelClasses} ${!canCreateVariations ? 'opacity-50' : ''}`} title={!canCreateVariations ? 'Preencha o nome e a categoria para criar variações.' : ''}>Criar produtos para novas cores?</label>
+                            <input type="checkbox" id="isBatchColorMode" checked={isBatchColorMode} onChange={(e) => setIsBatchColorMode(e.target.checked)} className="h-5 w-5 rounded text-fuchsia-600 focus:ring-fuchsia-500 disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canCreateVariations} />
+                        </div>
+                         {!canCreateVariations && (
+                           <p className="text-xs text-amber-500 mt-1">Preencha o nome e a categoria do produto antes de criar variações de cor.</p>
+                         )}
 
                         {isBatchColorMode && canCreateVariations && (
                             <>
@@ -1274,7 +1542,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     </div>
                      <div className="flex items-center gap-4">
                          {saveError && <p className="text-sm text-red-500 font-semibold">{saveError}</p>}
-                         <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400">Salvar</button>
+                         <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100">{isSaving ? 'Salvando...' : 'Salvar'}</button>
                     </div>
                 </div>
             </form>
@@ -1287,14 +1555,14 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     if (deleteConfirmation) {
                         setFormData(prev => {
                             const newBgs = { ...prev.backgroundImages };
-                            newBgs[deleteConfirmation] = {};
+                            newBgs[deleteConfirmation] = {}; // Clear the images for the context
                             return { ...prev, backgroundImages: newBgs };
                         });
                         setDeleteConfirmation(null);
                     }
                 }}
                 title="Confirmar Exclusão"
-                message={`Tem certeza que deseja excluir todas as imagens geradas para o ambiente?`}
+                message={`Tem certeza que deseja excluir todas as imagens geradas para o ambiente "${deleteConfirmation === 'sala' ? 'Sala' : 'Quarto'}"? Você precisará salvar para confirmar.`}
             />
         )}
         {isImagePickerOpen && <ImagePickerModal onSelect={handleImageSelect} onClose={() => setIsImagePickerOpen(false)} onTakePhoto={handleTakePhoto} />}

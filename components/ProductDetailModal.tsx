@@ -112,25 +112,24 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     const [variationQuantities, setVariationQuantities] = useState<Record<string, { cover: number, full: number }>>({});
     const [addStatus, setAddStatus] = useState<Record<string, 'idle' | 'added' | 'goToCart'>>({});
     
-    // --- Lógica Unificada de Família (Igual ao menu de edição) ---
+    // --- Lógica Unificada de Família (Mesma da Vitrine) ---
     const getProductFamilyKey = useCallback((p: Product) => {
         if (p.variationGroupId) return p.variationGroupId;
 
-        // Se não tiver GroupID, agrupa por Brand + Category + SubCategory + Primeiro Nome (Limpo)
-        // Isso garante que se o usuário usar o campo Sub-categoria, o agrupamento seja perfeito.
-        const brand = p.brand;
-        const cat = p.category;
-        const sub = p.subCategory || '';
+        let baseName = p.name.toLowerCase();
         
-        let nameBase = p.name.toLowerCase();
+        // Remove TODAS as cores conhecidas do nome para sobrar apenas a "Coleção"
         const sortedColors = [...PREDEFINED_COLORS].sort((a, b) => b.name.length - a.name.length);
         sortedColors.forEach(c => {
             const regex = new RegExp(`\\b${c.name.toLowerCase()}\\b|\\(${c.name.toLowerCase()}\\)`, 'g');
-            nameBase = nameBase.replace(regex, '');
+            baseName = baseName.replace(regex, '');
         });
-        nameBase = nameBase.replace(/capa|almofada|lombar|lisas|belize/g, '').trim().split(' ')[0] || '';
 
-        return `${brand}|${cat}|${sub}|${nameBase}`;
+        // Remove termos redundantes
+        baseName = baseName.replace(/capa|almofada|cheia|vazia|enchimento|kit|lombar/g, '');
+        const cleanBase = baseName.replace(/\s\s+/g, ' ').replace(/[()]/g, '').trim();
+
+        return `${p.brand}|${p.category}|${cleanBase}`;
     }, []);
 
     const familyProducts = useMemo(() => {
@@ -337,7 +336,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                         {familyProducts.length > 0 && (
                              <div>
                                 <p className={`font-bold text-sm mb-2 ${subtitleClasses}`}>Almofadas da mesma família</p>
-                                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
                                     {familyProducts.map(p => (
                                         <button key={p.id} onClick={() => onSwitchProduct(p)} className="flex-shrink-0 flex flex-col items-center text-center w-20">
                                             <div className="w-20 h-20 rounded-lg overflow-hidden border-2 border-transparent hover:border-fuchsia-500 transition-all">

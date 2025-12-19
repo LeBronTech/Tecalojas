@@ -118,19 +118,6 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
     const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
     
     const representativeProduct = group[0];
-    
-    const groupName = useMemo(() => {
-        if (representativeProduct.subCategory) return representativeProduct.subCategory;
-        
-        let nameBase = representativeProduct.name.toLowerCase();
-        const sortedColors = [...PREDEFINED_COLORS].sort((a, b) => b.name.length - a.name.length);
-        sortedColors.forEach(c => {
-            const regex = new RegExp(`\\b${c.name.toLowerCase()}\\b|\\(${c.name.toLowerCase()}\\)`, 'g');
-            nameBase = nameBase.replace(regex, '');
-        });
-        nameBase = nameBase.replace(/capa|almofada|lombar|lisas|belize/g, '').trim();
-        return nameBase.charAt(0).toUpperCase() + nameBase.slice(1) || representativeProduct.category;
-    }, [representativeProduct]);
 
     return (
         <button 
@@ -159,7 +146,7 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
                         </div>
                     )}
                 </div>
-                <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{groupName}</h3>
+                <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{representativeProduct.category}</h3>
                 <div className={`flex items-center justify-center flex-wrap gap-x-3 gap-y-2 text-xs mt-2`}>
                      <div className={`flex items-center gap-1 ${textMetaClasses}`}>
                         <img src={BRAND_LOGOS[representativeProduct.brand]} alt={representativeProduct.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
@@ -247,61 +234,73 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
     const fabricsInCategory = products
       .filter(p => p.category === selectedCategory || p.subCategory === selectedCategory)
       .map(p => p.fabricType);
-    return ['Todos os Tecidos', ...Array.from(new Set(fabricsInCategory))];
+    
+    // Sort fabrics alphabetically
+    const uniqueFabrics = [...new Set(fabricsInCategory)].sort((a, b) => a.localeCompare(b));
+    return ['Todos os Tecidos', ...uniqueFabrics];
   }, [selectedCategory, products]);
 
+  // --- Função Robusta de Chave de Família ---
   const getProductFamilyKey = useCallback((p: Product) => {
     if (p.variationGroupId) return p.variationGroupId;
 
-    const brand = p.brand;
-    const cat = p.category;
-    const sub = p.subCategory || '';
+    let baseName = p.name.toLowerCase();
     
-    let nameBase = p.name.toLowerCase();
+    // Remove TODAS as cores conhecidas do nome para sobrar apenas a "Coleção"
     const sortedColors = [...PREDEFINED_COLORS].sort((a, b) => b.name.length - a.name.length);
     sortedColors.forEach(c => {
         const regex = new RegExp(`\\b${c.name.toLowerCase()}\\b|\\(${c.name.toLowerCase()}\\)`, 'g');
-        nameBase = nameBase.replace(regex, '');
+        baseName = baseName.replace(regex, '');
     });
-    nameBase = nameBase.replace(/capa|almofada|lombar|lisas|belize/g, '').trim().split(' ')[0] || '';
 
-    return `${brand}|${cat}|${sub}|${nameBase}`;
+    // Remove termos redundantes
+    baseName = baseName.replace(/capa|almofada|cheia|vazia|enchimento|kit|lombar/g, '');
+    const cleanBase = baseName.replace(/\s\s+/g, ' ').replace(/[()]/g, '').trim();
+
+    return `${p.brand}|${p.category}|${cleanBase}`;
   }, []);
 
   const displayedProducts = useMemo(() => {
-    // 1. Group FIRST (always group by family regardless of filter)
-    const familyMap = new Map<string, ProductGroup>();
-    products.forEach(p => {
-        const familyKey = getProductFamilyKey(p);
-        if (!familyMap.has(familyKey)) familyMap.set(familyKey, []);
-        familyMap.get(familyKey)!.push(p);
-    });
-
-    const allGroups: (Product | ProductGroup)[] = [];
-    familyMap.forEach(group => {
-        if (group.length > 1) allGroups.push(group);
-        else allGroups.push(group[0]);
-    });
-
-    // 2. Filter the grouped results
-    let filtered = allGroups.filter(item => {
-        const rep = Array.isArray(item) ? item[0] : item;
-        const categoryMatch = selectedCategory === 'Todas' || rep.category === selectedCategory || rep.subCategory === selectedCategory;
-        const fabricMatch = selectedFabric === 'Todos os Tecidos' || rep.fabricType === selectedFabric;
+    // 1. Filtrar
+    let filtered = products.filter(p => {
+        const categoryMatch = selectedCategory === 'Todas' || p.category === selectedCategory || p.subCategory === selectedCategory;
+        const fabricMatch = selectedFabric === 'Todos os Tecidos' || p.fabricType === selectedFabric;
         return categoryMatch && fabricMatch;
     });
 
-    // 3. Sort
-    return filtered.sort((a, b) => {
+    // 2. Agrupar (Condicional)
+    const grouped: (Product | ProductGroup)[] = [];
+
+    // SE um tecido específico for selecionado, mostre os produtos separadamente (não agrupe).
+    // SE estiver em "Todos os Tecidos" (ou visualização padrão), agrupe por família.
+    if (selectedFabric !== 'Todos os Tecidos') {
+         grouped.push(...filtered);
+    } else {
+        const familyMap = new Map<string, ProductGroup>();
+        filtered.forEach(p => {
+            const familyKey = getProductFamilyKey(p);
+            if (!familyMap.has(familyKey)) familyMap.set(familyKey, []);
+            familyMap.get(familyKey)!.push(p);
+        });
+
+        familyMap.forEach(group => {
+            if (group.length > 1) grouped.push(group);
+            else grouped.push(group[0]);
+        });
+    }
+
+    // 3. Ordenar
+    return grouped.sort((a, b) => {
+        const itemA = Array.isArray(a) ? a[0] : a;
+        const itemB = Array.isArray(b) ? b[0] : b;
+
         if (sortOrder === 'alpha') {
-            const nameA = Array.isArray(a) ? (a[0].subCategory || a[0].category) : (a as Product).name;
-            const nameB = Array.isArray(b) ? (b[0].subCategory || b[0].category) : (b as Product).name;
-            return String(nameA || '').localeCompare(String(nameB || ''));
-        } else {
-            const itemA = Array.isArray(a) ? a[0] : a;
-            const itemB = Array.isArray(b) ? b[0] : b;
-            const timeA = itemA ? parseInt(itemA.id.split('-')[0], 10) || 0 : 0;
-            const timeB = itemB ? parseInt(itemB.id.split('-')[0], 10) || 0 : 0;
+            const nameA = String(itemA?.name || '');
+            const nameB = String(itemB?.name || '');
+            return nameA.localeCompare(nameB);
+        } else { // 'recent'
+            const timeA = parseInt(itemA.id.split('-')[0], 10) || 0;
+            const timeB = parseInt(itemB.id.split('-')[0], 10) || 0;
             return timeB - timeA;
         }
     });
@@ -328,6 +327,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
   const headerTextClasses = isDark ? "text-purple-300/80" : "text-purple-600/80";
   const titleTextClasses = isDark ? "text-white" : "text-gray-900";
   
+  const isCategorySelected = selectedCategory !== 'Todas';
+
   return (
     <>
       <div className="h-full w-full flex flex-col relative overflow-hidden">
@@ -347,6 +348,12 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
         </div>
 
           <main className="flex-grow overflow-y-auto px-6 pt-20 pb-36 md:pb-6 flex flex-col no-scrollbar z-10">
+              {hasFetchError && (
+                <div className={`p-4 mb-4 rounded-xl text-center font-semibold border ${isDark ? 'bg-red-900/50 text-red-300 border-red-500/30' : 'bg-red-100 text-red-800 border-red-200'}`}>
+                    <p className="font-bold text-lg">Modo de Demonstração Ativo</p>
+                    <p className="text-sm">Você está vendo uma vitrine de exemplo. O conteúdo real não pôde ser carregado.</p>
+                </div>
+              )}
                <div className="mb-6">
                   <h2 className={`text-sm font-bold tracking-widest ${headerTextClasses}`}>CATÁLOGO</h2>
                   <h3 className={`text-3xl font-bold ${titleTextClasses}`}>Almofadas</h3>
@@ -382,14 +389,27 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
                     </select>
               </div>
               
-              <div className="flex flex-wrap gap-3 mb-4 overflow-hidden">
-                  {categories.map(category => {
-                      const isActive = selectedCategory === category;
-                      const isAnySelected = selectedCategory !== 'Todas';
-                      
-                      // COLLAPSE LOGIC: Hide other buttons if one is selected, except "Todas" button which becomes "Voltar"
-                      if (isAnySelected && !isActive && category !== 'Todas') return null;
+              <div className="flex flex-wrap gap-3 mb-4 transition-all duration-300">
+                  {/* Back Button - Only visible when a category is selected */}
+                  {isCategorySelected && (
+                      <button
+                          onClick={() => {
+                              setSelectedCategory('Todas');
+                              setSelectedFabric('Todos os Tecidos');
+                          }}
+                          className={`px-4 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 transition-all duration-300 shadow-md transform hover:scale-105 ${isDark ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
+                      >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                          Voltar
+                      </button>
+                  )}
 
+                  {categories.map(category => {
+                      // Logic: If a category is selected, HIDE all other categories.
+                      // If 'Todas' is selected, show all (except 'Todas' itself if desired, but your array includes it).
+                      if (isCategorySelected && category !== selectedCategory) return null;
+
+                      const isActive = selectedCategory === category;
                       const activeClasses = isDark 
                           ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30 border-transparent hover:bg-fuchsia-500' 
                           : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20 border-transparent hover:bg-purple-700';
@@ -404,21 +424,18 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
                                 setSelectedCategory(category);
                                 setSelectedFabric('Todos os Tecidos');
                               }}
-                              className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-500 whitespace-nowrap border transform hover:scale-105 flex items-center gap-2 ${
+                              className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
                                   isActive ? activeClasses : inactiveClasses
                               }`}
                           >
-                              {isActive && category !== 'Todas' && (
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                              )}
-                              {category === 'Todas' && isAnySelected ? 'Voltar para Todas' : category}
+                              {category}
                           </button>
                       );
                   })}
               </div>
 
-              {availableFabrics.length > 1 && (
-                <div className="flex flex-wrap gap-3 mb-8 transition-all duration-500" style={{ animation: 'float-in 0.4s forwards', opacity: 0 }}>
+              {availableFabrics.length > 0 && (
+                <div className="flex flex-wrap gap-3 mb-8 transition-all duration-300" style={{ animation: 'float-in 0.3s forwards', opacity: 0 }}>
                     {availableFabrics.map(fabric => {
                       const isActive = selectedFabric === fabric;
                       const activeClasses = isDark 
@@ -431,7 +448,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
                          <button
                               key={fabric}
                               onClick={() => setSelectedFabric(fabric)}
-                              className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
+                              className={`px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
                                   isActive ? activeClasses : inactiveClasses
                               }`}
                           >
