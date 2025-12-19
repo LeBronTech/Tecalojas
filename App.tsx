@@ -98,8 +98,6 @@ export default function App() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
-  const [customerName, setCustomerName] = useState('');
-  const [isCustomerNameModalOpen, setIsCustomerNameModalOpen] = useState(false);
   
   // Settings from Firestore
   const [allColors, setAllColors] = useState<{ name: string; hex: string }[]>(PREDEFINED_COLORS);
@@ -125,6 +123,41 @@ export default function App() {
       await api.updateGlobalSettings(newData);
   }, []);
 
+  const handleAddColor = useCallback((c: {name: string, hex: string}) => {
+      handleUpdateGlobalSettings({ allColors: [...allColors, c] });
+  }, [allColors, handleUpdateGlobalSettings]);
+
+  const handleDeleteColor = useCallback((n: string) => {
+      handleUpdateGlobalSettings({ allColors: allColors.filter(c => c.name !== n) });
+  }, [allColors, handleUpdateGlobalSettings]);
+
+  const handleAddSofaColor = useCallback((c: {name: string, hex: string}) => {
+      handleUpdateGlobalSettings({ sofaColors: [...sofaColors, c] });
+  }, [sofaColors, handleUpdateGlobalSettings]);
+
+  const handleDeleteSofaColor = useCallback((n: string) => {
+      handleUpdateGlobalSettings({ sofaColors: sofaColors.filter(c => c.name !== n) });
+  }, [sofaColors, handleUpdateGlobalSettings]);
+
+  const handleUpdateStock = useCallback(async (productId: string, variationSize: CushionSize, store: StoreName, change: number) => {
+    const productToUpdate = products.find(p => p.id === productId);
+    if (!productToUpdate) return;
+    const updatedProduct = JSON.parse(JSON.stringify(productToUpdate));
+    const variationToUpdate = updatedProduct.variations.find((v: Variation) => v.size === variationSize);
+    if (!variationToUpdate) return;
+    variationToUpdate.stock[store] = Math.max(0, variationToUpdate.stock[store] + change);
+    const { id, ...productData } = updatedProduct;
+    try { await api.updateProductData(id, productData); } catch (e) {}
+  }, [products]);
+
+  const handleSaveProduct = useCallback(async (p: Product) => {
+      try {
+          if (p.id) await api.updateProductData(p.id, p);
+          else await api.addProductData(p);
+          setEditingProduct(null);
+      } catch (e) { alert("Erro ao salvar produto."); }
+  }, []);
+
   useEffect(() => {
     const unsubProducts = api.onProductsUpdate((items) => setProducts(items), () => {});
     const unsubBrands = api.onBrandsUpdate((items) => setBrands(items), () => {});
@@ -144,14 +177,19 @@ export default function App() {
             <Header onMenuClick={() => setIsMenuOpen(true)} cartItemCount={cart.length} onCartClick={() => setView(View.CART)} activeView={view} onNavigate={handleNavigate} isAdmin={isAdmin} />
             
             {view === View.SHOWCASE && <ShowcaseScreen products={products} hasFetchError={false} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={() => {}} sofaColors={sofaColors} cart={cart} />}
-            {view === View.STOCK && <StockManagementScreen products={products} onEditProduct={setEditingProduct} onAddProduct={() => setIsWizardOpen(true)} onDeleteProduct={setDeletingProductId} onUpdateStock={() => {}} canManageStock={isAdmin} hasFetchError={false} brands={brands} onMenuClick={() => setIsMenuOpen(true)} />}
+            {view === View.STOCK && <StockManagementScreen products={products} onEditProduct={setEditingProduct} onAddProduct={() => setIsWizardOpen(true)} onDeleteProduct={setDeletingProductId} onUpdateStock={handleUpdateStock} canManageStock={isAdmin} hasFetchError={false} brands={brands} onMenuClick={() => setIsMenuOpen(true)} />}
             {view === View.SALES && <SalesScreen saleRequests={saleRequests} onCompleteSaleRequest={api.completeSaleRequest} products={products} onMenuClick={() => setIsMenuOpen(true)} cardFees={cardFees} />}
             {view === View.DIAGNOSTICS && <DiagnosticsScreen products={products} saleRequests={saleRequests} cardFees={cardFees} onMenuClick={() => setIsMenuOpen(true)} />}
-            {view === View.SETTINGS && <SettingsScreen canManageStock={isAdmin} brands={brands} allColors={allColors} onAddColor={(c) => handleUpdateGlobalSettings({allColors: [...allColors, c]})} onDeleteColor={(n) => handleUpdateGlobalSettings({allColors: allColors.filter(c => c.name !== n)})} onMenuClick={() => setIsMenuOpen(true)} cardFees={cardFees} onSaveCardFees={(f) => handleUpdateGlobalSettings({cardFees: f})} sofaColors={sofaColors} onAddSofaColor={(c) => handleUpdateGlobalSettings({sofaColors: [...sofaColors, c]})} onDeleteSofaColor={(n) => handleUpdateGlobalSettings({sofaColors: sofaColors.filter(c => c.name !== n)})} categories={categories} onAddCategory={api.addCategory} onDeleteCategory={api.deleteCategory} />}
+            {view === View.SETTINGS && <SettingsScreen canManageStock={isAdmin} brands={brands} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} onMenuClick={() => setIsMenuOpen(true)} cardFees={cardFees} onSaveCardFees={(f) => handleUpdateGlobalSettings({cardFees: f})} sofaColors={sofaColors} onAddSofaColor={handleAddSofaColor} onDeleteSofaColor={handleDeleteSofaColor} categories={categories} onAddCategory={api.addCategory} onDeleteCategory={api.deleteCategory} onAddNewBrand={api.addBrand as any} />}
+            {view === View.ASSISTANT && <AssistantScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={setDeletingProductId} canManageStock={isAdmin} onMenuClick={() => setIsMenuOpen(true)} />}
+            {view === View.QR_CODES && <QrCodeScreen products={products} />}
 
             <BottomNav activeView={view} onNavigate={handleNavigate} hasItemsToRestock={false} isAdmin={isAdmin} hasNewSaleRequests={false} />
             <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} onLogout={api.signOut} onLoginClick={() => setView(View.STOCK)} onPixClick={() => setIsPixModalOpen(true)} activeView={view} onNavigate={handleNavigate} isLoggedIn={!!currentUser} isAdmin={isAdmin} hasItemsToRestock={false} hasNewSaleRequests={false} />
-            {editingProduct && <AddEditProductModal product={editingProduct} products={products} onClose={() => setEditingProduct(null)} onSave={api.updateProductData as any} onCreateVariations={() => Promise.resolve()} onSwitchProduct={setEditingProduct} onRequestDelete={setDeletingProductId} categories={[]} allColors={allColors} onAddColor={() => {}} onDeleteColor={() => {}} brands={brands} sofaColors={sofaColors} />}
+            
+            {editingProduct && <AddEditProductModal product={editingProduct} products={products} onClose={() => setEditingProduct(null)} onSave={handleSaveProduct as any} onCreateVariations={() => Promise.resolve()} onSwitchProduct={setEditingProduct} onRequestDelete={setDeletingProductId} categories={[]} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} brands={brands} sofaColors={sofaColors} />}
+            {isWizardOpen && <ProductCreationWizard onClose={() => setIsWizardOpen(false)} onConfigure={async (newPs, configP) => { await Promise.all(newPs.map(p => api.addProductData(p))); setIsWizardOpen(false); }} allColors={allColors} onAddColor={handleAddColor} categories={[]} products={products} brands={brands} />}
+            <ConfirmationModal isOpen={!!deletingProductId} onClose={() => setDeletingProductId(null)} onConfirm={async () => { if(deletingProductId) await api.deleteProduct(deletingProductId); setDeletingProductId(null); }} title="Excluir" message="Tem certeza?" />
         </div>
     </ThemeContext.Provider>
   );
