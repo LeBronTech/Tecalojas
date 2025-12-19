@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useEffect, useMemo, useRef } from 'react';
-import { SaleRequest, View, ThemeContext, Product, PosCartItem, Variation, CushionSize, CartItem } from '../types';
+import { SaleRequest, View, ThemeContext, Product, PosCartItem, Variation, CushionSize, CartItem, CardFees } from '../types';
 import ProductSelectModal from '../components/ProductSelectModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import * as api from '../firebase';
@@ -8,10 +8,11 @@ import * as api from '../firebase';
 
 interface SalesScreenProps {
     saleRequests: SaleRequest[];
-    onCompleteSaleRequest: (requestId: string, details: { discount?: number, finalPrice?: number, installments?: number }) => void;
+    onCompleteSaleRequest: (requestId: string, details: { discount?: number, finalPrice?: number, installments?: number, netValue?: number, totalProductionCost?: number }) => void;
     products: Product[];
     onMenuClick: () => void;
     error?: string | null;
+    cardFees: CardFees;
 }
 
 type ActiveTab = 'requests' | 'preorders' | 'calculator';
@@ -32,7 +33,7 @@ const CardIcon = () => (
 
 const CashIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01M12 6v-1m0-1V4m0 12v1m0 1v1m0 1v1m0 0h.01M12 21a9 9 0 110-18 9 9 0 010 18z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01M12 6v-1m0-1V4m0 12v1m0 1v1m0 0h.01M12 21a9 9 0 110-18 9 9 0 010 18z" />
     </svg>
 );
 
@@ -47,10 +48,34 @@ const RequestDetailsModal: React.FC<{
     setDiscount: (v: number) => void;
     installments: number;
     setInstallments: (v: number) => void;
-}> = ({ isOpen, onClose, request, onConfirm, isDark, discount, setDiscount, installments, setInstallments }) => {
+    cardFees: CardFees;
+}> = ({ isOpen, onClose, request, onConfirm, isDark, discount, setDiscount, installments, setInstallments, cardFees }) => {
     if (!isOpen) return null;
 
     const finalPrice = request.totalPrice - (discount || 0);
+    
+    // Logic to estimate fees for pending requests or show actual net for completed
+    let netValue = 0;
+    let feeAmount = 0;
+
+    if (request.status === 'completed' && request.netValue) {
+        netValue = request.netValue;
+    } else {
+        // Estimate for pending
+        let feePercentage = 0;
+        if (request.paymentMethod === 'Débito') feePercentage = cardFees.debit;
+        else if (request.paymentMethod === 'Crédito') {
+            if (installments === 1) feePercentage = cardFees.credit1x;
+            else if (installments === 2) feePercentage = cardFees.credit2x;
+            else feePercentage = cardFees.credit3x;
+        }
+        // Online payments usually have different fees, assuming credit 1x for simplicity or 0 if not tracked
+        else if (request.paymentMethod === 'Cartão (Online)') feePercentage = cardFees.credit1x; 
+
+        feeAmount = finalPrice * (feePercentage / 100);
+        netValue = finalPrice - feeAmount;
+    }
+
 
     const modalBg = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
     const titleColor = isDark ? "text-white" : "text-gray-900";
@@ -61,7 +86,7 @@ const RequestDetailsModal: React.FC<{
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[160] p-4" onClick={onClose}>
             <div className={`border rounded-3xl shadow-2xl w-full max-w-sm p-6 flex flex-col max-h-[90vh] ${modalBg}`} onClick={e => e.stopPropagation()}>
                 <h2 className={`text-xl font-bold mb-1 ${titleColor}`}>
-                    {request.type === 'preorder' ? 'Detalhes da Encomenda' : 'Detalhes do Pedido'}
+                    {request.type === 'preorder' ? 'Detalhes da Encomenda' : 'Detalhes da Venda'}
                 </h2>
                 <p className={`text-sm mb-4 ${labelColor}`}>Cliente: <span className="font-bold">{request.customerName || 'Não identificado'}</span></p>
                 
@@ -105,24 +130,47 @@ const RequestDetailsModal: React.FC<{
                             <span className={titleColor}>Total Final:</span>
                             <span className="text-fuchsia-500">R$ {finalPrice.toFixed(2)}</span>
                         </div>
+                        {request.type === 'sale' && (request.paymentMethod === 'Crédito' || request.paymentMethod === 'Débito') && (
+                             <div className="flex justify-between items-center text-xs">
+                                <span className={labelColor}>Valor Líquido (Est.):</span>
+                                <span className={`font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>R$ {netValue.toFixed(2)}</span>
+                            </div>
+                        )}
+
                         <button onClick={onConfirm} className={`w-full font-bold py-4 rounded-2xl shadow-lg transition-all ${request.type === 'preorder' ? 'bg-amber-500 text-white' : 'bg-green-600 text-white'}`}>
                             {request.type === 'preorder' ? 'MARCAR COMO PROCESSADA' : 'CONFIRMAR PAGAMENTO'}
                         </button>
                     </div>
                 ) : (
-                    <div className="pt-4 border-t border-white/10">
+                    <div className="pt-4 border-t border-white/10 space-y-2">
                          <div className="flex justify-between items-center">
                             <span className={labelColor}>Status:</span>
                             <span className="text-green-500 font-bold uppercase text-xs">Concluído</span>
                          </div>
-                         <div className="flex justify-between items-center mt-1">
+                         <div className="flex justify-between items-center">
+                            <span className={labelColor}>Subtotal:</span>
+                            <span className={titleColor}>R$ {request.totalPrice.toFixed(2)}</span>
+                         </div>
+                         {(request.discount && request.discount > 0) ? (
+                             <div className="flex justify-between items-center">
+                                <span className={labelColor}>Desconto:</span>
+                                <span className="text-red-500">- R$ {request.discount.toFixed(2)}</span>
+                             </div>
+                         ) : null}
+                         <div className="flex justify-between items-center mt-1 pt-2 border-t border-white/5">
                             <span className={labelColor}>Total Pago:</span>
                             <span className={`font-black ${titleColor}`}>R$ {(request.finalPrice ?? request.totalPrice).toFixed(2)}</span>
                          </div>
+                         {request.netValue && (
+                             <div className="flex justify-between items-center">
+                                <span className={`text-xs ${labelColor}`}>Valor Líquido:</span>
+                                <span className={`text-xs font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>R$ {request.netValue.toFixed(2)}</span>
+                             </div>
+                         )}
                     </div>
                 )}
                 
-                <button onClick={onClose} className={`mt-2 py-2 text-sm font-bold ${labelColor}`}>Fechar</button>
+                <button onClick={onClose} className={`mt-4 py-2 text-sm font-bold ${labelColor}`}>Fechar</button>
             </div>
         </div>
     );
@@ -381,7 +429,7 @@ const ScannerModal: React.FC<{
 };
 
 
-const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleRequest, products, onMenuClick, error }) => {
+const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleRequest, products, onMenuClick, error, cardFees }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [activeTab, setActiveTab] = useState<ActiveTab>('requests');
@@ -437,12 +485,46 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     
     const completedSalesTotal = useMemo(() => filteredCompletedRequests.reduce((sum, req) => sum + (req.finalPrice ?? req.totalPrice), 0), [filteredCompletedRequests]);
 
+    const calculateFeePercentage = (method: string, installments: number) => {
+        if (method === 'Débito') return cardFees.debit;
+        if (method === 'Crédito') {
+            if (installments === 1) return cardFees.credit1x;
+            if (installments === 2) return cardFees.credit2x;
+            return cardFees.credit3x;
+        }
+        if (method === 'Cartão (Online)') return cardFees.credit1x; // Default for online
+        return 0;
+    }
+
+    const calculateCost = (items: (CartItem | PosCartItem)[]) => {
+        return items.reduce((total, item) => {
+            let product: Product | undefined;
+            if ('product' in item && item.product) {
+                product = item.product;
+            } else if ('productId' in item) {
+                const pid = (item as CartItem).productId;
+                product = products.find(p => p.id === pid);
+            }
+            const cost = product?.productionCost || 0;
+            return total + (cost * item.quantity);
+        }, 0);
+    }
+
     const handleConfirmRequest = () => {
         if (!viewingRequest) return;
+        
+        const finalPrice = viewingRequest.totalPrice - discount;
+        const feePercentage = calculateFeePercentage(viewingRequest.paymentMethod, installments);
+        const feeAmount = finalPrice * (feePercentage / 100);
+        const netValue = finalPrice - feeAmount;
+        const totalProductionCost = calculateCost(viewingRequest.items);
+
         onCompleteSaleRequest(viewingRequest.id, {
             discount: discount > 0 ? discount : undefined,
-            finalPrice: viewingRequest.totalPrice - discount,
+            finalPrice: finalPrice,
             installments: viewingRequest.paymentMethod === 'Crédito' ? installments : undefined,
+            netValue: netValue,
+            totalProductionCost: totalProductionCost
         });
         setViewingRequest(null);
         setDiscount(0);
@@ -509,7 +591,16 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
 
     const handleFinalizeSale = async (paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Dinheiro', details: { discount: number; finalPrice: number; installments: number }) => {
         try {
-            await api.finalizePosSale(posCart, posTotal, paymentMethod, details);
+            const feePercentage = calculateFeePercentage(paymentMethod, details.installments);
+            const feeAmount = details.finalPrice * (feePercentage / 100);
+            const netValue = details.finalPrice - feeAmount;
+            const totalProductionCost = calculateCost(posCart);
+
+            await api.finalizePosSale(posCart, posTotal, paymentMethod, {
+                ...details,
+                netValue: netValue,
+                totalProductionCost: totalProductionCost
+            });
             setPosCart([]);
             setIsFinalizeSaleModalOpen(false);
         } catch (err: any) {
@@ -673,6 +764,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                     setDiscount={setDiscount}
                     installments={installments}
                     setInstallments={setInstallments}
+                    cardFees={cardFees}
                 />
             )}
 
@@ -681,7 +773,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
             {productForVariationSelect && <VariationSelectModal product={productForVariationSelect} onClose={() => setProductForVariationSelect(null)} onSelect={(p, v) => { setProductForVariationSelect(null); setItemForPosTypeChoice({ product: p, variation: v }); }} />}
             <ItemTypeChoiceModal isOpen={!!itemForPosTypeChoice} onClose={() => setItemForPosTypeChoice(null)} onSelect={handlePosItemTypeSelected} productName={itemForPosTypeChoice ? `${itemForPosTypeChoice.product.name} (${itemForPosTypeChoice.variation.size})` : ''} isDark={isDark} />
             {isCustomValueModalOpen && <CustomValueModal onClose={() => setIsCustomValueModalOpen(false)} onConfirm={(n, p) => setPosCart(prev => [...prev, { id: `custom-${Date.now()}`, name: n, price: p, quantity: 1, isCustom: true }])} />}
-            {isFinalizeSaleModalOpen && <FinalizeSaleModal isOpen={isFinalizeSaleModalOpen} onClose={() => setIsFinalizeSaleModalOpen(false)} onConfirm={handleFinalizeSale} total={posTotal} />}
+            {isFinalizeSaleModalOpen && <FinalizeSaleModal isOpen={isFinalizeSaleModalOpen} onClose={() => setIsFinalizeSaleModalOpen(false)} onConfirm={handleFinalizeSale} total={posTotal} cardFees={cardFees} />}
             <ConfirmationModal isOpen={!!deletingRequestId} onClose={() => setDeletingRequestId(null)} onConfirm={async () => { if(deletingRequestId) { try { await api.deleteSaleRequest(deletingRequestId); setDeletingRequestId(null); } catch(e: any) { alert("Erro ao excluir: " + e.message); } } }} title="Confirmar Exclusão" message="Tem certeza que deseja excluir permanentemente este registro?" />
         </>
     );
@@ -718,7 +810,7 @@ const CustomValueModal: React.FC<{onClose: () => void, onConfirm: (name: string,
     );
 }
 
-const FinalizeSaleModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm: (paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Dinheiro', details: { discount: number; finalPrice: number; installments: number }) => void; total: number; }> = ({ isOpen, onClose, onConfirm, total }) => {
+const FinalizeSaleModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm: (paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Dinheiro', details: { discount: number; finalPrice: number; installments: number }) => void; total: number; cardFees: CardFees }> = ({ isOpen, onClose, onConfirm, total, cardFees }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'Débito' | 'Crédito' | 'Dinheiro'>('Débito');
@@ -732,6 +824,17 @@ const FinalizeSaleModal: React.FC<{ isOpen: boolean; onClose: () => void; onConf
         : total * (discountValue / 100);
     
     const finalPrice = Math.max(0, total - calculatedDiscount);
+
+    // Estimate Net Value
+    let feePercentage = 0;
+    if (paymentMethod === 'Débito') feePercentage = cardFees.debit;
+    else if (paymentMethod === 'Crédito') {
+        if (installments === 1) feePercentage = cardFees.credit1x;
+        else if (installments === 2) feePercentage = cardFees.credit2x;
+        else feePercentage = cardFees.credit3x;
+    }
+    const feeAmount = finalPrice * (feePercentage / 100);
+    const netValue = finalPrice - feeAmount;
 
     if (!isOpen) return null;
     
@@ -804,12 +907,19 @@ const FinalizeSaleModal: React.FC<{ isOpen: boolean; onClose: () => void; onConf
                     </div>
                  </div>
 
-                 <div className="flex justify-between items-center text-xl font-black my-6 border-t pt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+                 <div className="flex justify-between items-center text-xl font-black mt-6 border-t pt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
                     <span className={isDark ? 'text-white' : 'text-gray-900'}>Total:</span>
                     <span className="text-fuchsia-500">R$ {finalPrice.toFixed(2)}</span>
                  </div>
                  
-                 <button onClick={() => onConfirm(paymentMethod, { discount: calculatedDiscount, finalPrice, installments: paymentMethod === 'Crédito' ? installments : 1 })} className="w-full bg-green-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-green-500/20 hover:bg-green-700 transition-transform active:scale-95">Confirmar Venda</button>
+                 {(paymentMethod === 'Crédito' || paymentMethod === 'Débito') && (
+                     <div className="flex justify-between items-center text-xs mb-4">
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Valor Líquido (Est.):</span>
+                        <span className={`font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>R$ {netValue.toFixed(2)}</span>
+                     </div>
+                 )}
+                 
+                 <button onClick={() => onConfirm(paymentMethod, { discount: calculatedDiscount, finalPrice, installments: paymentMethod === 'Crédito' ? installments : 1 })} className="w-full bg-green-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-green-500/20 hover:bg-green-700 transition-transform active:scale-95 mt-2">Confirmar Venda</button>
                  <button onClick={onClose} className={`w-full mt-3 py-3 rounded-2xl font-bold text-sm ${isDark ? 'text-gray-400 hover:bg-white/5' : 'text-gray-500 hover:bg-gray-100'}`}>Cancelar</button>
              </div>
         </div>

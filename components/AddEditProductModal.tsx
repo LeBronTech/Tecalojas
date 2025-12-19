@@ -266,6 +266,7 @@ const initialFormState: Omit<Product, 'id'> = {
   colors: [{ name: 'Branco', hex: '#FFFFFF' }],
   isMultiColor: false,
   variationGroupId: undefined,
+  productionCost: 0,
 };
 
 const ButtonSpinner = () => (
@@ -482,6 +483,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         ...migratedData, 
         backgroundImages: migratedData.backgroundImages || {},
         colors: migratedData.colors && migratedData.colors.length > 0 ? migratedData.colors : initialFormState.colors,
+        productionCost: migratedData.productionCost || 0,
     });
     if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollTop = 0;
@@ -500,7 +502,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     const { name, value, type } = e.target;
     const { checked } = e.target as HTMLInputElement;
 
-    const parsedValue = type === 'checkbox' ? checked : (type === 'number' ? parseInt(value, 10) || 0 : value);
+    const parsedValue = type === 'checkbox' ? checked : (type === 'number' ? parseFloat(value) || 0 : value);
 
     setFormData(prev => {
         let newState = { ...prev, [name]: parsedValue };
@@ -1278,6 +1280,19 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     </div>
                     <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label><textarea name="description" value={formData.description} onChange={handleChange} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}></textarea></div>
                     
+                    <div>
+                        <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Custo de Produção (Estimado)</label>
+                        <input
+                            type="number"
+                            name="productionCost"
+                            value={formData.productionCost || ''}
+                            onChange={handleChange}
+                            placeholder="0.00"
+                            className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}
+                        />
+                        <p className={`text-xs mt-1 ${subtitleClasses}`}>Este valor será usado para calcular o lucro estimado no painel de diagnóstico.</p>
+                    </div>
+
                     <div>
                         <h3 className={`text-lg font-bold mb-2 ${titleClasses}`}>Cor do Produto</h3>
                          <div className="flex items-center mb-3">

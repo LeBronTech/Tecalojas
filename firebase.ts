@@ -434,7 +434,7 @@ export const onSaleRequestsUpdate = (
     }, onError);
 };
 
-export const completeSaleRequest = async (requestId: string, details: { discount?: number, finalPrice?: number, installments?: number }): Promise<void> => {
+export const completeSaleRequest = async (requestId: string, details: { discount?: number, finalPrice?: number, installments?: number, netValue?: number, totalProductionCost?: number }): Promise<void> => {
     const saleRequestDocRef = doc(db, "saleRequests", requestId);
     const saleRequestSnap = await getDoc(saleRequestDocRef);
     if (!saleRequestSnap.exists()) {
@@ -498,11 +498,12 @@ export const completeSaleRequest = async (requestId: string, details: { discount
         }
     }
 
-    // FIX: Limpar o objeto 'details' e garantir que campos opcionais sejam 0/null em vez de undefined
     const finalDetails = {
         discount: details.discount || 0,
         finalPrice: details.finalPrice || (saleRequestData.totalPrice - (details.discount || 0)),
-        installments: details.installments || 1
+        installments: details.installments || 1,
+        netValue: details.netValue,
+        totalProductionCost: details.totalProductionCost
     };
     const cleanedDetails = cleanObject(finalDetails);
 
@@ -565,7 +566,7 @@ export const finalizePosSale = async (
   cart: PosCartItem[],
   totalPrice: number,
   paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Dinheiro',
-  details: { discount?: number; finalPrice?: number; installments?: number }
+  details: { discount?: number; finalPrice?: number; installments?: number, netValue?: number, totalProductionCost?: number }
 ): Promise<void> => {
   const sanitizedItems = sanitizeCartItems(cart);
 
@@ -579,7 +580,9 @@ export const finalizePosSale = async (
     createdAt: serverTimestamp(),
     discount: details.discount || 0,
     finalPrice: details.finalPrice || (totalPrice - (details.discount || 0)),
-    installments: details.installments || 1
+    installments: details.installments || 1,
+    netValue: details.netValue,
+    totalProductionCost: details.totalProductionCost
   };
   
   const finalDetails = cleanObject(saleRequestData);

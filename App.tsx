@@ -403,7 +403,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onLoginC
             </button>
             <button onClick={() => { onPixClick(); onClose(); }} className={`w-full flex items-center p-3 rounded-lg text-left transition-colors ${itemBgHover}`}>
               <span className="mr-3">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01M12 6v-1m0-1V4m0 12v1m0 1v1m0 1v1m0 0h.01M12 21a9 9 0 110-18 9 9 0 010 18z" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01M12 6v-1m0-1V4m0 12v1m0 1v1m0 0h.01M12 21a9 9 0 110-18 9 9 0 010 18z" /></svg>
               </span>
               <span className="font-semibold">Pagamento PIX</span>
             </button>
@@ -597,7 +597,7 @@ export default function App() {
     }
   }, [isAdmin]);
   
-  const handleCompleteSaleRequest = useCallback(async (requestId: string, details: { discount?: number, finalPrice?: number, installments?: number }) => {
+  const handleCompleteSaleRequest = useCallback(async (requestId: string, details: { discount?: number, finalPrice?: number, installments?: number, netValue?: number, totalProductionCost?: number }) => {
       try {
         await api.completeSaleRequest(requestId, details);
       } catch (error) {
@@ -1009,73 +1009,98 @@ export default function App() {
        case View.SETTINGS:
         return <SettingsScreen onSaveApiKey={handleSaveApiKey} onAddNewBrand={handleAddNewBrand} canManageStock={isAdmin} brands={brands} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} onMenuClick={handleMenuClick} cardFees={cardFees} onSaveCardFees={setCardFees} sofaColors={sofaColors} onAddSofaColor={handleAddSofaColor} onDeleteSofaColor={handleDeleteSofaColor} categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} />;
        case View.CATALOG:
-        return <CatalogScreen catalogs={catalogs} onUploadCatalog={handleUploadCatalog} canManageStock={isAdmin} brands={brands} onMenuClick={handleMenuClick} />;
-      case View.ASSISTANT:
-        return <AssistantScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={(id) => setDeletingProductId(id)} canManageStock={isAdmin} onMenuClick={handleMenuClick} />;
-      case View.COMPOSITION_GENERATOR:
+        return <CatalogScreen catalogs={catalogs} onUploadCatalog={handleUploadCatalog} onMenuClick={handleMenuClick} canManageStock={isAdmin} brands={brands} />;
+       case View.COMPOSITION_GENERATOR:
         return <CompositionGeneratorScreen products={products} onNavigate={handleNavigate} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} savedCompositions={savedCompositions} onSaveComposition={handleSaveComposition} setSavedCompositions={setSavedCompositions} />;
-      case View.COMPOSITIONS:
+       case View.COMPOSITIONS:
         return <CompositionsScreen savedCompositions={savedCompositions} setSavedCompositions={setSavedCompositions} onNavigate={handleNavigate} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} products={products} onEditProduct={setEditingProduct} onSaveComposition={handleSaveComposition} />;
-      case View.DIAGNOSTICS:
-        return <DiagnosticsScreen products={products} onMenuClick={handleMenuClick} />;
-      case View.CART:
+       case View.ASSISTANT:
+        return <AssistantScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={(id) => setDeletingProductId(id)} canManageStock={isAdmin} onMenuClick={handleMenuClick} />;
+       case View.DIAGNOSTICS:
+        return <DiagnosticsScreen products={products} saleRequests={saleRequests} cardFees={cardFees} onMenuClick={handleMenuClick} />;
+       case View.CART:
         return <CartScreen cart={cart} products={products} onUpdateQuantity={handleUpdateCartQuantity} onRemoveItem={handleRemoveFromCart} onNavigate={handleNavigate} />;
-      case View.PAYMENT:
-        const totalPrice = cart.reduce((total, item) => total + item.price * item.quantity, 0);
-        return <PaymentScreen cart={cart} totalPrice={totalPrice} onPlaceOrder={async (paymentMethod, successMessage, onSuccess) => {
-                    if (!currentUser) return;
-                    try {
-                        await api.addSaleRequest({ items: cart, totalPrice, paymentMethod, customerName, type: 'sale' });
-                        handleClearCart();
-                        setInfoModalState({ isOpen: true, title: "Pedido Registrado", message: successMessage, onConfirm: () => { if (onSuccess) onSuccess(); setView(View.SHOWCASE); } });
-                    } catch (err: any) { setInfoModalState({ isOpen: true, title: "Erro no Pedido", message: `Falha: ${err.message}` }); }
-                }} onNavigate={handleNavigate} onPixClick={() => setIsPixModalOpen(true)} customerName={customerName} />;
-      case View.SALES:
-        return <SalesScreen saleRequests={saleRequests} onCompleteSaleRequest={handleCompleteSaleRequest} products={products} onMenuClick={handleMenuClick} error={saleRequestError} />;
-      case View.QR_CODES:
+       case View.PAYMENT:
+        return <PaymentScreen cart={cart} totalPrice={cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)} onPlaceOrder={async (method, msg, successCb) => {
+            const saleItems = [...cart];
+            if (saleItems.length === 0) return;
+            try {
+                await api.addSaleRequest({ items: saleItems, totalPrice: saleItems.reduce((acc, i) => acc + (i.price * i.quantity), 0), paymentMethod: method, customerName });
+                if (successCb) successCb();
+                handleClearCart();
+                setInfoModalState({ isOpen: true, title: 'Sucesso!', message: msg, onConfirm: () => handleNavigate(View.SHOWCASE) });
+            } catch (e: any) {
+                alert("Erro: " + e.message);
+            }
+        }} onNavigate={handleNavigate} onPixClick={() => setIsPixModalOpen(true)} customerName={customerName} />;
+       case View.SALES:
+        return <SalesScreen saleRequests={saleRequests} onCompleteSaleRequest={handleCompleteSaleRequest} products={products} onMenuClick={handleMenuClick} error={saleRequestError} cardFees={cardFees} />;
+       case View.QR_CODES:
         return <QrCodeScreen products={products} />;
       default:
         return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
     }
   };
 
-  const bgClass = theme === 'dark' ? 'bg-[#1A1129]' : 'bg-gray-50';
-  const mainContainerBgClass = theme === 'dark' ? 'bg-gradient-to-br from-[#2D1F49] to-[#1A1129]' : 'bg-white';
-  
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-        {!isConfigValid && <ConfigurationRequiredModal />}
-        <div className={`min-h-screen ${bgClass} font-sans ${!isConfigValid ? 'blur-sm pointer-events-none' : ''}`}>
+        <div className={`h-screen w-screen overflow-hidden flex flex-col font-sans transition-colors duration-300 ${theme === 'dark' ? 'bg-[#1A1129] text-white' : 'bg-white text-gray-900'}`}>
+            {!isConfigValid && <ConfigurationRequiredModal />}
+            <Header onMenuClick={handleMenuClick} cartItemCount={cart.reduce((sum, i) => sum + i.quantity, 0)} onCartClick={() => handleNavigate(View.CART)} activeView={view} onNavigate={handleNavigate} isAdmin={isAdmin} />
+            {renderView()}
+            <BottomNav activeView={view} onNavigate={handleNavigate} hasItemsToRestock={hasItemsToRestock} isAdmin={isAdmin} hasNewSaleRequests={hasNewSaleRequests} />
+            <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} onLogout={handleLogout} onLoginClick={() => handleNavigate(View.STOCK)} onPixClick={() => setIsPixModalOpen(true)} activeView={view} onNavigate={handleNavigate} isLoggedIn={isLoggedIn} isAdmin={isAdmin} hasItemsToRestock={hasItemsToRestock} hasNewSaleRequests={hasNewSaleRequests} />
+            {editingProduct && (
+                <AddEditProductModal 
+                    product={editingProduct} 
+                    products={products}
+                    onClose={() => setEditingProduct(null)} 
+                    onSave={handleSaveProduct} 
+                    onCreateVariations={handleCreateColorVariations}
+                    onSwitchProduct={setEditingProduct}
+                    onRequestDelete={(id) => setDeletingProductId(id)}
+                    categories={mergedCategories}
+                    apiKey={apiKey}
+                    onRequestApiKey={() => setIsApiKeyModalOpen(true)}
+                    allColors={allColors}
+                    onAddColor={handleAddColor}
+                    onDeleteColor={handleDeleteColor}
+                    brands={brands}
+                    sofaColors={sofaColors}
+                />
+            )}
+            {isWizardOpen && (
+                <ProductCreationWizard
+                    onClose={() => setIsWizardOpen(false)}
+                    onConfigure={handleCreateProductsFromWizard}
+                    allColors={allColors}
+                    onAddColor={handleAddColor}
+                    categories={mergedCategories}
+                    products={products}
+                    brands={brands}
+                />
+            )}
+            {isApiKeyModalOpen && <ApiKeyModal onClose={() => setIsApiKeyModalOpen(false)} onSave={handleSaveApiKey} />}
+            {isPixModalOpen && <PixPaymentModal onClose={() => setIsPixModalOpen(false)} />}
+            {isCustomerNameModalOpen && <CustomerNameModal onClose={() => setIsCustomerNameModalOpen(false)} onConfirm={(name) => { setCustomerName(name); setIsCustomerNameModalOpen(false); handleNavigate(View.PAYMENT); }} />}
+            {isSignUpModalOpen && <SignUpModal onClose={() => setIsSignUpModalOpen(false)} onSignUp={handleSignUp} />}
+            <ConfirmationModal isOpen={!!deletingProductId} onClose={() => setDeletingProductId(null)} onConfirm={confirmDeleteProduct} title="Excluir Produto" message="Tem certeza que deseja excluir este produto? Esta ação não pode ser desfeita." />
+            <InfoModal isOpen={infoModalState.isOpen} onClose={() => setInfoModalState(prev => ({...prev, isOpen: false}))} title={infoModalState.title} message={infoModalState.message} onConfirm={infoModalState.onConfirm} />
             {toastNotification && (
-                <div className={`fixed top-20 left-4 right-4 z-[200] animate-bounce`}>
-                    <div className={`${toastNotification.type === 'preorder' ? 'bg-amber-600' : 'bg-green-600'} text-white p-4 rounded-2xl shadow-2xl border-2 border-white flex items-center gap-4`}>
-                        <div className="bg-white/20 p-2 rounded-full"><SalesIcon /></div>
-                        <div>
-                            <p className="font-bold">{toastNotification.message}</p>
-                            <p className="text-xs opacity-90">{toastNotification.sub}</p>
+                <div className="fixed top-24 right-4 z-[200] max-w-xs w-full bg-white dark:bg-[#2D1F49] border-l-4 border-green-500 rounded-r shadow-lg p-4 animate-slide-in-right">
+                    <div className="flex items-start">
+                        <div className="flex-shrink-0">
+                            <svg className="h-6 w-6 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
                         </div>
-                        <button onClick={() => setView(View.SALES)} className="ml-auto bg-white text-gray-800 text-xs font-black px-3 py-1.5 rounded-lg">VER</button>
+                        <div className="ml-3 w-0 flex-1 pt-0.5">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">{toastNotification.message}</p>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{toastNotification.sub}</p>
+                        </div>
                     </div>
                 </div>
             )}
-
-            <div className={`w-full max-w-6xl mx-auto h-screen ${mainContainerBgClass} md:rounded-[40px] md:shadow-2xl flex flex-col relative md:my-4 md:h-[calc(100vh-2rem)] max-h-[1200px]`}>
-                <Header onMenuClick={handleMenuClick} cartItemCount={cart.reduce((sum, item) => sum + item.quantity, 0)} onCartClick={() => handleNavigate(view === View.CART ? View.SHOWCASE : View.CART)} activeView={view} isAdmin={isAdmin} onNavigate={handleNavigate} />
-                {renderView()}
-                <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} onLogout={handleLogout} onLoginClick={() => handleNavigate(View.STOCK)} onPixClick={() => setIsPixModalOpen(true)} activeView={view} onNavigate={handleNavigate} isLoggedIn={isLoggedIn} isAdmin={isAdmin} hasItemsToRestock={hasItemsToRestock} hasNewSaleRequests={hasNewSaleRequests} />
-                <div className="md:hidden">
-                    <BottomNav activeView={view} onNavigate={handleNavigate} hasItemsToRestock={hasItemsToRestock} isAdmin={isAdmin} hasNewSaleRequests={hasNewSaleRequests} />
-                </div>
-            </div>
-            {isWizardOpen && <ProductCreationWizard onClose={() => setIsWizardOpen(false)} onConfigure={handleCreateProductsFromWizard} allColors={allColors} onAddColor={handleAddColor} categories={mergedCategories} products={products} brands={brands} />}
-            {editingProduct && <AddEditProductModal product={editingProduct} products={products} onClose={() => setEditingProduct(null)} onSave={handleSaveProduct} onCreateVariations={handleCreateColorVariations} onSwitchProduct={setEditingProduct} onRequestDelete={(id) => setDeletingProductId(id)} categories={mergedCategories} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} brands={brands} sofaColors={sofaColors} />}
-            {isSignUpModalOpen && <SignUpModal onClose={() => setIsSignUpModalOpen(false)} onSignUp={handleSignUp} />}
-            {isPixModalOpen && <PixPaymentModal onClose={() => setIsPixModalOpen(false)} />}
-            {isApiKeyModalOpen && <ApiKeyModal onClose={() => setIsApiKeyModalOpen(false)} onSave={handleSaveApiKey} />}
-            {/* FIX: Corrected typo 'setDeletingRequestId' to 'setDeletingProductId' */}
-            {deletingProductId && <ConfirmationModal isOpen={!!deletingProductId} onClose={() => setDeletingProductId(null)} onConfirm={confirmDeleteProduct} title="Confirmar Exclusão" message="Tem certeza que deseja excluir este produto? A ação não pode ser desfeita." />}
-            {isCustomerNameModalOpen && <CustomerNameModal onClose={() => setIsCustomerNameModalOpen(false)} onConfirm={(name) => { setCustomerName(name); setIsCustomerNameModalOpen(false); setView(View.PAYMENT); }} />}
-             <InfoModal isOpen={infoModalState.isOpen} onClose={() => { setInfoModalState({ ...infoModalState, isOpen: false }); if(infoModalState.title === "Pedido Registrado") setView(View.SHOWCASE); }} title={infoModalState.title} message={infoModalState.message} onConfirm={infoModalState.onConfirm} />
         </div>
     </ThemeContext.Provider>
   );

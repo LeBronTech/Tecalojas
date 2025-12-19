@@ -83,6 +83,7 @@ export interface Product {
   };
   isMultiColor?: boolean;
   colors: { name: string; hex: string }[];
+  productionCost?: number; // NEW: Cost to produce the item
 }
 
 export interface SavedComposition {
@@ -131,6 +132,9 @@ export interface SaleRequest {
   installments?: number;
   discount?: number;
   finalPrice?: number;
+  // Financial fields
+  netValue?: number; // Total after discounts and fees
+  totalProductionCost?: number; // Sum of production costs
 }
 
 export interface CardFees {
