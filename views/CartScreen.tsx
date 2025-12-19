@@ -1,4 +1,3 @@
-
 import React, { useContext, useState, useMemo } from 'react';
 import { CartItem, View, CushionSize, ThemeContext, Product, StoreName } from '../types';
 import * as api from '../firebase';
@@ -74,9 +73,7 @@ const PreOrderModal: React.FC<{
                                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                             </svg>
                         )}
-                        {isLoading ? 'SALVANDO...' : 'IR PARA O WHATSAPP'}
                     </button>
-                    <button onClick={onClose} disabled={isLoading} className={`py-2 text-sm font-bold ${textColor}`}>Cancelar</button>
                 </div>
             </div>
         </div>
@@ -86,65 +83,51 @@ const PreOrderModal: React.FC<{
 const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantity, onRemoveItem, onNavigate }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
+
+    // Logic for CartScreen
     const [isPreOrderModalOpen, setIsPreOrderModalOpen] = useState(false);
     const [isSavingPreOrder, setIsSavingPreOrder] = useState(false);
 
-    const physicalItems = useMemo(() => cart.filter(i => !i.isPreOrder), [cart]);
-    const preOrderItems = useMemo(() => cart.filter(i => i.isPreOrder), [cart]);
+    // Identify items that are pre-orders vs physical stock
+    const { physicalItems, preOrderItems, physicalTotal } = useMemo(() => {
+        const physical: CartItem[] = [];
+        const preorder: CartItem[] = [];
+        let pTotal = 0;
 
-    const physicalTotal = physicalItems.reduce((total, item) => total + item.price * item.quantity, 0);
-    const preOrderTotal = preOrderItems.reduce((total, item) => total + item.price * item.quantity, 0);
+        cart.forEach(item => {
+            if (item.isPreOrder) {
+                preorder.push(item);
+            } else {
+                physical.push(item);
+                pTotal += item.price * item.quantity;
+            }
+        });
 
-    const handleQuantityChange = (item: CartItem, change: number) => {
-        const product = products.find(p => p.id === item.productId);
-        const variation = product?.variations.find(v => v.size === item.variationSize);
-        if (!variation) return;
-
-        const physicalStock = (variation.stock[StoreName.TECA] || 0) + (variation.stock[StoreName.IONE] || 0);
-        
-        if (item.isPreOrder) {
-            onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity + change);
-            return;
-        }
-
-        const inCartTotal = cart
-            .filter(cartItem => cartItem.productId === item.productId && cartItem.variationSize === item.variationSize && !cartItem.isPreOrder)
-            .reduce((sum, cartItem) => sum + (cartItem === item ? cartItem.quantity + change : cartItem.quantity), 0);
-        
-        if (inCartTotal > physicalStock && change > 0) {
-            return;
-        } else {
-            onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity + change);
-        }
-    };
+        return { physicalItems: physical, preOrderItems: preorder, physicalTotal: pTotal };
+    }, [cart]);
 
     const handleConfirmPreOrder = async (customerName: string) => {
         setIsSavingPreOrder(true);
         try {
-            // Salva a encomenda no Firebase para que o vendedor veja no PDV
+            const totalPrice = preOrderItems.reduce((acc, i) => acc + (i.price * i.quantity), 0);
             await api.addSaleRequest({
                 items: preOrderItems,
-                totalPrice: preOrderTotal,
+                totalPrice: totalPrice,
                 paymentMethod: 'WhatsApp (Encomenda)',
                 customerName: customerName,
                 type: 'preorder'
             });
-
-            const itemDescriptions = preOrderItems.map(item => {
-                const typeLabel = item.type === 'full' ? 'cheia' : 'capa';
-                return `• ${item.quantity}x ${item.name} (${item.variationSize}) - ${typeLabel}`;
+            
+            // Remove pre-order items from cart
+            preOrderItems.forEach(item => {
+                onRemoveItem(item.productId, item.variationSize, item.type);
             });
-
-            const message = `Olá, sou a ${customerName}. Gostaria de encomendar os seguintes itens que vi no site:\n\n${itemDescriptions.join('\n')}\n\nPode me informar o prazo e como prosseguir?`;
-            const whatsappUrl = `https://wa.me/5561991434805?text=${encodeURIComponent(message)}`;
             
-            // Remove itens de encomenda do carrinho local
-            preOrderItems.forEach(item => onRemoveItem(item.productId, item.variationSize, item.type));
-            
-            window.open(whatsappUrl, '_blank');
             setIsPreOrderModalOpen(false);
+            alert("Sua encomenda foi solicitada com sucesso! Entraremos em contato.");
         } catch (e: any) {
-            alert("Erro ao salvar encomenda: " + e.message);
+            console.error("Error creating preorder:", e);
+            alert("Erro ao criar encomenda: " + e.message);
         } finally {
             setIsSavingPreOrder(false);
         }
@@ -153,82 +136,96 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
     const titleClasses = isDark ? 'text-white' : 'text-gray-900';
     const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
     const cardClasses = isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm';
-    const buttonClasses = isDark ? 'bg-black/30 hover:bg-black/50' : 'bg-gray-200 hover:bg-gray-300';
 
     return (
         <div className="h-full w-full flex flex-col relative overflow-hidden">
-            <main className="flex-grow overflow-y-auto px-4 pt-24 pb-80 md:pb-6 no-scrollbar z-10">
+            <main className="flex-grow overflow-y-auto px-6 pt-24 pb-36 md:pb-6 no-scrollbar z-10">
                 <div className="max-w-2xl mx-auto">
-                    <h1 className={`text-2xl font-bold mb-1 ${titleClasses}`}>Seu Carrinho</h1>
-                    <p className={`text-sm mb-6 ${subtitleClasses}`}>
-                        {cart.length > 0 ? `${cart.reduce((sum, item) => sum + item.quantity, 0)} item(s) no total.` : 'Seu carrinho está vazio.'}
-                    </p>
+                    <div className="flex items-center mb-8">
+                        <button onClick={() => onNavigate(View.SHOWCASE)} className={`p-2 rounded-full ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                        </button>
+                        <h1 className={`text-2xl font-bold ml-4 ${titleClasses}`}>Carrinho</h1>
+                    </div>
 
-                    {cart.length > 0 ? (
-                        <div className="space-y-8">
-                            {/* Section: Physical Items */}
-                            {physicalItems.length > 0 && (
-                                <div>
-                                    <h3 className={`text-xs font-black uppercase tracking-[0.2em] mb-3 ${isDark ? 'text-fuchsia-400' : 'text-purple-600'}`}>Itens Disponíveis</h3>
-                                    <div className="space-y-3">
-                                        {physicalItems.map(item => (
-                                            <div key={`${item.productId}-${item.variationSize}-${item.type}`} className={`p-3 rounded-2xl flex items-center gap-3 ${cardClasses}`}>
-                                                <img src={item.baseImageUrl} alt={item.name} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
-                                                <div className="flex-grow min-w-0">
-                                                    <p className={`font-bold text-sm truncate ${titleClasses}`}>{item.name}</p>
-                                                    <p className={`text-xs ${subtitleClasses}`}>{item.variationSize} • {item.type === 'cover' ? 'Capa' : 'Cheia'}</p>
-                                                    <p className={`text-xs font-bold ${isDark ? 'text-fuchsia-400' : 'text-purple-600'}`}>R$ {item.price.toFixed(2)}</p>
-                                                </div>
-                                                <div className="flex flex-col items-end gap-1">
-                                                    <div className="flex items-center gap-1">
-                                                        <button onClick={() => handleQuantityChange(item, -1)} className={`w-7 h-7 rounded-lg font-bold flex items-center justify-center ${buttonClasses}`}>-</button>
-                                                        <span className="w-6 text-center font-bold text-sm text-fuchsia-500">{item.quantity}</span>
-                                                        <button onClick={() => handleQuantityChange(item, 1)} className={`w-7 h-7 rounded-lg font-bold flex items-center justify-center ${buttonClasses}`}>+</button>
-                                                    </div>
-                                                    <button onClick={() => onRemoveItem(item.productId, item.variationSize, item.type)} className="text-[10px] font-bold text-red-500/60 uppercase">Remover</button>
+                    {physicalItems.length > 0 && (
+                        <div className="mb-8">
+                            <h3 className={`text-lg font-bold mb-4 ${titleClasses}`}>Disponível Agora</h3>
+                            <div className="space-y-4">
+                                {physicalItems.map((item, index) => (
+                                    <div key={`${item.productId}-${item.variationSize}-${item.type}-physical`} className={`p-4 rounded-2xl flex items-center justify-between border ${cardClasses}`}>
+                                        <div className="flex items-center gap-4">
+                                            <img src={item.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={item.name} className="w-16 h-16 rounded-xl object-cover" />
+                                            <div>
+                                                <p className={`font-bold ${titleClasses}`}>{item.name}</p>
+                                                <p className={`text-xs ${subtitleClasses}`}>{item.variationSize} • {item.type === 'cover' ? 'Capa' : 'Cheia'}</p>
+                                                <p className={`text-sm font-bold mt-1 ${isDark ? 'text-fuchsia-400' : 'text-purple-600'}`}>R$ {item.price.toFixed(2)}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity - 1)} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>-</button>
+                                                <span className={`w-6 text-center font-bold ${titleClasses}`}>{item.quantity}</span>
+                                                <button onClick={() => onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity + 1)} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>+</button>
+                                            </div>
+                                            <button onClick={() => onRemoveItem(item.productId, item.variationSize, item.type)} className="text-xs text-red-500 hover:underline">Remover</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {preOrderItems.length > 0 ? (
+                        <div className="mb-8">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className={`text-lg font-bold ${titleClasses}`}>Encomendas (Sem Estoque)</h3>
+                                <span className="text-xs px-2 py-1 rounded bg-amber-500/20 text-amber-500 font-bold">Solicitação Separada</span>
+                            </div>
+                            <div className="space-y-4">
+                                {preOrderItems.map((item, index) => (
+                                    <div key={`${item.productId}-${item.variationSize}-${item.type}-preorder`} className={`p-4 rounded-2xl flex items-center justify-between border border-amber-500/30 bg-amber-500/5`}>
+                                        <div className="flex items-center gap-4">
+                                            <div className="relative">
+                                                <img src={item.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={item.name} className="w-16 h-16 rounded-xl object-cover grayscale opacity-80" />
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
+                                                    <span className="text-[10px] font-bold text-white bg-black/50 px-1 rounded">Encomenda</span>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Section: Pre-order Items */}
-                            {preOrderItems.length > 0 && (
-                                <div>
-                                    <h3 className={`text-xs font-black uppercase tracking-[0.2em] mb-3 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>Para Encomenda</h3>
-                                    <div className={`p-1 rounded-3xl border-2 border-dashed ${isDark ? 'border-amber-500/20 bg-amber-500/5' : 'border-amber-200 bg-amber-50'}`}>
-                                        <div className="space-y-1 p-2">
-                                            {preOrderItems.map(item => (
-                                                <div key={`${item.productId}-${item.variationSize}-${item.type}-pre`} className="flex items-center gap-3 p-2 rounded-xl">
-                                                    <img src={item.baseImageUrl} alt={item.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-                                                    <div className="flex-grow min-w-0">
-                                                        <p className={`font-bold text-xs truncate ${titleClasses}`}>{item.name}</p>
-                                                        <p className={`text-[10px] ${subtitleClasses}`}>{item.variationSize} • {item.type === 'cover' ? 'Capa' : 'Cheia'}</p>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <button onClick={() => handleQuantityChange(item, -1)} className={`w-6 h-6 rounded-md font-bold text-xs ${buttonClasses}`}>-</button>
-                                                        <span className="w-5 text-center font-bold text-xs text-amber-500">{item.quantity}</span>
-                                                        <button onClick={() => handleQuantityChange(item, 1)} className={`w-6 h-6 rounded-md font-bold text-xs ${buttonClasses}`}>+</button>
-                                                        <button onClick={() => onRemoveItem(item.productId, item.variationSize, item.type)} className="ml-1 text-red-500/60"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                            <div>
+                                                <p className={`font-bold ${titleClasses}`}>{item.name}</p>
+                                                <p className={`text-xs ${subtitleClasses}`}>{item.variationSize} • {item.type === 'cover' ? 'Capa' : 'Cheia'}</p>
+                                                <p className={`text-sm font-bold mt-1 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>R$ {item.price.toFixed(2)}</p>
+                                            </div>
                                         </div>
-                                        <button 
-                                            onClick={() => setIsPreOrderModalOpen(true)}
-                                            className="w-full py-4 bg-amber-500 text-white font-black text-xs rounded-2xl flex items-center justify-center gap-2 shadow-md hover:bg-amber-600 transition-colors uppercase tracking-widest"
-                                        >
-                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                                            </svg>
-                                            Confirmar Encomenda
-                                        </button>
+                                        <div className="flex flex-col items-end gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity - 1)} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>-</button>
+                                                <span className={`w-6 text-center font-bold ${titleClasses}`}>{item.quantity}</span>
+                                                <button onClick={() => onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity + 1)} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>+</button>
+                                            </div>
+                                            <button onClick={() => onRemoveItem(item.productId, item.variationSize, item.type)} className="text-xs text-red-500 hover:underline">Remover</button>
+                                        </div>
                                     </div>
+                                ))}
+                                <div className="mt-4">
+                                    <button 
+                                        onClick={() => setIsPreOrderModalOpen(true)}
+                                        className="w-full bg-amber-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-amber-700 transition flex items-center justify-center gap-2"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Confirmar Encomenda
+                                    </button>
                                 </div>
-                            )}
+                            </div>
                         </div>
                     ) : (
+                        null
+                    )}
+
+                    {physicalItems.length === 0 && preOrderItems.length === 0 && (
                         <div className="text-center py-16">
                             <p className={`text-lg font-semibold ${titleClasses}`}>Seu carrinho está vazio</p>
                             <button onClick={() => onNavigate(View.SHOWCASE)} className="mt-6 bg-fuchsia-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">
@@ -240,7 +237,7 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
             </main>
 
             {physicalItems.length > 0 && (
-                <div className={`fixed bottom-24 md:bottom-4 left-4 right-4 p-5 z-20 rounded-3xl border shadow-2xl safe-area-bottom ${isDark ? 'bg-[#2D1F49]/95 backdrop-blur-xl border-white/10' : 'bg-white/95 backdrop-blur-xl border-gray-200'}`}>
+                <div className={`fixed bottom-24 left-4 right-4 p-5 z-40 rounded-3xl border shadow-2xl safe-area-bottom ${isDark ? 'bg-[#2D1F49]/95 backdrop-blur-xl border-white/10' : 'bg-white/95 backdrop-blur-xl border-gray-200'}`}>
                     <div className="max-w-2xl mx-auto">
                         <div className="flex justify-between items-center mb-3">
                             <p className={`text-sm font-semibold ${subtitleClasses}`}>Valor Total (Disponível):</p>
@@ -252,7 +249,7 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
                             onClick={() => onNavigate(View.PAYMENT)}
                             className="w-full bg-fuchsia-600 text-white font-black py-4 rounded-2xl text-md shadow-lg shadow-fuchsia-500/30 hover:bg-fuchsia-700 transition uppercase tracking-widest"
                         >
-                            Finalizar Itens Disponíveis
+                            Ir para pagamento
                         </button>
                     </div>
                 </div>

@@ -685,7 +685,15 @@ export const onCategoriesUpdate = (
       categoriesCollection,
       (snapshot) => {
         const categories = snapshot.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() } as CategoryItem)
+          (doc) => {
+              const data = doc.data();
+              // Default to 'category' if type is missing (legacy data support)
+              return { 
+                  id: doc.id, 
+                  name: data.name || 'Sem Nome', 
+                  type: data.type || 'category' 
+              } as CategoryItem;
+          }
         );
         onSuccess(categories);
       },

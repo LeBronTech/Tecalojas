@@ -19,6 +19,7 @@ service cloud.firestore {
     }
     
     // Regras para a coleção 'brands', 'catalogs' e 'categories'
+    // IMPORTANTE: Leitura pública é permitida para garantir que os filtros apareçam no app.
     match /brands/{brandId} {
         allow read: if true;
         allow write: if isAdmin();
