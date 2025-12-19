@@ -17,6 +17,26 @@ interface SalesScreenProps {
 type ActiveTab = 'requests' | 'preorders' | 'calculator';
 type TimeFilter = 'all' | 'today' | 'week' | 'month';
 
+// Payment Icons
+const PixIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12.005 2.003c-5.523 0-10 4.477-10 10s4.477 10 10 10 10-4.477 10-10-4.477-10-10-10zm-3.41 6.577l3.41 3.41 3.41-3.41c.293-.293.768-.293 1.06 0s.293.768 0 1.06l-3.41 3.41 3.41 3.41c.293.293.293.768 0 1.06-.146.146-.338.22-.53.22s-.384-.073-.53-.22l-3.41-3.41-3.41 3.41c-.146.146-.338.22-.53.22s-.384-.073-.53-.22c-.293-.293-.293-.768 0-1.06l3.41-3.41-3.41-3.41c-.293-.293-.293-.768 0-1.06s.768-.293 1.06 0z"/>
+    </svg>
+);
+
+const CardIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+    </svg>
+);
+
+const CashIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01M12 6v-1m0-1V4m0 12v1m0 1v1m0 1v1m0 0h.01M12 21a9 9 0 110-18 9 9 0 010 18z" />
+    </svg>
+);
+
+
 const RequestDetailsModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
@@ -149,8 +169,37 @@ const ScannerModal: React.FC<{
     const [lastScanSuccess, setLastScanSuccess] = useState<string | null>(null);
     const [itemForTypeChoice, setItemForTypeChoice] = useState<{ product: Product; variation: Variation } | null>(null);
     const [isScanPaused, setIsScanPaused] = useState(false);
+    
+    // Audio context for beep sound
+    const audioContextRef = useRef<AudioContext | null>(null);
+
+    const playBeep = () => {
+        try {
+            if (!audioContextRef.current) {
+                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+            }
+            if (audioContextRef.current.state === 'suspended') {
+                audioContextRef.current.resume();
+            }
+            const oscillator = audioContextRef.current.createOscillator();
+            const gainNode = audioContextRef.current.createGain();
+
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(800, audioContextRef.current.currentTime); // Frequency in Hz
+            gainNode.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContextRef.current.destination);
+
+            oscillator.start();
+            oscillator.stop(audioContextRef.current.currentTime + 0.1); // Beep duration
+        } catch (e) {
+            console.error("Beep sound failed", e);
+        }
+    };
 
     const handleSuccessfulScan = (product: Product, variation: Variation) => {
+        playBeep(); // Play beep on successful scan
         setIsScanPaused(true);
         if (navigator.vibrate) navigator.vibrate(200);
 
@@ -282,6 +331,9 @@ const ScannerModal: React.FC<{
                 cancelAnimationFrame(animationFrameId.current);
             }
             if (stream) stream.getTracks().forEach(track => track.stop());
+            if (audioContextRef.current) {
+                audioContextRef.current.close();
+            }
         };
     }, [isScanPaused, products]);
 
@@ -455,7 +507,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
         });
     };
 
-    const handleFinalizeSale = async (paymentMethod: 'PIX' | 'Débito' | 'Crédito', details: { discount: number; finalPrice: number; installments: number }) => {
+    const handleFinalizeSale = async (paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Dinheiro', details: { discount: number; finalPrice: number; installments: number }) => {
         try {
             await api.finalizePosSale(posCart, posTotal, paymentMethod, details);
             setPosCart([]);
@@ -533,7 +585,12 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                                                 {data.requests.map(req => (
                                                     <div key={req.id} className={`p-4 rounded-xl flex items-center justify-between border ${cardClasses}`} onClick={() => setViewingRequest(req)}>
                                                         <div>
-                                                            <p className={`font-bold text-sm ${titleClasses}`}>Venda {req.customerName ? `de ${req.customerName}` : ''}</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className={`font-bold text-sm ${titleClasses}`}>Venda {req.customerName ? `de ${req.customerName}` : ''}</p>
+                                                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? 'bg-white/10 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>
+                                                                    {req.createdAt?.toDate?.()?.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                                </span>
+                                                            </div>
                                                             <p className={`text-xs ${subtitleClasses}`}>R$ {(req.finalPrice ?? req.totalPrice).toFixed(2)} • {req.paymentMethod}</p>
                                                         </div>
                                                         <button onClick={(e) => { e.stopPropagation(); setDeletingRequestId(req.id); }} className="text-red-500/40 hover:text-red-500 p-2"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
@@ -661,26 +718,99 @@ const CustomValueModal: React.FC<{onClose: () => void, onConfirm: (name: string,
     );
 }
 
-const FinalizeSaleModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm: (paymentMethod: 'PIX' | 'Débito' | 'Crédito', details: { discount: number; finalPrice: number; installments: number }) => void; total: number; }> = ({ isOpen, onClose, onConfirm, total }) => {
+const FinalizeSaleModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm: (paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Dinheiro', details: { discount: number; finalPrice: number; installments: number }) => void; total: number; }> = ({ isOpen, onClose, onConfirm, total }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
-    const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'Débito' | 'Crédito'>('Débito');
-    const [discount, setDiscount] = useState(0);
+    const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'Débito' | 'Crédito' | 'Dinheiro'>('Débito');
+    const [discountValue, setDiscountValue] = useState(0);
+    const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
     const [installments, setInstallments] = useState(1);
-    const finalPrice = total - (discount || 0);
+    
+    // Calculate final price based on discount type
+    const calculatedDiscount = discountType === 'fixed' 
+        ? discountValue 
+        : total * (discountValue / 100);
+    
+    const finalPrice = Math.max(0, total - calculatedDiscount);
+
     if (!isOpen) return null;
+    
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[130] p-4" onClick={onClose}>
              <div className={`border rounded-3xl shadow-2xl w-full max-w-sm p-6 ${isDark ? 'bg-[#1A1129] border-white/10' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
-                 <h3 className={`font-bold text-lg mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Finalizar Venda</h3>
-                 <div className="space-y-4">
-                    <div><label className={`text-sm font-semibold mb-1 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Forma de Pagamento</label><select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as any)} className={`w-full p-2 rounded ${isDark ? 'bg-black/20 text-white' : 'bg-gray-100'}`}><option value="Débito">Débito</option><option value="Crédito">Crédito</option><option value="PIX">PIX</option></select></div>
-                    {paymentMethod === 'Crédito' && (<div><label className={`text-sm font-semibold mb-1 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Parcelas</label><select value={installments} onChange={e => setInstallments(parseInt(e.target.value))} className={`w-full p-2 rounded ${isDark ? 'bg-black/20 text-white' : 'bg-gray-100'}`}><option value={1}>À vista (1x)</option><option value={2}>2x</option><option value={3}>3x</option></select></div>)}
-                    <div><label className={`text-sm font-semibold mb-1 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Desconto (R$)</label><input type="number" value={discount || ''} onChange={e => setDiscount(parseFloat(e.target.value) || 0)} className={`w-full p-2 rounded ${isDark ? 'bg-black/20 text-white' : 'bg-gray-100'}`} /></div>
+                 <h3 className={`font-bold text-lg mb-4 text-center ${isDark ? 'text-white' : 'text-gray-900'}`}>Finalizar Venda</h3>
+                 
+                 <div className="space-y-6">
+                    <div>
+                        <label className={`text-xs font-bold uppercase mb-2 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Forma de Pagamento</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button onClick={() => setPaymentMethod('PIX')} className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${paymentMethod === 'PIX' ? 'border-fuchsia-500 bg-fuchsia-500/10 text-fuchsia-500' : (isDark ? 'border-white/10 bg-black/20 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-600')}`}>
+                                <PixIcon />
+                                <span className="text-xs font-bold mt-1">PIX</span>
+                            </button>
+                            <button onClick={() => setPaymentMethod('Dinheiro')} className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${paymentMethod === 'Dinheiro' ? 'border-green-500 bg-green-500/10 text-green-500' : (isDark ? 'border-white/10 bg-black/20 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-600')}`}>
+                                <CashIcon />
+                                <span className="text-xs font-bold mt-1">Dinheiro</span>
+                            </button>
+                            <button onClick={() => setPaymentMethod('Débito')} className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${paymentMethod === 'Débito' ? 'border-blue-500 bg-blue-500/10 text-blue-500' : (isDark ? 'border-white/10 bg-black/20 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-600')}`}>
+                                <CardIcon />
+                                <span className="text-xs font-bold mt-1">Débito</span>
+                            </button>
+                            <button onClick={() => setPaymentMethod('Crédito')} className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${paymentMethod === 'Crédito' ? 'border-purple-500 bg-purple-500/10 text-purple-500' : (isDark ? 'border-white/10 bg-black/20 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-600')}`}>
+                                <CardIcon />
+                                <span className="text-xs font-bold mt-1">Crédito</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {paymentMethod === 'Crédito' && (
+                        <div>
+                            <label className={`text-xs font-bold uppercase mb-1 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Parcelamento</label>
+                            <select value={installments} onChange={e => setInstallments(parseInt(e.target.value))} className={`w-full p-3 rounded-xl font-bold ${isDark ? 'bg-black/20 text-white' : 'bg-gray-100 text-gray-900'} border-none focus:ring-2 focus:ring-fuchsia-500`}>
+                                <option value={1}>À vista (1x)</option>
+                                <option value={2}>2x (Sem juros)</option>
+                                <option value={3}>3x (Sem juros)</option>
+                            </select>
+                        </div>
+                    )}
+
+                    <div>
+                        <label className={`text-xs font-bold uppercase mb-1 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Desconto</label>
+                        <div className="flex gap-2">
+                            <div className="relative flex-grow">
+                                <input 
+                                    type="number" 
+                                    value={discountValue || ''} 
+                                    onChange={e => setDiscountValue(parseFloat(e.target.value) || 0)} 
+                                    placeholder="0"
+                                    className={`w-full p-3 rounded-xl font-bold ${isDark ? 'bg-black/20 text-white' : 'bg-gray-100 text-gray-900'} border-none focus:ring-2 focus:ring-fuchsia-500`} 
+                                />
+                            </div>
+                            <div className={`flex rounded-xl overflow-hidden p-1 ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+                                <button 
+                                    onClick={() => setDiscountType('fixed')}
+                                    className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${discountType === 'fixed' ? (isDark ? 'bg-white/10 text-white' : 'bg-white shadow text-black') : 'text-gray-500'}`}
+                                >
+                                    R$
+                                </button>
+                                <button 
+                                    onClick={() => setDiscountType('percent')}
+                                    className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${discountType === 'percent' ? (isDark ? 'bg-white/10 text-white' : 'bg-white shadow text-black') : 'text-gray-500'}`}
+                                >
+                                    %
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                  </div>
-                 <div className="flex justify-between items-center text-xl font-bold my-4 border-t pt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}><span className={isDark ? 'text-white' : 'text-gray-900'}>Total Final:</span><span className="text-fuchsia-500">R$ {finalPrice.toFixed(2)}</span></div>
-                 <button onClick={() => onConfirm(paymentMethod, { discount, finalPrice, installments: paymentMethod === 'Crédito' ? installments : 1 })} className="w-full bg-green-600 text-white font-bold py-3 rounded-lg">Confirmar Venda</button>
-                 <button onClick={onClose} className={`w-full mt-2 py-2 rounded-lg font-semibold ${isDark ? 'text-gray-300 hover:bg-white/10' : 'text-gray-600 hover:bg-gray-100'}`}>Cancelar</button>
+
+                 <div className="flex justify-between items-center text-xl font-black my-6 border-t pt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+                    <span className={isDark ? 'text-white' : 'text-gray-900'}>Total:</span>
+                    <span className="text-fuchsia-500">R$ {finalPrice.toFixed(2)}</span>
+                 </div>
+                 
+                 <button onClick={() => onConfirm(paymentMethod, { discount: calculatedDiscount, finalPrice, installments: paymentMethod === 'Crédito' ? installments : 1 })} className="w-full bg-green-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-green-500/20 hover:bg-green-700 transition-transform active:scale-95">Confirmar Venda</button>
+                 <button onClick={onClose} className={`w-full mt-3 py-3 rounded-2xl font-bold text-sm ${isDark ? 'text-gray-400 hover:bg-white/5' : 'text-gray-500 hover:bg-gray-100'}`}>Cancelar</button>
              </div>
         </div>
     );

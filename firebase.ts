@@ -564,22 +564,72 @@ export const deleteSaleRequest = async (requestId: string): Promise<void> => {
 export const finalizePosSale = async (
   cart: PosCartItem[],
   totalPrice: number,
-  paymentMethod: 'PIX' | 'Débito' | 'Crédito',
+  paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Dinheiro',
   details: { discount?: number; finalPrice?: number; installments?: number }
 ): Promise<void> => {
   const sanitizedItems = sanitizeCartItems(cart);
 
+  // Directly create as completed to avoid "Pending Sale" notifications in the app
   const saleRequestData = {
     items: sanitizedItems,
     totalPrice: totalPrice,
     paymentMethod,
-    status: 'pending',
+    status: 'completed', // Immediately completed
     type: 'sale' as const,
     createdAt: serverTimestamp(),
+    discount: details.discount || 0,
+    finalPrice: details.finalPrice || (totalPrice - (details.discount || 0)),
+    installments: details.installments || 1
   };
-  const newDocRef = await addDoc(saleRequestsCollection, saleRequestData);
+  
+  const finalDetails = cleanObject(saleRequestData);
+  
+  // Deduct stock manually here since we are skipping the 'completeSaleRequest' flow which handles logic based on status transition
+  for (const item of cart) {
+        if (item.isCustom) continue;
 
-  await completeSaleRequest(newDocRef.id, details);
+        const productId = item.product?.id;
+        const variationSize = item.variation?.size;
+        
+        if (!productId || !variationSize) continue;
+
+        const productDocRef = doc(db, "products", productId);
+        const productSnap = await getDoc(productDocRef);
+
+        if (productSnap.exists()) {
+            const productData = productSnap.data() as Product;
+            let variationFound = false;
+
+            const updatedVariations = productData.variations.map(v => {
+                if (v.size === variationSize) {
+                    variationFound = true;
+                    let qtyToDeduct = item.quantity;
+                    const tecaStock = v.stock[StoreName.TECA] || 0;
+                    const ioneStock = v.stock[StoreName.IONE] || 0;
+
+                    const tecaDeduction = Math.min(qtyToDeduct, tecaStock);
+                    v.stock[StoreName.TECA] = tecaStock - tecaDeduction;
+                    qtyToDeduct -= tecaDeduction;
+
+                    if (qtyToDeduct > 0) {
+                        const ioneDeduction = Math.min(qtyToDeduct, ioneStock);
+                        v.stock[StoreName.IONE] = ioneStock - ioneDeduction;
+                    }
+                }
+                return v;
+            });
+            
+            if (variationFound) {
+                const updatedUnitsSold = (productData.unitsSold || 0) + item.quantity;
+                await updateDoc(productDocRef, { 
+                    variations: updatedVariations,
+                    unitsSold: updatedUnitsSold 
+                });
+            }
+        }
+  }
+
+  await addDoc(saleRequestsCollection, finalDetails);
 };
 
 

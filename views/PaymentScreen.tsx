@@ -5,7 +5,7 @@ import { CartItem, View, ThemeContext } from '../types';
 interface PaymentScreenProps {
     cart: CartItem[];
     totalPrice: number;
-    onPlaceOrder: (paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Cartão (Online)', successMessage: string, onSuccess?: () => void) => Promise<void>;
+    onPlaceOrder: (paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Cartão (Online)' | 'Dinheiro', successMessage: string, onSuccess?: () => void) => Promise<void>;
     onNavigate: (view: View) => void;
     onPixClick: () => void;
     customerName: string;
@@ -75,16 +75,19 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
         );
     }
 
-    const handlePaymentSelection = async (method: 'PIX' | 'Débito' | 'Crédito') => {
+    const handlePaymentSelection = async (method: 'PIX' | 'Débito' | 'Crédito' | 'Dinheiro') => {
         setIsLoading(true);
         setIsCardTypeModalOpen(false);
 
-        const successMessage = method === 'PIX'
-            ? "Pedido enviado! Use o QR Code para pagar."
-            : "Boa escolha! Dirija-se ao vendedor para fazer o pagamento na maquininha.";
-
+        let successMessage = "";
+        
         if (method === 'PIX') {
+            successMessage = "Pedido enviado! Use o QR Code para pagar.";
             onPixClick();
+        } else if (method === 'Dinheiro') {
+            successMessage = "Pedido registrado! Dirija-se ao balcão para finalizar o pagamento.";
+        } else {
+            successMessage = "Boa escolha! Dirija-se ao vendedor para fazer o pagamento na maquininha.";
         }
         
         try {
@@ -179,6 +182,19 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
                                 <div>
                                     <p className={`font-bold ${titleClasses}`}>PIX</p>
                                     <p className={`text-sm ${subtitleClasses}`}>Pagamento rápido e fácil com QR Code.</p>
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => handlePaymentSelection('Dinheiro')}
+                                disabled={isLoading}
+                                className={`w-full p-6 rounded-xl border-2 text-left transition-colors flex items-center gap-4 ${isDark ? 'border-gray-700 hover:border-green-500' : 'border-gray-300 hover:border-green-500'} disabled:opacity-50`}
+                            >
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01M12 6v-1m0-1V4m0 12v1m0 1v1m0 1v1m0 0h.01M12 21a9 9 0 110-18 9 9 0 010 18z" />
+                                </svg>
+                                <div>
+                                    <p className={`font-bold ${titleClasses}`}>Dinheiro</p>
+                                    <p className={`text-sm ${subtitleClasses}`}>Pagar diretamente no balcão.</p>
                                 </div>
                             </button>
                             <button
