@@ -1,4 +1,3 @@
-
 import React, { useContext, useMemo, useState, useEffect } from 'react';
 import { Product, SaleRequest, StoreName, ThemeContext, CardFees } from '../types';
 
@@ -7,9 +6,9 @@ interface DiagnosticsScreenProps {
   saleRequests: SaleRequest[];
   cardFees: CardFees;
   onMenuClick: () => void;
+  weeklyGoal: number;
+  onUpdateWeeklyGoal: (goal: number) => void;
 }
-
-const WEEKLY_GOAL_STORAGE_KEY = 'pillow-oasis-weekly-goal';
 
 const BarChart: React.FC<{ data: number[]; labels: string[]; title: string; color: string; height?: number }> = ({ data, labels, title, color, height = 150 }) => {
     const maxVal = Math.max(...data, 1); 
@@ -44,16 +43,17 @@ const calculateEstimatedCost = (request: SaleRequest): number => {
     return request.totalPrice * 0.5;
 };
 
-const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ products, saleRequests }) => {
+const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ products, saleRequests, weeklyGoal, onUpdateWeeklyGoal }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     
-    const [weeklyGoal, setWeeklyGoal] = useState<number>(() => {
-        const stored = localStorage.getItem(WEEKLY_GOAL_STORAGE_KEY);
-        return stored ? parseFloat(stored) : 0;
-    });
     const [isEditingGoal, setIsEditingGoal] = useState(false);
     const [tempGoal, setTempGoal] = useState(weeklyGoal.toString());
+
+    // Update tempGoal when weeklyGoal prop changes
+    useEffect(() => {
+        setTempGoal(weeklyGoal.toString());
+    }, [weeklyGoal]);
 
     const completedSales = useMemo(() => saleRequests.filter(r => r.status === 'completed'), [saleRequests]);
 
@@ -194,16 +194,14 @@ const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ products, saleReq
     const handleSaveGoal = () => {
         const val = parseFloat(tempGoal);
         if (!isNaN(val)) {
-            setWeeklyGoal(val);
-            localStorage.setItem(WEEKLY_GOAL_STORAGE_KEY, val.toString());
+            onUpdateWeeklyGoal(val);
             setIsEditingGoal(false);
         }
     };
 
     const handleUseSuggestion = () => {
         setTempGoal(suggestedGoal.toString());
-        setWeeklyGoal(suggestedGoal);
-        localStorage.setItem(WEEKLY_GOAL_STORAGE_KEY, suggestedGoal.toString());
+        onUpdateWeeklyGoal(suggestedGoal);
     };
 
     const titleClasses = isDark ? 'text-white' : 'text-gray-900';

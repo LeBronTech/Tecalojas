@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType, CartItem, SaleRequest, CardFees, CategoryItem } from './types';
 import { INITIAL_PRODUCTS, PREDEFINED_COLORS, PREDEFINED_SOFA_COLORS, SOFA_COLORS_STORAGE_KEY } from './constants';
@@ -259,7 +258,7 @@ const HomeIcon = () => (
 );
 const CompositionIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
     </svg>
 );
 const InventoryIcon = () => (
@@ -425,7 +424,8 @@ export default function App() {
   const loginRedirect = useRef<View | null>(null);
   const notifiedRequestIds = useRef(new Set<string>());
   const isFirstRequestsLoad = useRef(true);
-  const [cardFees, setCardFees] = useState<CardFees>({ debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 });
+  const [cardFees, setCardFees] = useState<CardFees>({ debit: 1.0, credit1x: 1.5, credit2x: 2.0, credit3x: 4.0 });
+  const [weeklyGoal, setWeeklyGoal] = useState<number>(0);
 
   const [isCustomerNameModalOpen, setIsCustomerNameModalOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
@@ -445,6 +445,9 @@ export default function App() {
         if (settings?.cardFees) {
             setCardFees(settings.cardFees);
         }
+        if (settings?.weeklyGoal !== undefined) {
+            setWeeklyGoal(settings.weeklyGoal);
+        }
     });
     return () => unsubscribe();
   }, []);
@@ -452,9 +455,18 @@ export default function App() {
   const handleUpdateCardFees = useCallback(async (newFees: CardFees) => {
       setCardFees(newFees);
       try {
-          await api.updateGlobalCardFees(newFees);
+          await api.updateGlobalSettings({ cardFees: newFees });
       } catch (error) {
           console.error("Failed to sync card fees to Firestore:", error);
+      }
+  }, []);
+
+  const handleUpdateWeeklyGoal = useCallback(async (newGoal: number) => {
+      setWeeklyGoal(newGoal);
+      try {
+          await api.updateGlobalSettings({ weeklyGoal: newGoal });
+      } catch (error) {
+          console.error("Failed to sync weekly goal to Firestore:", error);
       }
   }, []);
 
@@ -988,7 +1000,7 @@ export default function App() {
        case View.ASSISTANT:
         return <AssistantScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={(id) => setDeletingProductId(id)} canManageStock={isAdmin} onMenuClick={handleMenuClick} />;
        case View.DIAGNOSTICS:
-        return <DiagnosticsScreen products={products} saleRequests={saleRequests} cardFees={cardFees} onMenuClick={handleMenuClick} />;
+        return <DiagnosticsScreen products={products} saleRequests={saleRequests} cardFees={cardFees} onMenuClick={handleMenuClick} weeklyGoal={weeklyGoal} onUpdateWeeklyGoal={handleUpdateWeeklyGoal} />;
        case View.CART:
         return <CartScreen cart={cart} products={products} onUpdateQuantity={handleUpdateCartQuantity} onRemoveItem={handleRemoveFromCart} onNavigate={handleNavigate} />;
        case View.PAYMENT:
