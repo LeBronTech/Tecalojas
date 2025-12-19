@@ -1,7 +1,6 @@
 
 import React, { useContext, useMemo, useState, useEffect } from 'react';
 import { Product, SaleRequest, StoreName, ThemeContext, CardFees } from '../types';
-import * as api from '../firebase';
 
 interface DiagnosticsScreenProps {
   products: Product[];
@@ -9,6 +8,8 @@ interface DiagnosticsScreenProps {
   cardFees: CardFees;
   onMenuClick: () => void;
 }
+
+const WEEKLY_GOAL_STORAGE_KEY = 'pillow-oasis-weekly-goal';
 
 const BarChart: React.FC<{ data: number[]; labels: string[]; title: string; color: string; height?: number }> = ({ data, labels, title, color, height = 150 }) => {
     const maxVal = Math.max(...data, 1); 
@@ -28,6 +29,9 @@ const BarChart: React.FC<{ data: number[]; labels: string[]; title: string; colo
                         <span className={`text-[10px] mt-2 font-medium truncate w-full text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                             {labels[idx]}
                         </span>
+                        <div className="absolute bottom-full mb-1 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                            {val}
+                        </div>
                     </div>
                 ))}
             </div>
@@ -35,91 +39,332 @@ const BarChart: React.FC<{ data: number[]; labels: string[]; title: string; colo
     );
 };
 
+const calculateEstimatedCost = (request: SaleRequest): number => {
+    if (request.totalProductionCost !== undefined && request.totalProductionCost > 0) return request.totalProductionCost;
+    return request.totalPrice * 0.5;
+};
+
 const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ products, saleRequests }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     
-    const [weeklyGoal, setWeeklyGoal] = useState<number>(0);
+    const [weeklyGoal, setWeeklyGoal] = useState<number>(() => {
+        const stored = localStorage.getItem(WEEKLY_GOAL_STORAGE_KEY);
+        return stored ? parseFloat(stored) : 0;
+    });
     const [isEditingGoal, setIsEditingGoal] = useState(false);
-    const [tempGoal, setTempGoal] = useState('');
-
-    useEffect(() => {
-        const unsub = api.onSettingsUpdate((settings) => {
-            if (settings?.weeklyGoal !== undefined) {
-                setWeeklyGoal(settings.weeklyGoal);
-                setTempGoal(settings.weeklyGoal.toString());
-            }
-        });
-        return () => unsub();
-    }, []);
+    const [tempGoal, setTempGoal] = useState(weeklyGoal.toString());
 
     const completedSales = useMemo(() => saleRequests.filter(r => r.status === 'completed'), [saleRequests]);
 
     const metrics = useMemo(() => {
         let gross = 0;
         let net = 0;
+        let profit = 0;
+
         completedSales.forEach(sale => {
-            gross += sale.finalPrice ?? sale.totalPrice;
-            net += sale.netValue ?? (sale.finalPrice ?? sale.totalPrice);
+            const saleGross = sale.finalPrice ?? sale.totalPrice;
+            const saleNet = sale.netValue !== undefined ? sale.netValue : saleGross;
+            const saleCost = calculateEstimatedCost(sale);
+            
+            gross += saleGross;
+            net += saleNet;
+            profit += (saleNet - saleCost);
         });
-        return { gross, net, profit: net * 0.5 };
+
+        return { gross, net, profit };
     }, [completedSales]);
 
-    const handleSaveGoal = async () => {
-        const val = parseFloat(tempGoal);
-        if (!isNaN(val)) {
-            await api.updateGlobalSettings({ weeklyGoal: val });
-            setIsEditingGoal(false);
+    const paymentStats = useMemo(() => {
+        const stats: Record<string, { count: number, gross: number, net: number }> = {
+            'Débito': { count: 0, gross: 0, net: 0 },
+            'Crédito': { count: 0, gross: 0, net: 0 },
+            'PIX': { count: 0, gross: 0, net: 0 },
+            'Dinheiro': { count: 0, gross: 0, net: 0 },
+            'Cartão (Online)': { count: 0, gross: 0, net: 0 }, 
+        };
+
+        completedSales.forEach(sale => {
+            const method = sale.paymentMethod === 'WhatsApp (Encomenda)' ? 'Cartão (Online)' : sale.paymentMethod;
+            let key = method;
+            if (key === 'Cartão (Online)') key = 'Crédito'; 
+            if (!stats[key]) stats[key] = { count: 0, gross: 0, net: 0 }; 
+
+            const saleGross = sale.finalPrice ?? sale.totalPrice;
+            const saleNet = sale.netValue !== undefined ? sale.netValue : saleGross;
+
+            stats[key].count += 1;
+            stats[key].gross += saleGross;
+            stats[key].net += saleNet;
+        });
+
+        return stats;
+    }, [completedSales]);
+
+    const timeStats = useMemo(() => {
+        const hours = Array(24).fill(0);
+        const days = Array(7).fill(0);
+        const dayLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+        completedSales.forEach(sale => {
+            if (!sale.createdAt) return;
+            const date = sale.createdAt.toDate ? sale.createdAt.toDate() : new Date(sale.createdAt);
+            hours[date.getHours()] += 1;
+            days[date.getDay()] += 1;
+        });
+
+        return { hours, days, dayLabels };
+    }, [completedSales]);
+
+    const historyStats = useMemo(() => {
+        const now = new Date();
+        const last7DaysData = Array(7).fill(0);
+        const last7DaysLabels = Array(7).fill('');
+        
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(now);
+            d.setDate(now.getDate() - i);
+            last7DaysLabels[6-i] = d.getDate().toString() + '/' + (d.getMonth()+1);
+            
+            const dayTotal = completedSales
+                .filter(s => {
+                    const sDate = s.createdAt.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+                    return sDate.getDate() === d.getDate() && sDate.getMonth() === d.getMonth() && sDate.getFullYear() === d.getFullYear();
+                })
+                .reduce((acc, s) => acc + (s.finalPrice ?? s.totalPrice), 0);
+            
+            last7DaysData[6-i] = dayTotal;
         }
-    };
+
+        const monthData = Array(6).fill(0);
+        const monthLabels = Array(6).fill('');
+        
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthName = d.toLocaleString('pt-BR', { month: 'short' });
+            monthLabels[5-i] = monthName;
+
+            const monthTotal = completedSales
+                .filter(s => {
+                    const sDate = s.createdAt.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+                    return sDate.getMonth() === d.getMonth() && sDate.getFullYear() === d.getFullYear();
+                })
+                .reduce((acc, s) => acc + (s.finalPrice ?? s.totalPrice), 0);
+            
+            monthData[5-i] = monthTotal;
+        }
+
+        return { last7DaysData, last7DaysLabels, monthData, monthLabels };
+    }, [completedSales]);
+
+    const averages = useMemo(() => {
+        if (completedSales.length === 0) return { weekly: 0, monthly: 0 };
+
+        const sorted = [...completedSales].sort((a,b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+        const firstSale = sorted[0].createdAt.toDate ? sorted[0].createdAt.toDate() : new Date(sorted[0].createdAt);
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - firstSale.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+        
+        const totalSales = metrics.gross;
+        const weeks = Math.max(1, diffDays / 7);
+        const months = Math.max(1, diffDays / 30);
+
+        return {
+            weekly: totalSales / weeks,
+            monthly: totalSales / months
+        };
+    }, [completedSales, metrics.gross]);
 
     const currentWeekSales = useMemo(() => {
         const now = new Date();
         const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay())); 
         startOfWeek.setHours(0,0,0,0);
+        
         return completedSales
-            .filter(s => (s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt)) >= startOfWeek)
+            .filter(s => {
+                const sDate = s.createdAt.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+                return sDate >= startOfWeek;
+            })
             .reduce((acc, s) => acc + (s.finalPrice ?? s.totalPrice), 0);
     }, [completedSales]);
+
+    const suggestedGoal = useMemo(() => Math.ceil(averages.weekly * 1.1), [averages.weekly]); 
+
+    const handleSaveGoal = () => {
+        const val = parseFloat(tempGoal);
+        if (!isNaN(val)) {
+            setWeeklyGoal(val);
+            localStorage.setItem(WEEKLY_GOAL_STORAGE_KEY, val.toString());
+            setIsEditingGoal(false);
+        }
+    };
+
+    const handleUseSuggestion = () => {
+        setTempGoal(suggestedGoal.toString());
+        setWeeklyGoal(suggestedGoal);
+        localStorage.setItem(WEEKLY_GOAL_STORAGE_KEY, suggestedGoal.toString());
+    };
+
+    const titleClasses = isDark ? 'text-white' : 'text-gray-900';
+    const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
 
     return (
         <div className="h-full w-full flex flex-col relative overflow-hidden">
             <main className="flex-grow overflow-y-auto px-6 pt-24 pb-52 md:pb-52 no-scrollbar z-10">
                 <div className="max-w-5xl mx-auto space-y-8">
-                    <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Diagnóstico Financeiro</h1>
                     
+                    <div>
+                        <h1 className={`text-3xl font-bold ${titleClasses}`}>Diagnóstico Financeiro</h1>
+                        <p className={subtitleClasses}>Análise detalhada de vendas e lucro.</p>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className={`p-6 rounded-2xl border ${isDark ? 'bg-black/30 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
-                            <p className="text-xs font-bold uppercase text-gray-500">Vendas Brutas</p>
-                            <p className="text-3xl font-black">{metrics.gross.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                            <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Vendas Brutas (Total)</p>
+                            <p className={`text-3xl font-black ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                                {metrics.gross.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </p>
                         </div>
-                        <div className={`p-6 rounded-2xl border ${isDark ? 'bg-purple-900/20 border-purple-500/30' : 'bg-purple-50'}`}>
-                            <p className="text-xs font-bold uppercase text-purple-700">Valor Líquido</p>
-                            <p className="text-3xl font-black text-purple-600">{metrics.net.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                        <div className={`p-6 rounded-2xl border ${isDark ? 'bg-purple-900/20 border-purple-500/30' : 'bg-purple-50 border-purple-100 shadow-sm'}`}>
+                            <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>Valor Líquido (Recebido)</p>
+                            <p className={`text-3xl font-black ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
+                                {metrics.net.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </p>
+                            <p className="text-[10px] opacity-70 mt-1">Após taxas e descontos</p>
                         </div>
-                        <div className={`p-6 rounded-2xl border ${isDark ? 'bg-cyan-900/20 border-cyan-500/30' : 'bg-cyan-50'}`}>
-                            <p className="text-xs font-bold uppercase text-cyan-700">Lucro Estimado</p>
-                            <p className="text-3xl font-black text-cyan-600">{metrics.profit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                        <div className={`p-6 rounded-2xl border ${isDark ? 'bg-cyan-900/20 border-cyan-500/30' : 'bg-cyan-50 border-cyan-100 shadow-sm'}`}>
+                            <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>Lucro Real Estimado</p>
+                            <p className={`text-3xl font-black ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
+                                {metrics.profit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </p>
+                            <p className="text-[10px] opacity-70 mt-1">Margem base de 100% sobre custo</p>
                         </div>
                     </div>
 
-                    <div className={`p-6 rounded-2xl border ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200'}`}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold">Meta Semanal</h3>
-                            {isEditingGoal ? (
-                                <div className="flex gap-2">
-                                    <input type="number" value={tempGoal} onChange={e => setTempGoal(e.target.value)} className="w-24 p-1 rounded border dark:bg-black/40" />
-                                    <button onClick={handleSaveGoal} className="text-green-500 font-bold">OK</button>
-                                </div>
-                            ) : (
-                                <button onClick={() => setIsEditingGoal(true)} className="text-xs text-fuchsia-500 underline">Definir Meta</button>
-                            )}
+                    <div className={`p-6 rounded-2xl border ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm'}`}>
+                        <div className="flex justify-between items-end mb-4">
+                            <div>
+                                <h3 className={`font-bold text-lg ${titleClasses}`}>Meta Semanal</h3>
+                                <p className={`text-sm ${subtitleClasses}`}>Média Semanal de Vendas: <span className="font-bold">{averages.weekly.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {isEditingGoal ? (
+                                    <div className="flex items-center gap-2">
+                                        <input 
+                                            type="number" 
+                                            value={tempGoal} 
+                                            onChange={e => setTempGoal(e.target.value)}
+                                            className={`w-24 p-2 rounded-lg text-sm border font-bold ${isDark ? 'bg-black/40 border-white/20 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
+                                        />
+                                        <button onClick={handleSaveGoal} className="text-green-500 font-bold text-sm">OK</button>
+                                        <button onClick={() => setIsEditingGoal(false)} className="text-red-500 font-bold text-sm">X</button>
+                                    </div>
+                                ) : (
+                                    <div className="text-right">
+                                        <p className={`text-2xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            {weeklyGoal > 0 ? weeklyGoal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '---'}
+                                        </p>
+                                        <button onClick={() => { setTempGoal(weeklyGoal.toString()); setIsEditingGoal(true); }} className="text-xs text-fuchsia-500 hover:underline">Definir Meta</button>
+                                        {weeklyGoal === 0 && averages.weekly > 0 && (
+                                            <button onClick={handleUseSuggestion} className="block text-[10px] text-cyan-500 hover:underline mt-1">
+                                                Sugerir: {suggestedGoal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         <div className="relative h-4 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div className="absolute top-0 left-0 h-full bg-fuchsia-500" style={{ width: `${Math.min((currentWeekSales / (weeklyGoal || 1)) * 100, 100)}%` }}></div>
+                            <div 
+                                className={`absolute top-0 left-0 h-full transition-all duration-1000 ${currentWeekSales >= weeklyGoal ? 'bg-green-500' : 'bg-fuchsia-500'}`} 
+                                style={{ width: `${Math.min((currentWeekSales / (weeklyGoal || 1)) * 100, 100)}%` }}
+                            ></div>
                         </div>
-                        <p className="text-xs mt-2 font-bold">{currentWeekSales.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} de {weeklyGoal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                        <div className="flex justify-between mt-2 text-xs font-semibold">
+                            <span className={isDark ? 'text-white' : 'text-gray-800'}>{currentWeekSales.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} vendidos</span>
+                            <span className={subtitleClasses}>{Math.round((currentWeekSales / (weeklyGoal || 1)) * 100)}% da meta</span>
+                        </div>
                     </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <BarChart 
+                            title="Vendas da Semana (7 Dias)" 
+                            data={historyStats.last7DaysData} 
+                            labels={historyStats.last7DaysLabels} 
+                            color="bg-fuchsia-500" 
+                        />
+                        <BarChart 
+                            title="Vendas Mensais (6 Meses)" 
+                            data={historyStats.monthData} 
+                            labels={historyStats.monthLabels} 
+                            color="bg-purple-600" 
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <BarChart 
+                            title="Vendas por Dia da Semana" 
+                            data={timeStats.days} 
+                            labels={timeStats.dayLabels} 
+                            color="bg-cyan-500" 
+                        />
+                        <div className={`p-4 rounded-2xl border ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm'}`}>
+                            <h3 className={`font-bold text-sm mb-4 ${titleClasses}`}>Melhores Horários (0h - 23h)</h3>
+                            <div className="flex items-end justify-between gap-1 h-[150px]">
+                                {timeStats.hours.map((val, idx) => {
+                                    const maxVal = Math.max(...timeStats.hours, 1);
+                                    return (
+                                        <div key={idx} className="flex-1 h-full flex flex-col justify-end group relative">
+                                            <div 
+                                                className="w-full bg-amber-500 rounded-t-sm hover:bg-amber-400 transition-all"
+                                                style={{ height: `${(val / maxVal) * 100}%`, minHeight: val > 0 ? '2px' : '0' }}
+                                            ></div>
+                                            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20">
+                                                {idx}h: {val}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                            <div className="flex justify-between text-[10px] mt-2 text-gray-500">
+                                <span>00h</span>
+                                <span>06h</span>
+                                <span>12h</span>
+                                <span>18h</span>
+                                <span>23h</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm'}`}>
+                        <div className={`p-4 border-b ${isDark ? 'border-white/10' : 'border-gray-100'}`}>
+                            <h3 className={`font-bold ${titleClasses}`}>Detalhamento por Pagamento</h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className={`uppercase text-xs ${isDark ? 'bg-white/5 text-gray-400' : 'bg-gray-50 text-gray-600'}`}>
+                                    <tr>
+                                        <th className="px-6 py-3">Método</th>
+                                        <th className="px-6 py-3 text-center">Qtd</th>
+                                        <th className="px-6 py-3 text-right">Bruto</th>
+                                        <th className="px-6 py-3 text-right">Líquido</th>
+                                    </tr>
+                                </thead>
+                                <tbody className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                                    {(Object.entries(paymentStats) as [string, { count: number, gross: number, net: number }][]).map(([method, data]) => (
+                                        <tr key={method} className={`border-b ${isDark ? 'border-white/5' : 'border-gray-50'}`}>
+                                            <td className="px-6 py-4 font-semibold">{method}</td>
+                                            <td className="px-6 py-4 text-center">{data.count}</td>
+                                            <td className="px-6 py-4 text-right font-medium">{data.gross.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                            <td className={`px-6 py-4 text-right font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>{data.net.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                 </div>
             </main>
         </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react';
 import { Product, StoreName, Variation, CushionSize, Brand, WaterResistanceLevel, DynamicBrand, ThemeContext } from '../types';
 import { VARIATION_DEFAULTS, BRAND_FABRIC_MAP, STORE_NAMES, BRANDS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
@@ -198,7 +199,7 @@ const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, 
                 onClick={onTakePhoto}
                 label="Tirar Foto"
                 sublabel="Use a câmera do seu dispositivo"
-                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-fuchsia-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812-1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-fuchsia-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
             />
             <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
             <OptionButton
@@ -1044,21 +1045,12 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   
   const handleTakePhoto = () => {
     setIsImagePickerOpen(false);
-    // FIX: Using type casting to access Cordova camera plugin which is not in standard DOM types.
-    const nav = navigator as any;
-    const win = window as any;
-    if (nav.camera && typeof win.Camera !== 'undefined') {
-        nav.camera.getPicture((imageData: string) => {
+    if (navigator.camera && typeof Camera !== 'undefined') {
+        navigator.camera.getPicture((imageData: string) => {
             handleImageSelect("data:image/jpeg;base64," + imageData);
         }, (msg: string) => { alert('Falha ao tirar foto: ' + msg); }, {
-            quality: 50, 
-            destinationType: win.Camera.DestinationType.DATA_URL, 
-            sourceType: win.Camera.PictureSourceType.CAMERA,
-            allowEdit: false, 
-            encodingType: win.Camera.EncodingType.JPEG, 
-            targetWidth: 800, 
-            targetHeight: 800, 
-            saveToPhotoAlbum: false
+            quality: 50, destinationType: Camera.DestinationType.DATA_URL, sourceType: Camera.PictureSourceType.CAMERA,
+            allowEdit: false, encodingType: Camera.EncodingType.JPEG, targetWidth: 800, targetHeight: 800, saveToPhotoAlbum: false
         });
     } else { setIsCameraOpen(true); }
   };
@@ -1399,7 +1391,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             {generationProgress && <p className={`text-sm text-center font-semibold mb-2 ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>{generationProgress}</p>}
                             <div className="grid grid-cols-2 gap-4">
                                 {backgroundOptions.map(bg => { 
-                                    const contextKey = bg.toLowerCase() as 'quarto' | 'sala' | 'varanda' | 'piscina'; 
+                                    const contextKey = bg.toLowerCase() as 'sala' | 'quarto' | 'varanda' | 'piscina'; 
                                     const imagesForContext = formData.backgroundImages?.[contextKey];
                                     const isColorVaried = typeof imagesForContext === 'object' && imagesForContext !== null;
                                     const imageUrl = isColorVaried ? (imagesForContext['Bege'] || Object.values(imagesForContext)[0]) : (typeof imagesForContext === 'string' ? imagesForContext : undefined);
@@ -1428,7 +1420,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                                         }}
                                                         disabled={isGeneratingColors || !formData.baseImageUrl}
                                                         title={`Gerar múltiplas cores para ${bg}`}
-                                                        className={`w-full text-center font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}
+                                                        className={`w-full text-center font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}
                                                     >
                                                         {isGeneratingColors ? <ButtonSpinner /> : 'Gerar Cores'}
                                                     </button>
