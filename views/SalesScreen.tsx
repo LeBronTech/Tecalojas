@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useEffect, useMemo, useRef } from 'react';
-import { SaleRequest, View, ThemeContext, Product, PosCartItem, Variation, CushionSize } from '../types';
+import { SaleRequest, View, ThemeContext, Product, PosCartItem, Variation, CushionSize, CartItem } from '../types';
 import ProductSelectModal from '../components/ProductSelectModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import * as api from '../firebase';
@@ -14,8 +14,99 @@ interface SalesScreenProps {
     error?: string | null;
 }
 
-type ActiveTab = 'requests' | 'calculator';
+type ActiveTab = 'requests' | 'preorders' | 'calculator';
 type TimeFilter = 'all' | 'today' | 'week' | 'month';
+
+const RequestDetailsModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    request: SaleRequest;
+    onConfirm: () => void;
+    isDark: boolean;
+    discount: number;
+    setDiscount: (v: number) => void;
+    installments: number;
+    setInstallments: (v: number) => void;
+}> = ({ isOpen, onClose, request, onConfirm, isDark, discount, setDiscount, installments, setInstallments }) => {
+    if (!isOpen) return null;
+
+    const finalPrice = request.totalPrice - (discount || 0);
+
+    const modalBg = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
+    const titleColor = isDark ? "text-white" : "text-gray-900";
+    const labelColor = isDark ? "text-gray-400" : "text-gray-600";
+    const inputBg = isDark ? "bg-black/20 text-white border-white/10" : "bg-gray-100 text-gray-900 border-gray-300";
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[160] p-4" onClick={onClose}>
+            <div className={`border rounded-3xl shadow-2xl w-full max-w-sm p-6 flex flex-col max-h-[90vh] ${modalBg}`} onClick={e => e.stopPropagation()}>
+                <h2 className={`text-xl font-bold mb-1 ${titleColor}`}>
+                    {request.type === 'preorder' ? 'Detalhes da Encomenda' : 'Detalhes do Pedido'}
+                </h2>
+                <p className={`text-sm mb-4 ${labelColor}`}>Cliente: <span className="font-bold">{request.customerName || 'Não identificado'}</span></p>
+                
+                <div className="flex-grow overflow-y-auto space-y-3 mb-4 pr-1 purple-scrollbar">
+                    {request.items.map((item: any, idx) => (
+                        <div key={idx} className={`flex items-center gap-3 p-2 rounded-xl ${isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
+                            {item.baseImageUrl && (
+                                <img src={item.baseImageUrl} alt={item.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                                <p className={`text-xs font-bold truncate ${titleColor}`}>{item.name}</p>
+                                <p className={`text-[10px] ${labelColor}`}>
+                                    {item.quantity}x {item.variationSize} • {item.type === 'full' ? 'Cheia' : 'Capa'}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {request.status === 'pending' ? (
+                    <div className="space-y-4 pt-4 border-t border-white/10">
+                        {request.type === 'sale' && (
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className={`text-[10px] font-bold uppercase ${labelColor}`}>Desconto (R$)</label>
+                                    <input type="number" value={discount || ''} onChange={e => setDiscount(parseFloat(e.target.value) || 0)} className={`w-full p-2 text-sm rounded-lg ${inputBg}`} />
+                                </div>
+                                {request.paymentMethod === 'Crédito' && (
+                                    <div>
+                                        <label className={`text-[10px] font-bold uppercase ${labelColor}`}>Parcelas</label>
+                                        <select value={installments} onChange={e => setInstallments(parseInt(e.target.value))} className={`w-full p-2 text-sm rounded-lg ${inputBg}`}>
+                                            <option value={1}>1x</option>
+                                            <option value={2}>2x</option>
+                                            <option value={3}>3x</option>
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        <div className="flex justify-between items-center text-lg font-black">
+                            <span className={titleColor}>Total Final:</span>
+                            <span className="text-fuchsia-500">R$ {finalPrice.toFixed(2)}</span>
+                        </div>
+                        <button onClick={onConfirm} className={`w-full font-bold py-4 rounded-2xl shadow-lg transition-all ${request.type === 'preorder' ? 'bg-amber-500 text-white' : 'bg-green-600 text-white'}`}>
+                            {request.type === 'preorder' ? 'MARCAR COMO PROCESSADA' : 'CONFIRMAR PAGAMENTO'}
+                        </button>
+                    </div>
+                ) : (
+                    <div className="pt-4 border-t border-white/10">
+                         <div className="flex justify-between items-center">
+                            <span className={labelColor}>Status:</span>
+                            <span className="text-green-500 font-bold uppercase text-xs">Concluído</span>
+                         </div>
+                         <div className="flex justify-between items-center mt-1">
+                            <span className={labelColor}>Total Pago:</span>
+                            <span className={`font-black ${titleColor}`}>R$ {(request.finalPrice ?? request.totalPrice).toFixed(2)}</span>
+                         </div>
+                    </div>
+                )}
+                
+                <button onClick={onClose} className={`mt-2 py-2 text-sm font-bold ${labelColor}`}>Fechar</button>
+            </div>
+        </div>
+    );
+};
 
 const ItemTypeChoiceModal: React.FC<{
     isOpen: boolean;
@@ -242,7 +333,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [activeTab, setActiveTab] = useState<ActiveTab>('requests');
-    const [selectedRequest, setSelectedRequest] = useState<SaleRequest | null>(null);
+    const [viewingRequest, setViewingRequest] = useState<SaleRequest | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [discount, setDiscount] = useState(0);
     const [installments, setInstallments] = useState(1);
@@ -258,17 +349,12 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const [isScannerOpen, setIsScannerOpen] = useState(false);
 
 
-    const finalPrice = useMemo(() => {
-        if (!selectedRequest) return 0;
-        return selectedRequest.totalPrice - (discount || 0);
-    }, [selectedRequest, discount]);
-    
     const posTotal = useMemo(() => posCart.reduce((sum, item) => sum + item.price * item.quantity, 0), [posCart]);
 
-    const pendingRequests = saleRequests.filter(r => r.status === 'pending');
+    const pendingSales = saleRequests.filter(r => r.status === 'pending' && r.type === 'sale');
+    const pendingPreOrders = saleRequests.filter(r => r.status === 'pending' && r.type === 'preorder');
     const completedRequests = saleRequests.filter(r => r.status === 'completed');
 
-    // Filtragem por Período
     const filteredCompletedRequests = useMemo(() => {
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -283,13 +369,11 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
         return filtered;
     }, [completedRequests, timeFilter]);
 
-    // Agrupamento por Dia
     const groupedCompletedRequests = useMemo(() => {
         const groups: Record<string, { requests: SaleRequest[], total: number }> = {};
         
         filteredCompletedRequests.forEach(req => {
             if (!req.createdAt || !req.createdAt.toDate) return;
-            // Forçamos locale pt-BR para consistência
             const dateStr = req.createdAt.toDate().toLocaleDateString('pt-BR');
             if (!groups[dateStr]) groups[dateStr] = { requests: [], total: 0 };
             groups[dateStr].requests.push(req);
@@ -301,15 +385,14 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     
     const completedSalesTotal = useMemo(() => filteredCompletedRequests.reduce((sum, req) => sum + (req.finalPrice ?? req.totalPrice), 0), [filteredCompletedRequests]);
 
-    const handleConfirmPayment = () => {
-        if (!selectedRequest) return;
-        onCompleteSaleRequest(selectedRequest.id, {
+    const handleConfirmRequest = () => {
+        if (!viewingRequest) return;
+        onCompleteSaleRequest(viewingRequest.id, {
             discount: discount > 0 ? discount : undefined,
-            finalPrice: finalPrice,
-            installments: selectedRequest.paymentMethod === 'Crédito' ? installments : undefined,
+            finalPrice: viewingRequest.totalPrice - discount,
+            installments: viewingRequest.paymentMethod === 'Crédito' ? installments : undefined,
         });
-        setSelectedRequest(null);
-        setIsProcessing(false);
+        setViewingRequest(null);
         setDiscount(0);
         setInstallments(1);
     };
@@ -375,12 +458,6 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const handleFinalizeSale = async (paymentMethod: 'PIX' | 'Débito' | 'Crédito', details: { discount: number; finalPrice: number; installments: number }) => {
         try {
             await api.finalizePosSale(posCart, posTotal, paymentMethod, details);
-            if (('Notification' in window) && Notification.permission === 'granted') {
-                new Notification("Venda Concluída!", {
-                    body: `Venda de R$ ${details.finalPrice.toFixed(2)} finalizada com sucesso!`,
-                    icon: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'
-                });
-            }
             setPosCart([]);
             setIsFinalizeSaleModalOpen(false);
         } catch (err: any) {
@@ -392,8 +469,6 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const titleClasses = isDark ? 'text-white' : 'text-gray-900';
     const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
     const cardClasses = isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm';
-    const labelClasses = isDark ? 'text-gray-400' : 'text-gray-600';
-    const inputClasses = isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-100 text-gray-900 border-gray-300';
     
     return (
         <>
@@ -401,103 +476,127 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                 <main className="flex-grow overflow-y-auto px-6 pt-24 pb-36 md:pb-6 no-scrollbar z-10">
                     <div className="max-w-2xl mx-auto">
                         <h1 className={`text-3xl font-bold mb-2 ${titleClasses}`}>Vendas</h1>
-                        <div className="flex gap-2 mb-6">
-                            <button onClick={() => setActiveTab('requests')} className={`flex-1 py-3 text-sm font-bold rounded-lg relative transition-colors ${activeTab === 'requests' ? (isDark ? 'bg-fuchsia-600 text-white' : 'bg-purple-600 text-white') : (isDark ? 'bg-black/20 text-gray-300' : 'bg-gray-200 text-gray-700')}`}>
-                                Solicitações
-                                {pendingRequests.length > 0 && <span className="absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full blinking-dot"></span>}
+                        
+                        <div className="flex gap-2 mb-6 p-1 bg-black/10 rounded-xl">
+                            <button onClick={() => setActiveTab('requests')} className={`flex-1 py-3 text-xs font-black rounded-lg relative transition-all uppercase tracking-widest ${activeTab === 'requests' ? (isDark ? 'bg-fuchsia-600 text-white shadow-lg' : 'bg-purple-600 text-white shadow-lg') : (isDark ? 'text-gray-400' : 'text-gray-600')}`}>
+                                Vendas
+                                {pendingSales.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white dark:border-[#1A1129] blinking-dot"></span>}
                             </button>
-                            <button onClick={() => setActiveTab('calculator')} className={`flex-1 py-3 text-sm font-bold rounded-lg relative transition-colors ${activeTab === 'calculator' ? (isDark ? 'bg-fuchsia-600 text-white' : 'bg-purple-600 text-white') : (isDark ? 'bg-black/20 text-gray-300' : 'bg-gray-200 text-gray-700')}`}>Vender Agora (PDV)</button>
+                            <button onClick={() => setActiveTab('preorders')} className={`flex-1 py-3 text-xs font-black rounded-lg relative transition-all uppercase tracking-widest ${activeTab === 'preorders' ? (isDark ? 'bg-amber-600 text-white shadow-lg' : 'bg-amber-500 text-white shadow-lg') : (isDark ? 'text-gray-400' : 'text-gray-600')}`}>
+                                Encomendas
+                                {pendingPreOrders.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white dark:border-[#1A1129] blinking-dot"></span>}
+                            </button>
+                            <button onClick={() => setActiveTab('calculator')} className={`flex-1 py-3 text-xs font-black rounded-lg relative transition-all uppercase tracking-widest ${activeTab === 'calculator' ? (isDark ? 'bg-cyan-600 text-white shadow-lg' : 'bg-cyan-500 text-white shadow-lg') : (isDark ? 'text-gray-400' : 'text-gray-600')}`}>PDV</button>
                         </div>
-                        {activeTab === 'requests' ? (
-                            <div>
-                                {pendingRequests.length > 0 && <div className="mb-6"><h3 className={`font-bold mb-3 ${titleClasses}`}>Pendentes de Confirmação</h3>{pendingRequests.map(req => (
-                                    <div key={req.id} className={`p-4 rounded-xl flex items-center justify-between mb-2 relative cursor-pointer border ${cardClasses}`} onClick={() => { setSelectedRequest(req); setIsProcessing(true); }}>
-                                        <div><p className={`font-bold ${titleClasses}`}>Pedido de {req.customerName || `${req.items.length} item(s)`}</p><p className={`text-sm ${subtitleClasses}`}>Total: R$ {req.totalPrice.toFixed(2)} via {req.paymentMethod}</p></div>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-3 h-3 bg-green-500 rounded-full blinking-dot"></div>
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); setDeletingRequestId(req.id); }}
-                                                className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-red-500/20 hover:text-red-400' : 'text-gray-500 hover:bg-red-100 hover:text-red-600'}`}
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                            </button>
-                                        </div>
+
+                        {activeTab === 'requests' && (
+                            <div className="animate-fade-in">
+                                {pendingSales.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {pendingSales.map(req => (
+                                            <div key={req.id} className={`p-4 rounded-2xl flex items-center justify-between cursor-pointer border hover:scale-[1.02] transition-transform ${cardClasses}`} onClick={() => setViewingRequest(req)}>
+                                                <div className="min-w-0">
+                                                    <p className={`font-black uppercase text-xs tracking-wider mb-1 ${isDark ? 'text-fuchsia-400' : 'text-purple-600'}`}>{req.paymentMethod}</p>
+                                                    <p className={`font-bold truncate ${titleClasses}`}>Venda de {req.customerName || 'Cliente'}</p>
+                                                    <p className={`text-sm ${subtitleClasses}`}>{req.items.length} item(s) • R$ {req.totalPrice.toFixed(2)}</p>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-3 h-3 bg-green-500 rounded-full blinking-dot"></div>
+                                                    <button onClick={(e) => { e.stopPropagation(); setDeletingRequestId(req.id); }} className="text-red-500/40 hover:text-red-500 p-2"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}</div>}
-                                
-                                <div className="mt-8">
+                                ) : (
+                                    <div className={`p-8 text-center rounded-3xl border-2 border-dashed ${isDark ? 'border-white/10 text-gray-500' : 'border-gray-200 text-gray-400'}`}>Não há novas vendas.</div>
+                                )}
+
+                                <div className="mt-10">
                                     <div className="flex justify-between items-center mb-4">
-                                        <h3 className={`font-bold ${titleClasses}`}>Vendas Confirmadas</h3>
-                                        <select 
-                                            value={timeFilter} 
-                                            onChange={e => setTimeFilter(e.target.value as TimeFilter)}
-                                            className={`text-xs p-2 rounded-lg border focus:outline-none ${isDark ? 'bg-black/40 text-white border-white/10' : 'bg-white border-gray-200'}`}
-                                        >
+                                        <h3 className={`font-bold ${titleClasses}`}>Vendas Concluídas</h3>
+                                        <select value={timeFilter} onChange={e => setTimeFilter(e.target.value as TimeFilter)} className={`text-xs font-bold p-2 rounded-lg border focus:outline-none ${isDark ? 'bg-black/40 text-white border-white/10' : 'bg-white border-gray-200'}`}>
                                             <option value="all">Todos</option>
                                             <option value="today">Hoje</option>
                                             <option value="week">Esta Semana</option>
                                             <option value="month">Este Mês</option>
                                         </select>
                                     </div>
-                                    
                                     <div className={`p-4 rounded-xl mb-6 text-center border ${isDark ? 'bg-green-500/10 border-green-500/30' : 'bg-green-50 border-green-100'}`}>
                                         <p className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-green-300' : 'text-green-700'}`}>Total do Período</p>
                                         <p className={`text-2xl font-black ${isDark ? 'text-green-400' : 'text-green-600'}`}>{completedSalesTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                                     </div>
-
-                                    <div className="space-y-6">
-                                        {(Object.entries(groupedCompletedRequests) as [string, { requests: SaleRequest[], total: number }][]).sort((a, b) => {
-                                            const dateA = a[0].split('/').reverse().join('-');
-                                            const dateB = b[0].split('/').reverse().join('-');
-                                            return dateB.localeCompare(dateA);
-                                        }).map(([date, data]) => (
-                                            <div key={date}>
-                                                <div className="flex justify-between items-center mb-2 px-1">
-                                                    <span className={`text-sm font-bold ${isDark ? 'text-purple-300' : 'text-purple-600'}`}>{date}</span>
-                                                    <span className={`text-xs font-bold px-2 py-1 rounded bg-black/10 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Subtotal: {data.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    {data.requests.map(req => (
-                                                        <div key={req.id} className={`p-4 rounded-xl flex items-center justify-between border ${cardClasses}`}>
-                                                            <div>
-                                                                <p className={`font-bold ${titleClasses}`}>Venda de {req.customerName || 'Cliente'}</p>
-                                                                <p className={`text-xs ${subtitleClasses}`}>Forma: {req.paymentMethod} • {(req.createdAt?.toDate ? req.createdAt.toDate() : new Date()).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</p>
-                                                                <p className="text-sm font-black text-fuchsia-500">R$ {(req.finalPrice ?? req.totalPrice).toFixed(2)}</p>
-                                                            </div>
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); setDeletingRequestId(req.id); }}
-                                                                className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-red-500/20 hover:text-red-400' : 'text-gray-500 hover:bg-red-100 hover:text-red-600'}`}
-                                                            >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                            </button>
+                                    <div className="space-y-4">
+                                        {/* FIX: Explicitly cast Object.entries result to handle TS inference issues with 'unknown' */}
+                                        {(Object.entries(groupedCompletedRequests) as [string, { requests: SaleRequest[], total: number }][]).sort((a, b) => b[0].localeCompare(a[0])).map(([date, data]) => (
+                                            <div key={date} className="space-y-2">
+                                                <p className={`text-[10px] font-black uppercase tracking-widest pl-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{date}</p>
+                                                {data.requests.map(req => (
+                                                    <div key={req.id} className={`p-4 rounded-xl flex items-center justify-between border ${cardClasses}`} onClick={() => setViewingRequest(req)}>
+                                                        <div>
+                                                            <p className={`font-bold text-sm ${titleClasses}`}>Venda {req.customerName ? `de ${req.customerName}` : ''}</p>
+                                                            <p className={`text-xs ${subtitleClasses}`}>R$ {(req.finalPrice ?? req.totalPrice).toFixed(2)} • {req.paymentMethod}</p>
                                                         </div>
-                                                    ))}
-                                                </div>
+                                                        <button onClick={(e) => { e.stopPropagation(); setDeletingRequestId(req.id); }} className="text-red-500/40 hover:text-red-500 p-2"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                                    </div>
+                                                ))}
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             </div>
-                        ) : (
-                            <div className={`p-6 rounded-2xl border ${cardClasses}`}>
+                        )}
+
+                        {activeTab === 'preorders' && (
+                            <div className="animate-fade-in">
+                                {pendingPreOrders.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {pendingPreOrders.map(req => (
+                                            <div key={req.id} className={`p-4 rounded-2xl flex items-center justify-between cursor-pointer border-l-4 border-amber-500 bg-amber-500/5 hover:scale-[1.02] transition-transform ${cardClasses}`} onClick={() => setViewingRequest(req)}>
+                                                <div className="min-w-0">
+                                                    <p className="font-black uppercase text-[10px] tracking-widest text-amber-500 mb-1">Encomenda Pendente</p>
+                                                    <p className={`font-bold truncate ${titleClasses}`}>{req.customerName || 'Cliente'}</p>
+                                                    <p className={`text-sm ${subtitleClasses}`}>{req.items.length} item(s) • R$ {req.totalPrice.toFixed(2)}</p>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-3 h-3 bg-amber-500 rounded-full blinking-dot"></div>
+                                                    <button onClick={(e) => { e.stopPropagation(); setDeletingRequestId(req.id); }} className="text-red-500/40 hover:text-red-500 p-2"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className={`p-8 text-center rounded-3xl border-2 border-dashed ${isDark ? 'border-white/10 text-gray-500' : 'border-gray-200 text-gray-400'}`}>Não há encomendas pendentes.</div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'calculator' && (
+                            <div className={`p-6 rounded-2xl border animate-fade-in ${cardClasses}`}>
                                 <h3 className={`font-bold text-lg mb-4 ${titleClasses}`}>Ponto de Venda (Imediato)</h3>
                                 <div className="space-y-4">
                                     <div className={`min-h-[100px] max-h-60 overflow-y-auto p-2 rounded-lg ${isDark ? 'bg-black/30' : 'bg-gray-50'}`}>
                                         {posCart.map(item => (
                                             <div key={item.id} className="flex items-center justify-between p-2">
-                                                <div><p className={`font-semibold text-sm ${titleClasses}`}>{item.name}</p><p className={`text-xs ${subtitleClasses}`}>R$ {item.price.toFixed(2)}</p></div>
-                                                <div className="flex items-center gap-2"><button onClick={() => setPosCart(prev => prev.map(i => i.id === item.id ? {...i, quantity: i.quantity - 1} : i).filter(i => i.quantity > 0))} className="w-6 h-6 rounded bg-black/20 text-white font-bold">-</button><span>{item.quantity}</span><button onClick={() => setPosCart(prev => prev.map(i => i.id === item.id ? {...i, quantity: i.quantity + 1} : i))} className="w-6 h-6 rounded bg-black/20 text-white font-bold">+</button></div>
+                                                <div className="min-w-0">
+                                                    <p className={`font-semibold text-sm truncate ${titleClasses}`}>{item.name}</p>
+                                                    <p className={`text-xs ${subtitleClasses}`}>R$ {item.price.toFixed(2)}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    <button onClick={() => setPosCart(prev => prev.map(i => i.id === item.id ? {...i, quantity: i.quantity - 1} : i).filter(i => i.quantity > 0))} className="w-6 h-6 rounded bg-black/20 text-white font-bold">-</button>
+                                                    <span className="w-4 text-center text-sm">{item.quantity}</span>
+                                                    <button onClick={() => setPosCart(prev => prev.map(i => i.id === item.id ? {...i, quantity: i.quantity + 1} : i))} className="w-6 h-6 rounded bg-black/20 text-white font-bold">+</button>
+                                                </div>
                                             </div>
                                         ))}
                                         {posCart.length === 0 && <p className={`text-center py-4 text-xs ${subtitleClasses}`}>Seu carrinho de PDV está vazio.</p>}
                                     </div>
                                     <div className="flex justify-between items-center font-bold text-xl"><p className={titleClasses}>Total:</p><p className={isDark ? 'text-fuchsia-400' : 'text-purple-600'}>R$ {posTotal.toFixed(2)}</p></div>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <button onClick={() => setIsScannerOpen(true)} className={`col-span-2 w-full py-3 rounded-lg font-semibold ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-700'}`}>Escanear QR Code</button>
-                                        <button onClick={() => setIsProductSelectOpen(true)} className={`w-full py-3 rounded-lg font-semibold ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>Adicionar Produto</button>
-                                        <button onClick={() => setIsCustomValueModalOpen(true)} className={`w-full py-3 rounded-lg font-semibold ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>Valor Avulso</button>
-                                        <button onClick={() => setPosCart([])} className={`w-full py-3 rounded-lg font-semibold ${isDark ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700'}`}>Limpar</button>
-                                        <button onClick={() => setIsFinalizeSaleModalOpen(true)} disabled={posCart.length === 0} className="w-full bg-fuchsia-600 text-white font-bold py-3 rounded-lg disabled:bg-gray-500">Finalizar Venda</button>
+                                        <button onClick={() => setIsScannerOpen(true)} className={`col-span-2 w-full py-3 rounded-lg font-black text-xs uppercase tracking-widest ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-700'}`}>Escanear QR Code</button>
+                                        <button onClick={() => setIsProductSelectOpen(true)} className={`w-full py-3 rounded-lg font-black text-xs uppercase tracking-widest ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>Lista</button>
+                                        <button onClick={() => setIsCustomValueModalOpen(true)} className={`w-full py-3 rounded-lg font-black text-xs uppercase tracking-widest ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>Valor Avulso</button>
+                                        <button onClick={() => setPosCart([])} className={`w-full py-3 rounded-lg font-black text-xs uppercase tracking-widest ${isDark ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700'}`}>Limpar</button>
+                                        <button onClick={() => setIsFinalizeSaleModalOpen(true)} disabled={posCart.length === 0} className="w-full bg-fuchsia-600 text-white font-black text-xs uppercase tracking-widest py-3 rounded-lg disabled:bg-gray-500">Finalizar</button>
                                     </div>
                                 </div>
                             </div>
@@ -505,30 +604,28 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                     </div>
                 </main>
             </div>
-            {isProcessing && selectedRequest && (
-                 <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { setIsProcessing(false); setSelectedRequest(null); }}>
-                    <div className={`border rounded-3xl shadow-2xl w-full max-w-sm p-6 ${cardClasses}`} onClick={e => e.stopPropagation()}>
-                        <h3 className={`font-bold text-lg mb-4 ${titleClasses}`}>Processar Pedido {selectedRequest.customerName ? `de ${selectedRequest.customerName}`: ''}</h3>
-                        <div className="space-y-4">
-                            <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Confirmar Valor</label><input type="number" value={discount || ''} onChange={e => setDiscount(parseFloat(e.target.value) || 0)} placeholder="Desconto (Opcional)" className={`w-full p-2 rounded ${inputClasses}`} /></div>
-                        </div>
-                        <div className="space-y-4 border-t pt-4 mt-4" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-                            <div className="flex justify-between items-center text-lg font-bold"><span className={titleClasses}>Total Final:</span><span className={isDark ? 'text-fuchsia-400' : 'text-purple-600'}>R$ {finalPrice.toFixed(2)}</span></div>
-                        </div>
-                        <div className="mt-6 flex flex-col gap-3">
-                            <button onClick={handleConfirmPayment} className="w-full bg-green-600 text-white font-bold py-3 rounded-lg shadow-lg">Confirmar Venda</button>
-                            <button onClick={() => { setIsProcessing(false); setSelectedRequest(null); }} className={`w-full font-bold py-2 rounded-lg ${isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}>Cancelar</button>
-                        </div>
-                    </div>
-                 </div>
+
+            {viewingRequest && (
+                <RequestDetailsModal 
+                    isOpen={!!viewingRequest}
+                    onClose={() => setViewingRequest(null)}
+                    request={viewingRequest}
+                    onConfirm={handleConfirmRequest}
+                    isDark={isDark}
+                    discount={discount}
+                    setDiscount={setDiscount}
+                    installments={installments}
+                    setInstallments={setInstallments}
+                />
             )}
+
             {isScannerOpen && <ScannerModal onClose={() => setIsScannerOpen(false)} onConfirmScans={handleConfirmScans} products={products} isDark={isDark} />}
             {isProductSelectOpen && <ProductSelectModal products={products} onClose={() => setIsProductSelectOpen(false)} onConfirm={handleAddProductsToPos} initialSelectedIds={[]} maxSelection={1} />}
             {productForVariationSelect && <VariationSelectModal product={productForVariationSelect} onClose={() => setProductForVariationSelect(null)} onSelect={(p, v) => { setProductForVariationSelect(null); setItemForPosTypeChoice({ product: p, variation: v }); }} />}
             <ItemTypeChoiceModal isOpen={!!itemForPosTypeChoice} onClose={() => setItemForPosTypeChoice(null)} onSelect={handlePosItemTypeSelected} productName={itemForPosTypeChoice ? `${itemForPosTypeChoice.product.name} (${itemForPosTypeChoice.variation.size})` : ''} isDark={isDark} />
             {isCustomValueModalOpen && <CustomValueModal onClose={() => setIsCustomValueModalOpen(false)} onConfirm={(n, p) => setPosCart(prev => [...prev, { id: `custom-${Date.now()}`, name: n, price: p, quantity: 1, isCustom: true }])} />}
             {isFinalizeSaleModalOpen && <FinalizeSaleModal isOpen={isFinalizeSaleModalOpen} onClose={() => setIsFinalizeSaleModalOpen(false)} onConfirm={handleFinalizeSale} total={posTotal} />}
-            <ConfirmationModal isOpen={!!deletingRequestId} onClose={() => setDeletingRequestId(null)} onConfirm={async () => { if(deletingRequestId) { try { await api.deleteSaleRequest(deletingRequestId); setDeletingRequestId(null); } catch(e: any) { alert("Erro ao excluir: " + e.message); } } }} title="Confirmar Exclusão" message="Tem certeza que deseja excluir permanentemente este registro de venda?" />
+            <ConfirmationModal isOpen={!!deletingRequestId} onClose={() => setDeletingRequestId(null)} onConfirm={async () => { if(deletingRequestId) { try { await api.deleteSaleRequest(deletingRequestId); setDeletingRequestId(null); } catch(e: any) { alert("Erro ao excluir: " + e.message); } } }} title="Confirmar Exclusão" message="Tem certeza que deseja excluir permanentemente este registro?" />
         </>
     );
 };

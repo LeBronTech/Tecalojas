@@ -116,8 +116,9 @@ export interface SaleRequest {
   id: string;
   items: CartItem[] | PosCartItem[];
   totalPrice: number;
-  paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Cartão (Online)';
+  paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Cartão (Online)' | 'WhatsApp (Encomenda)';
   status: 'pending' | 'completed';
+  type: 'sale' | 'preorder'; // Distinguished type
   createdAt: any; // Firestore Timestamp
   customerName?: string;
   // Admin-added fields

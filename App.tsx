@@ -71,7 +71,7 @@ const ConfigurationRequiredModal = () => {
                     <p className={`mt-2 ${textColor}`}>O aplicativo não pode se conectar ao banco de dados porque a chave de configuração (API Key) do Firebase não foi definida. Siga os passos abaixo para corrigir.</p>
                 </div>
                 <div className={`mt-6 text-left space-y-3 p-4 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
-                    <p className={`font-semibold ${textColor}`}><strong>Passo 1:</strong> Abra o arquivo <code className={`text-sm font-mono p-1 rounded ${codeBg}`}>firebaseConfig.ts</code> no editor de código.</p>
+                    <p className={`font-semibold ${textColor}`}><strong>Passo 1:</strong> Abra o arquivo <code className={`text-sm font-mono p-1 rounded ${codeBg}`}>firebaseConfig.ts</code> no editor de code.</p>
                     <p className={`font-semibold ${textColor}`}><strong>Passo 2:</strong> Acesse seu projeto no <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-fuchsia-500 underline">Firebase Console</a>.</p>
                     <p className={`font-semibold ${textColor}`}><strong>Passo 3:</strong> Vá para "Configurações do Projeto" (⚙️) &gt; "Geral" e encontre o objeto de configuração do seu aplicativo web.</p>
                     <p className={`font-semibold ${textColor}`}><strong>Passo 4:</strong> Copie o objeto de configuração e cole-o em <code className={`text-sm font-mono p-1 rounded ${codeBg}`}>firebaseConfig.ts</code>, substituindo o conteúdo de exemplo.</p>
@@ -468,7 +468,7 @@ export default function App() {
 
   const [isCustomerNameModalOpen, setIsCustomerNameModalOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
-  const [toastNotification, setToastNotification] = useState<{ message: string; sub: string } | null>(null);
+  const [toastNotification, setToastNotification] = useState<{ message: string; sub: string; type: 'sale' | 'preorder' } | null>(null);
   const [infoModalState, setInfoModalState] = useState<{
     isOpen: boolean;
     title: string;
@@ -636,9 +636,9 @@ export default function App() {
   useEffect(() => {
     if (!isAdmin) return;
     
-    const newSales = saleRequests.filter(r => r.status === 'pending' && !notifiedRequestIds.current.has(r.id));
+    const newItems = saleRequests.filter(r => r.status === 'pending' && !notifiedRequestIds.current.has(r.id));
     
-    if (newSales.length > 0) {
+    if (newItems.length > 0) {
         try {
             const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
             if (AudioContextClass) {
@@ -656,11 +656,12 @@ export default function App() {
             if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
         } catch (e) {}
 
-        const latest = newSales[0];
-        const title = 'Nova Venda Pendente!';
+        const latest = newItems[0];
+        const isPre = latest.type === 'preorder';
+        const title = isPre ? 'Nova Encomenda!' : 'Nova Venda Pendente!';
         const body = `${latest.customerName || 'Cliente'} - R$ ${(latest.totalPrice).toFixed(2)}`;
 
-        setToastNotification({ message: title, sub: body });
+        setToastNotification({ message: title, sub: body, type: latest.type });
         setTimeout(() => setToastNotification(null), 5000);
 
         if (('Notification' in window) && (Notification as any).permission === 'granted') {
@@ -672,7 +673,7 @@ export default function App() {
               });
             } catch (e) {}
         }
-        newSales.forEach(r => notifiedRequestIds.current.add(r.id));
+        newItems.forEach(r => notifiedRequestIds.current.add(r.id));
     }
   }, [isAdmin, saleRequests]);
 
@@ -999,7 +1000,7 @@ export default function App() {
         return <PaymentScreen cart={cart} totalPrice={totalPrice} onPlaceOrder={async (paymentMethod, successMessage, onSuccess) => {
                     if (!currentUser) return;
                     try {
-                        await api.addSaleRequest({ items: cart, totalPrice, paymentMethod, customerName });
+                        await api.addSaleRequest({ items: cart, totalPrice, paymentMethod, customerName, type: 'sale' });
                         handleClearCart();
                         setInfoModalState({ isOpen: true, title: "Pedido Registrado", message: successMessage, onConfirm: () => { if (onSuccess) onSuccess(); setView(View.SHOWCASE); } });
                     } catch (err: any) { setInfoModalState({ isOpen: true, title: "Erro no Pedido", message: `Falha: ${err.message}` }); }
@@ -1021,14 +1022,14 @@ export default function App() {
         {!isConfigValid && <ConfigurationRequiredModal />}
         <div className={`min-h-screen ${bgClass} font-sans ${!isConfigValid ? 'blur-sm pointer-events-none' : ''}`}>
             {toastNotification && (
-                <div className="fixed top-20 left-4 right-4 z-[200] animate-bounce">
-                    <div className="bg-green-600 text-white p-4 rounded-2xl shadow-2xl border-2 border-white flex items-center gap-4">
+                <div className={`fixed top-20 left-4 right-4 z-[200] animate-bounce`}>
+                    <div className={`${toastNotification.type === 'preorder' ? 'bg-amber-600' : 'bg-green-600'} text-white p-4 rounded-2xl shadow-2xl border-2 border-white flex items-center gap-4`}>
                         <div className="bg-white/20 p-2 rounded-full"><SalesIcon /></div>
                         <div>
                             <p className="font-bold">{toastNotification.message}</p>
                             <p className="text-xs opacity-90">{toastNotification.sub}</p>
                         </div>
-                        <button onClick={() => setView(View.SALES)} className="ml-auto bg-white text-green-700 text-xs font-black px-3 py-1.5 rounded-lg">VER</button>
+                        <button onClick={() => setView(View.SALES)} className="ml-auto bg-white text-gray-800 text-xs font-black px-3 py-1.5 rounded-lg">VER</button>
                     </div>
                 </div>
             )}
@@ -1046,6 +1047,7 @@ export default function App() {
             {isSignUpModalOpen && <SignUpModal onClose={() => setIsSignUpModalOpen(false)} onSignUp={handleSignUp} />}
             {isPixModalOpen && <PixPaymentModal onClose={() => setIsPixModalOpen(false)} />}
             {isApiKeyModalOpen && <ApiKeyModal onClose={() => setIsApiKeyModalOpen(false)} onSave={handleSaveApiKey} />}
+            {/* FIX: Corrected typo 'setDeletingRequestId' to 'setDeletingProductId' */}
             {deletingProductId && <ConfirmationModal isOpen={!!deletingProductId} onClose={() => setDeletingProductId(null)} onConfirm={confirmDeleteProduct} title="Confirmar Exclusão" message="Tem certeza que deseja excluir este produto? A ação não pode ser desfeita." />}
             {isCustomerNameModalOpen && <CustomerNameModal onClose={() => setIsCustomerNameModalOpen(false)} onConfirm={(name) => { setCustomerName(name); setIsCustomerNameModalOpen(false); setView(View.PAYMENT); }} />}
              <InfoModal isOpen={infoModalState.isOpen} onClose={() => { setInfoModalState({ ...infoModalState, isOpen: false }); if(infoModalState.title === "Pedido Registrado") setView(View.SHOWCASE); }} title={infoModalState.title} message={infoModalState.message} onConfirm={infoModalState.onConfirm} />

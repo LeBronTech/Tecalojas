@@ -398,22 +398,23 @@ const sanitizeCartItems = (items: CartItem[] | PosCartItem[]) => {
         if (variation?.size && !leanItem.variationSize) leanItem.variationSize = variation.size;
         
         // Remove potentially large images from the sale record to save space
-        if ('baseImageUrl' in leanItem && leanItem.baseImageUrl?.startsWith('data:')) {
-            delete leanItem.baseImageUrl;
-        }
+        // if ('baseImageUrl' in leanItem && leanItem.baseImageUrl?.startsWith('data:')) {
+        //    delete leanItem.baseImageUrl;
+        // }
         
         return leanItem;
     });
 };
 
 // --- FIRESTORE (SALES) ---
-export const addSaleRequest = (saleData: { items: CartItem[] | PosCartItem[], totalPrice: number, paymentMethod: 'PIX' | 'Débito' | 'Crédito' | 'Cartão (Online)', customerName?: string }): Promise<any> => {
+export const addSaleRequest = (saleData: { items: CartItem[] | PosCartItem[], totalPrice: number, paymentMethod: string, customerName?: string, type?: 'sale' | 'preorder' }): Promise<any> => {
     const sanitizedItems = sanitizeCartItems(saleData.items);
     
     return addDoc(saleRequestsCollection, {
         ...saleData,
         items: sanitizedItems,
         status: 'pending',
+        type: saleData.type || 'sale',
         createdAt: serverTimestamp()
     });
 };
@@ -572,6 +573,7 @@ export const finalizePosSale = async (
     totalPrice: totalPrice,
     paymentMethod,
     status: 'pending',
+    type: 'sale' as const,
     createdAt: serverTimestamp(),
   };
   const newDocRef = await addDoc(saleRequestsCollection, saleRequestData);
