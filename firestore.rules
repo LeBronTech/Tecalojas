@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -17,12 +18,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
-    // Regras para a coleção 'brands' e 'catalogs'
+    // Regras para a coleção 'brands', 'catalogs' e 'categories'
     match /brands/{brandId} {
         allow read: if true;
         allow write: if isAdmin();
     }
     match /catalogs/{catalogId} {
+        allow read: if true;
+        allow write: if isAdmin();
+    }
+    match /categories/{categoryId} {
         allow read: if true;
         allow write: if isAdmin();
     }

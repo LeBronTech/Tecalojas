@@ -236,7 +236,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
       .map(p => p.fabricType);
     
     // Sort fabrics alphabetically
-    const uniqueFabrics = [...new Set(fabricsInCategory)].sort((a, b) => a.localeCompare(b));
+    const uniqueFabrics = [...new Set(fabricsInCategory)].sort((a, b) => String(a).localeCompare(String(b)));
     return ['Todos os Tecidos', ...uniqueFabrics];
   }, [selectedCategory, products]);
 

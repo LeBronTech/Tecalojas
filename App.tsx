@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, createContext, useContext, useEffect, useMemo, useRef } from 'react';
-import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType, CartItem, SaleRequest, CardFees } from './types';
+import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType, CartItem, SaleRequest, CardFees, CategoryItem } from './types';
 import { INITIAL_PRODUCTS, PREDEFINED_COLORS, PREDEFINED_SOFA_COLORS, SOFA_COLORS_STORAGE_KEY } from './constants';
 import LoginScreen from './views/LoginScreen';
 import ShowcaseScreen from './views/ShowcaseScreen';
@@ -290,7 +290,7 @@ const CatalogIcon = () => (
 );
 const CompositionIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
     </svg>
 );
 const ReplacementIcon = () => (
@@ -438,6 +438,7 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [brands, setBrands] = useState<DynamicBrand[]>([]);
   const [catalogs, setCatalogs] = useState<CatalogPDF[]>([]);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [hasFetchError, setHasFetchError] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -786,11 +787,13 @@ export default function App() {
     );
     const unsubBrands = api.onBrandsUpdate((updatedBrands) => setBrands(updatedBrands), (e) => {});
     const unsubCatalogs = api.onCatalogsUpdate((updatedCatalogs) => setCatalogs(updatedCatalogs), (e) => {});
+    const unsubCategories = api.onCategoriesUpdate((updatedCategories) => setCategories(updatedCategories), (e) => {});
 
     return () => {
       unsubProducts();
       unsubBrands();
       unsubCatalogs();
+      unsubCategories();
     };
   }, [currentUser, isConfigValid]);
 
@@ -932,6 +935,22 @@ export default function App() {
     }
   }, []);
 
+  const handleAddCategory = useCallback(async (name: string, type: 'category' | 'subcategory') => {
+      try {
+          await api.addCategory({ name: name.trim(), type });
+      } catch(error: any) {
+          throw new Error("Erro ao adicionar categoria: " + error.message);
+      }
+  }, []);
+
+  const handleDeleteCategory = useCallback(async (categoryId: string) => {
+      try {
+          await api.deleteCategory(categoryId);
+      } catch(error: any) {
+          throw new Error("Erro ao excluir categoria: " + error.message);
+      }
+  }, []);
+
   const handleUploadCatalog = useCallback(async (brandName: string, pdfFile: File, onProgress: (progress: number) => void) => {
       const { promise: uploadPromise, cancel } = api.uploadFile(`catalogs/${brandName}_${Date.now()}_${pdfFile.name}`, pdfFile, onProgress);
       const overallPromise = uploadPromise.then(async (pdfUrl) => {
@@ -971,6 +990,12 @@ export default function App() {
     });
   }, [products, isAdmin]);
 
+  const mergedCategories = useMemo(() => {
+      const productCategories = new Set(products.map(p => p.category));
+      const managedCategories = categories.filter(c => c.type === 'category').map(c => c.name);
+      return Array.from(new Set([...productCategories, ...managedCategories])).sort();
+  }, [products, categories]);
+
   const renderView = () => {
     if (productsLoading || authLoading) return <div className="flex-grow flex items-center justify-center"><p className={theme === 'dark' ? 'text-white' : 'text-gray-800'}>Carregando...</p></div>;
     const protectedViews = [View.STOCK, View.SETTINGS, View.CATALOG, View.ASSISTANT, View.DIAGNOSTICS, View.SALES, View.PAYMENT, View.QR_CODES];
@@ -982,7 +1007,7 @@ export default function App() {
       case View.STOCK:
         return <StockManagementScreen products={products} onEditProduct={setEditingProduct} onAddProduct={() => setIsWizardOpen(true)} onDeleteProduct={(id) => setDeletingProductId(id)} onUpdateStock={handleUpdateStock} canManageStock={isAdmin} hasFetchError={hasFetchError} brands={brands} onMenuClick={handleMenuClick} />;
        case View.SETTINGS:
-        return <SettingsScreen onSaveApiKey={handleSaveApiKey} onAddNewBrand={handleAddNewBrand} canManageStock={isAdmin} brands={brands} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} onMenuClick={handleMenuClick} cardFees={cardFees} onSaveCardFees={setCardFees} sofaColors={sofaColors} onAddSofaColor={handleAddSofaColor} onDeleteSofaColor={handleDeleteSofaColor} />;
+        return <SettingsScreen onSaveApiKey={handleSaveApiKey} onAddNewBrand={handleAddNewBrand} canManageStock={isAdmin} brands={brands} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} onMenuClick={handleMenuClick} cardFees={cardFees} onSaveCardFees={setCardFees} sofaColors={sofaColors} onAddSofaColor={handleAddSofaColor} onDeleteSofaColor={handleDeleteSofaColor} categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} />;
        case View.CATALOG:
         return <CatalogScreen catalogs={catalogs} onUploadCatalog={handleUploadCatalog} canManageStock={isAdmin} brands={brands} onMenuClick={handleMenuClick} />;
       case View.ASSISTANT:
@@ -1042,8 +1067,8 @@ export default function App() {
                     <BottomNav activeView={view} onNavigate={handleNavigate} hasItemsToRestock={hasItemsToRestock} isAdmin={isAdmin} hasNewSaleRequests={hasNewSaleRequests} />
                 </div>
             </div>
-            {isWizardOpen && <ProductCreationWizard onClose={() => setIsWizardOpen(false)} onConfigure={handleCreateProductsFromWizard} allColors={allColors} onAddColor={handleAddColor} categories={[...new Set(products.map(p => p.category))]} products={products} brands={brands} />}
-            {editingProduct && <AddEditProductModal product={editingProduct} products={products} onClose={() => setEditingProduct(null)} onSave={handleSaveProduct} onCreateVariations={handleCreateColorVariations} onSwitchProduct={setEditingProduct} onRequestDelete={(id) => setDeletingProductId(id)} categories={[...new Set(products.map(p => p.category))]} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} brands={brands} sofaColors={sofaColors} />}
+            {isWizardOpen && <ProductCreationWizard onClose={() => setIsWizardOpen(false)} onConfigure={handleCreateProductsFromWizard} allColors={allColors} onAddColor={handleAddColor} categories={mergedCategories} products={products} brands={brands} />}
+            {editingProduct && <AddEditProductModal product={editingProduct} products={products} onClose={() => setEditingProduct(null)} onSave={handleSaveProduct} onCreateVariations={handleCreateColorVariations} onSwitchProduct={setEditingProduct} onRequestDelete={(id) => setDeletingProductId(id)} categories={mergedCategories} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} brands={brands} sofaColors={sofaColors} />}
             {isSignUpModalOpen && <SignUpModal onClose={() => setIsSignUpModalOpen(false)} onSignUp={handleSignUp} />}
             {isPixModalOpen && <PixPaymentModal onClose={() => setIsPixModalOpen(false)} />}
             {isApiKeyModalOpen && <ApiKeyModal onClose={() => setIsApiKeyModalOpen(false)} onSave={handleSaveApiKey} />}

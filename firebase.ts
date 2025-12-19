@@ -31,7 +31,7 @@ import {
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
-import { User, Product, DynamicBrand, CatalogPDF, SaleRequest, CartItem, StoreName, PosCartItem, Variation } from './types';
+import { User, Product, DynamicBrand, CatalogPDF, SaleRequest, CartItem, StoreName, PosCartItem, Variation, CategoryItem } from './types';
 import { firebaseConfig } from './firebaseConfig';
 
 // Initialize Firebase
@@ -50,6 +50,7 @@ const storage = getStorage(app);
 const productsCollection = collection(db, "products");
 const brandsCollection = collection(db, "brands");
 const catalogsCollection = collection(db, "catalogs");
+const categoriesCollection = collection(db, "categories");
 const saleRequestsCollection = collection(db, "saleRequests");
 const provider = new GoogleAuthProvider();
 
@@ -620,4 +621,29 @@ export const onCatalogsUpdate = (
 };
 export const addCatalog = (catalogData: Omit<CatalogPDF, 'id'>) => {
     return addDoc(catalogsCollection, catalogData as { [key: string]: any });
+};
+
+// --- FIRESTORE (CATEGORIES) ---
+export const onCategoriesUpdate = (
+    onSuccess: (categories: CategoryItem[]) => void,
+    onError: (error: FirestoreError) => void
+) => {
+    return onSnapshot(
+      categoriesCollection,
+      (snapshot) => {
+        const categories = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() } as CategoryItem)
+        );
+        onSuccess(categories);
+      },
+      onError
+    );
+};
+
+export const addCategory = (categoryData: Omit<CategoryItem, 'id'>) => {
+    return addDoc(categoriesCollection, categoryData as { [key: string]: any });
+};
+
+export const deleteCategory = (categoryId: string) => {
+    return deleteDoc(doc(db, "categories", categoryId));
 };

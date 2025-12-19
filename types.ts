@@ -29,6 +29,12 @@ export interface DynamicBrand {
   logoUrl: string;
 }
 
+export interface CategoryItem {
+  id: string;
+  name: string;
+  type: 'category' | 'subcategory';
+}
+
 export interface CatalogPDF {
     id: string;
     brandName: string;

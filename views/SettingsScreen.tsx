@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useRef, useMemo, useEffect } from 'react';
-import { ThemeContext, DynamicBrand, Brand, CardFees } from '../types';
+import { ThemeContext, DynamicBrand, Brand, CardFees, CategoryItem } from '../types';
 import ApiKeyModal from '../components/ApiKeyModal';
 import { BRANDS, BRAND_LOGOS } from '../constants';
 
@@ -18,6 +18,9 @@ interface SettingsScreenProps {
   sofaColors: { name: string; hex: string }[];
   onAddSofaColor: (color: { name: string; hex: string }) => void;
   onDeleteSofaColor: (colorName: string) => void;
+  categories: CategoryItem[];
+  onAddCategory: (name: string, type: 'category' | 'subcategory') => Promise<void>;
+  onDeleteCategory: (id: string) => Promise<void>;
 }
 
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
@@ -54,7 +57,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     onSaveApiKey, onAddNewBrand, onMenuClick, canManageStock, brands, 
     allColors, onAddColor, onDeleteColor, 
     cardFees, onSaveCardFees,
-    sofaColors, onAddSofaColor, onDeleteSofaColor
+    sofaColors, onAddSofaColor, onDeleteSofaColor,
+    categories, onAddCategory, onDeleteCategory
 }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -73,6 +77,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [fees, setFees] = useState(cardFees);
   const [feesSaved, setFeesSaved] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState('Notification' in window ? Notification.permission : 'denied');
+  
+  const [categoryTab, setCategoryTab] = useState<'category' | 'subcategory'>('category');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [categoryError, setCategoryError] = useState<string | null>(null);
 
   useEffect(() => {
      setFees(cardFees);
@@ -170,6 +178,17 @@ const testNotification = () => {
     }
 };
 
+const handleAddCategorySubmit = async () => {
+    if (!newCategoryName.trim()) return;
+    setCategoryError(null);
+    try {
+        await onAddCategory(newCategoryName, categoryTab);
+        setNewCategoryName('');
+    } catch (e: any) {
+        setCategoryError(e.message);
+    }
+};
+
  const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
  
  return (
@@ -254,6 +273,38 @@ const testNotification = () => {
                          {isSavingBrand ? 'Salvando...' : 'Adicionar Marca'}
                      </button>
                  </form>
+             </Card>
+
+             <Card>
+                 <SectionTitle>Gerenciar Categorias</SectionTitle>
+                 <div className={`flex p-1 rounded-lg mb-4 ${isDark ? 'bg-black/30' : 'bg-gray-100'}`}>
+                     <button onClick={() => setCategoryTab('category')} className={`flex-1 py-2 rounded-md font-bold text-sm transition ${categoryTab === 'category' ? 'bg-fuchsia-600 text-white shadow' : (isDark ? 'text-gray-400' : 'text-gray-600')}`}>Categorias</button>
+                     <button onClick={() => setCategoryTab('subcategory')} className={`flex-1 py-2 rounded-md font-bold text-sm transition ${categoryTab === 'subcategory' ? 'bg-fuchsia-600 text-white shadow' : (isDark ? 'text-gray-400' : 'text-gray-600')}`}>Sub-categorias</button>
+                 </div>
+                 
+                 <div className="flex flex-wrap gap-2 mb-6 max-h-48 overflow-y-auto p-2 rounded-lg bg-black/5">
+                     {categories.filter(c => c.type === categoryTab).map(cat => (
+                         <div key={cat.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isDark ? 'bg-black/30 border-white/10 text-gray-200' : 'bg-white border-gray-200 text-gray-700'}`}>
+                             <span className="text-sm font-semibold">{cat.name}</span>
+                             <button onClick={() => onDeleteCategory(cat.id)} className="text-red-500 hover:text-red-700">
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                             </button>
+                         </div>
+                     ))}
+                     {categories.filter(c => c.type === categoryTab).length === 0 && <p className="text-sm text-gray-500 w-full text-center">Nenhum item cadastrado.</p>}
+                 </div>
+
+                 <div className="flex gap-2">
+                     <Input 
+                        placeholder={categoryTab === 'category' ? "Nova Categoria..." : "Nova Sub-categoria..."} 
+                        value={newCategoryName} 
+                        onChange={e => setNewCategoryName(e.target.value)} 
+                     />
+                     <button onClick={handleAddCategorySubmit} className="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-700 transition">
+                         Adicionar
+                     </button>
+                 </div>
+                 {categoryError && <p className="text-sm text-red-500 mt-2">{categoryError}</p>}
              </Card>
 
              <Card>
