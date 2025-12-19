@@ -1,4 +1,3 @@
-
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { 
     getAuth,
@@ -31,7 +30,7 @@ import {
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
-import { User, Product, DynamicBrand, CatalogPDF, SaleRequest, CartItem, StoreName, PosCartItem, Variation, CategoryItem } from './types';
+import { User, Product, DynamicBrand, CatalogPDF, SaleRequest, CartItem, StoreName, PosCartItem, Variation, CategoryItem, CardFees } from './types';
 import { firebaseConfig } from './firebaseConfig';
 
 // Initialize Firebase
@@ -52,6 +51,7 @@ const brandsCollection = collection(db, "brands");
 const catalogsCollection = collection(db, "catalogs");
 const categoriesCollection = collection(db, "categories");
 const saleRequestsCollection = collection(db, "saleRequests");
+const settingsCollection = collection(db, "settings");
 const provider = new GoogleAuthProvider();
 
 // --- HELPERS ---
@@ -707,4 +707,28 @@ export const addCategory = (categoryData: Omit<CategoryItem, 'id'>) => {
 
 export const deleteCategory = (categoryId: string) => {
     return deleteDoc(doc(db, "categories", categoryId));
+};
+
+// --- FIRESTORE (GLOBAL SETTINGS) ---
+export const onSettingsUpdate = (
+    onSuccess: (settings: { cardFees: CardFees }) => void,
+    onError?: (error: FirestoreError) => void
+) => {
+    const settingsDoc = doc(db, "settings", "global_settings");
+    return onSnapshot(settingsDoc, (snapshot) => {
+        if (snapshot.exists()) {
+            onSuccess(snapshot.data() as { cardFees: CardFees });
+        } else {
+            console.log("Configurações globais ainda não existem.");
+        }
+    }, (error) => {
+        // Log clear debugging info for permission issues
+        console.error(`Erro no listener de Configurações (${error.code}):`, error.message);
+        if (onError) onError(error);
+    });
+};
+
+export const updateGlobalCardFees = async (fees: CardFees): Promise<void> => {
+    const settingsDoc = doc(db, "settings", "global_settings");
+    await setDoc(settingsDoc, { cardFees: fees }, { merge: true });
 };

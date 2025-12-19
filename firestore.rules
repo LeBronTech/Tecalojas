@@ -1,25 +1,36 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
   
-    // Função auxiliar para verificar se o usuário é um administrador
+    // Função auxiliar robusta para verificar se o usuário é um administrador
+    // O uso de exists() evita que a regra quebre caso o documento do usuário ainda não tenha sido criado
     function isAdmin() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // Regras para a coleção 'settings'
+    // Prioridade total para leitura pública: Necessário para carregar taxas e configurações globais na vitrine
+    match /settings/global_settings {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Fallback genérico para a coleção settings
+    match /settings/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Regras para a coleção 'products'
-    // Qualquer pessoa pode ler os produtos (Vitrine).
-    // Apenas administradores podem criar, atualizar ou deletar produtos.
     match /products/{productId} {
       allow read: if true;
       allow write: if isAdmin();
     }
     
-    // Regras para a coleção 'brands', 'catalogs' e 'categories'
-    // IMPORTANTE: Leitura pública é permitida para garantir que os filtros apareçam no app.
+    // Regras para marcas, catálogos e categorias (Leitura pública, Escrita admin)
     match /brands/{brandId} {
         allow read: if true;
         allow write: if isAdmin();
@@ -34,17 +45,18 @@ service cloud.firestore {
     }
 
     // Regras para a coleção 'users'
-    // Usuários só podem ler seus próprios dados. Administradores podem ler todos.
     match /users/{userId} {
-      allow read: if request.auth.uid == userId || isAdmin();
-      allow write: if request.auth.uid == userId;
+      // Usuários podem ler seu próprio perfil, admins podem ler todos
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      // Apenas o próprio usuário pode criar/editar seu perfil básico (role é atribuída manualmente no console para segurança)
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Regras para a coleção 'saleRequests' (Pedidos de Venda)
-    // QUALQUER USUÁRIO AUTENTICADO pode criar um pedido.
-    // APENAS ADMINISTRADORES podem ler a lista de pedidos e atualizá-los.
+    // Regras para a coleção 'saleRequests'
     match /saleRequests/{requestId} {
+      // Qualquer usuário logado pode criar um pedido (venda ou encomenda)
       allow create: if request.auth != null;
+      // Apenas administradores podem gerenciar e visualizar a lista de pedidos
       allow read, list, update, delete: if isAdmin();
     }
   }

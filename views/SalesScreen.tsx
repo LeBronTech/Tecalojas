@@ -4,7 +4,7 @@ import { SaleRequest, View, ThemeContext, Product, PosCartItem, Variation, Cushi
 import ProductSelectModal from '../components/ProductSelectModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import * as api from '../firebase';
-
+import jsQR from 'jsqr'; 
 
 interface SalesScreenProps {
     saleRequests: SaleRequest[];
@@ -53,6 +53,7 @@ const RequestDetailsModal: React.FC<{
     if (!isOpen) return null;
 
     const finalPrice = request.totalPrice - (discount || 0);
+    const calculatedDiscount = discount || (request.discount || 0);
     
     // Logic to estimate fees for pending requests or show actual net for completed
     let netValue = 0;
@@ -75,6 +76,12 @@ const RequestDetailsModal: React.FC<{
         feeAmount = finalPrice * (feePercentage / 100);
         netValue = finalPrice - feeAmount;
     }
+
+    // Profit Calculation Logic: Cost is assumed to be 50% of the ORIGINAL selling price (totalPrice)
+    // Real Profit = Net Received - Cost
+    const totalOriginalPrice = request.totalPrice;
+    const estimatedCost = totalOriginalPrice * 0.5; // 50% margin rule (Cost is 40 for 80 price)
+    const realProfit = netValue - estimatedCost;
 
 
     const modalBg = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
@@ -131,9 +138,15 @@ const RequestDetailsModal: React.FC<{
                             <span className="text-fuchsia-500">R$ {finalPrice.toFixed(2)}</span>
                         </div>
                         {request.type === 'sale' && (request.paymentMethod === 'Crédito' || request.paymentMethod === 'Débito') && (
-                             <div className="flex justify-between items-center text-xs">
-                                <span className={labelColor}>Valor Líquido (Est.):</span>
-                                <span className={`font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>R$ {netValue.toFixed(2)}</span>
+                             <div className="space-y-1">
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className={labelColor}>Valor Líquido (Est.):</span>
+                                    <span className={`font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>R$ {netValue.toFixed(2)}</span>
+                                </div>
+                                 <div className="flex justify-between items-center text-xs">
+                                    <span className={labelColor}>Lucro Real (Est.):</span>
+                                    <span className={`font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>R$ {realProfit.toFixed(2)}</span>
+                                </div>
                             </div>
                         )}
 
@@ -142,31 +155,35 @@ const RequestDetailsModal: React.FC<{
                         </button>
                     </div>
                 ) : (
-                    <div className="pt-4 border-t border-white/10 space-y-2">
+                    <div className="pt-4 border-t border-white/10 space-y-3">
                          <div className="flex justify-between items-center">
                             <span className={labelColor}>Status:</span>
                             <span className="text-green-500 font-bold uppercase text-xs">Concluído</span>
                          </div>
-                         <div className="flex justify-between items-center">
-                            <span className={labelColor}>Subtotal:</span>
-                            <span className={titleColor}>R$ {request.totalPrice.toFixed(2)}</span>
-                         </div>
-                         {(request.discount && request.discount > 0) ? (
-                             <div className="flex justify-between items-center">
-                                <span className={labelColor}>Desconto:</span>
-                                <span className="text-red-500">- R$ {request.discount.toFixed(2)}</span>
+                         
+                         {calculatedDiscount > 0 && (
+                             <div className="flex justify-between items-center text-sm">
+                                <span className={labelColor}>Desconto Dado:</span>
+                                <span className="text-red-500 font-bold">- R$ {calculatedDiscount.toFixed(2)}</span>
                              </div>
-                         ) : null}
-                         <div className="flex justify-between items-center mt-1 pt-2 border-t border-white/5">
+                         )}
+
+                         <div className="flex justify-between items-center text-lg">
                             <span className={labelColor}>Total Pago:</span>
                             <span className={`font-black ${titleColor}`}>R$ {(request.finalPrice ?? request.totalPrice).toFixed(2)}</span>
                          </div>
+                         
                          {request.netValue && (
-                             <div className="flex justify-between items-center">
-                                <span className={`text-xs ${labelColor}`}>Valor Líquido:</span>
-                                <span className={`text-xs font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>R$ {request.netValue.toFixed(2)}</span>
+                             <div className="flex justify-between items-center text-lg">
+                                <span className={labelColor}>Valor Líquido:</span>
+                                <span className={`font-black ${isDark ? 'text-green-400' : 'text-green-600'}`}>R$ {request.netValue.toFixed(2)}</span>
                              </div>
                          )}
+
+                         <div className="flex justify-between items-center border-t border-white/5 pt-2">
+                            <span className={`text-sm ${labelColor}`}>Lucro Real Estimado:</span>
+                            <span className={`text-sm font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>R$ {realProfit.toFixed(2)}</span>
+                         </div>
                     </div>
                 )}
                 
@@ -499,13 +516,8 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const calculateCost = (items: (CartItem | PosCartItem)[]) => {
         return items.reduce((total, item) => {
             let product: Product | undefined;
-            if ('product' in item && item.product) {
-                product = item.product;
-            } else if ('productId' in item) {
-                const pid = (item as CartItem).productId;
-                product = products.find(p => p.id === pid);
-            }
-            const cost = product?.productionCost || 0;
+            // Cost is simply 50% of the item price according to new rule
+            const cost = item.price * 0.5;
             return total + (cost * item.quantity);
         }, 0);
     }
@@ -612,7 +624,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const titleClasses = isDark ? 'text-white' : 'text-gray-900';
     const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
     const cardClasses = isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm';
-    
+
     return (
         <>
             <div className="h-full w-full flex flex-col relative overflow-hidden">
@@ -835,6 +847,11 @@ const FinalizeSaleModal: React.FC<{ isOpen: boolean; onClose: () => void; onConf
     }
     const feeAmount = finalPrice * (feePercentage / 100);
     const netValue = finalPrice - feeAmount;
+
+    // Profit Estimation for Preview
+    const totalOriginalPrice = total; // Assuming 'total' passed here is gross sum of items
+    const estimatedCost = totalOriginalPrice * 0.5;
+    const realProfit = netValue - estimatedCost;
 
     if (!isOpen) return null;
     

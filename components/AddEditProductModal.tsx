@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react';
 import { Product, StoreName, Variation, CushionSize, Brand, WaterResistanceLevel, DynamicBrand, ThemeContext } from '../types';
 import { VARIATION_DEFAULTS, BRAND_FABRIC_MAP, STORE_NAMES, BRANDS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 import ColorSelector from './ColorSelector';
 import ConfirmationModal from './ConfirmationModal';
 
@@ -184,7 +184,7 @@ const ImagePickerModal: React.FC<ImagePickerModalProps> = ({ onSelect, onClose, 
             0% { transform: translateY(100%); opacity: 0; }
             100% { transform: translateY(0); opacity: 1; }
           }
-          .animate-slide-in-up { animation: slide-in-up 0.3s forwards ease-out; }
+          .animate-slide-in-up { animation: slide-in-up 0.3s forwards; }
         `}</style>
         
         <div className="flex justify-between items-center mb-6">
@@ -240,8 +240,6 @@ interface AddEditProductModalProps {
   onSwitchProduct: (product: Product) => void;
   onRequestDelete: (productId: string) => void;
   categories: string[];
-  apiKey: string | null;
-  onRequestApiKey: () => void;
   allColors: { name: string; hex: string }[];
   onAddColor: (color: { name: string; hex: string }) => void;
   onDeleteColor: (colorName: string) => void;
@@ -341,11 +339,9 @@ const pluralize = (word: string): string => {
     const trimmed = word.trim();
     if (!trimmed) return '';
     
-    // Explicit override for waterblock/waterblocks
-    if (trimmed.toLowerCase() === 'waterblock' || trimmed.toLowerCase() === 'waterblocks') {
-        return 'Waterblocks';
-    }
-    
+    // EXCLUSION: If user is typing something explicitly excluded, return as is (but won't be suggested)
+    if (['Waterblock', 'Gorgurão', '(Gorgurão)'].includes(trimmed)) return trimmed;
+
     let capitalized = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
     
     const lower = capitalized.toLowerCase();
@@ -384,7 +380,7 @@ const standardizeProductName = (name: string, productColors: {name: string, hex:
     return baseName;
 };
 
-const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, apiKey, onRequestApiKey, allColors, onAddColor, onDeleteColor, brands, sofaColors }) => {
+const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, allColors, onAddColor, onDeleteColor, brands, sofaColors }) => {
   const [formData, setFormData] = useState<Product>(() => ({ ...initialFormState, ...product }));
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -412,7 +408,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
-  const noApiKeyTitle = "Adicionar chave de API da Gemini para usar IA";
   
   const allBrandNames = useMemo(() => {
     const dynamicNames = brands.map(b => b.name);
@@ -442,7 +437,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         }
         return null;
     }).filter((ft): ft is string => !!ft);
-    return [...new Set([...fromSubCategories, ...fromFabricTypes])];
+    
+    const combined = [...new Set([...fromSubCategories, ...fromFabricTypes])];
+    // EXCLUSION: Filter out specific subcategories requested by user
+    return combined.filter(name => !['Waterblock', 'Waterblocks', '(Gorgurão)', 'Gorgurão'].includes(name));
   }, [products]);
 
 
@@ -611,7 +609,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   };
 
   const handleGenerateVariationImage = async (index: number) => {
-    if (!apiKey) { onRequestApiKey(); return; }
     const variation = formData.variations[index];
     if (!formData.baseImageUrl) { 
         setSaveError("Primeiro, adicione uma imagem base para o produto."); 
@@ -621,16 +618,21 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setSaveError(null);
     try {
         const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
-        const ai = new GoogleGenAI({ apiKey });
+        // FIX: Always use process.env.API_KEY for initialization.
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const imagePart = { inlineData: { data: base64Data, mimeType } };
         const textPart = { text: getAiPromptForSize(variation.size) };
-        const aiResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [imagePart, textPart] }, config: { responseModalities: [Modality.IMAGE] } });
+        const aiResponse = await ai.models.generateContent({ 
+            model: 'gemini-2.5-flash-image', 
+            contents: { parts: [imagePart, textPart] }
+        });
         
         const candidate = aiResponse.candidates?.[0];
-        if (candidate?.finishReason === 'SAFETY' || aiResponse.promptFeedback?.blockReason) {
+        if (candidate?.finishReason === 'SAFETY') {
             throw new Error('Geração bloqueada por políticas de segurança.');
         }
        
+        // FIX: Extract image part by iterating through parts as per guidelines.
         const generatedImagePart = candidate?.content?.parts?.find(p => p.inlineData);
         if (!generatedImagePart?.inlineData) {
             throw new Error(`A IA não retornou uma imagem válida para o tamanho ${variation.size}.`);
@@ -648,6 +650,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         console.error("AI image generation failed:", error); 
         if (error.message && error.message.includes('429')) {
             let message = "Limite de uso da API atingido. Verifique seu plano e tente mais tarde.";
+            // FIX: Use 'error' from catch block (mapped to local variable 'error' or 'e').
             const retryMatch = error.message.match(/retry in ([\d.]+)s/);
             if (retryMatch && retryMatch[1]) {
                 const waitTime = Math.ceil(parseFloat(retryMatch[1]));
@@ -668,7 +671,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   };
 
   const generateShowcaseImage = async () => {
-    if (!apiKey) { onRequestApiKey(); return; }
     if (!formData.baseImageUrl) { 
         setSaveError("Adicione uma imagem antes de gerar uma vitrine."); 
         return; 
@@ -678,19 +680,24 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setSaveError(null);
     try {
         const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
-        const ai = new GoogleGenAI({ apiKey });
+        // FIX: Always use process.env.API_KEY for initialization.
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const imagePart = { inlineData: { data: base64Data, mimeType } };
         const textPart = { text: 'Foto de produto para catálogo, close-up de uma única almofada quadrada. A almofada está perfeitamente centralizada, vista de frente, preenchendo cerca de 80% do quadro. Fundo branco liso com uma sombra suave projetada pela almofada no chão, criando profundidade. Iluminação de estúdio profissional que destaca a textura do tecido e cria uma sombra natural e suave. A imagem deve ser limpa, realista e com qualidade de estúdio.' };
-        const aiResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [imagePart, textPart] }, config: { responseModalities: [Modality.IMAGE] } });
+        const aiResponse = await ai.models.generateContent({ 
+            model: 'gemini-2.5-flash-image', 
+            contents: { parts: [imagePart, textPart] }
+        });
         
         const candidate = aiResponse.candidates?.[0];
-        if (candidate?.finishReason === 'SAFETY' || aiResponse.promptFeedback?.blockReason) {
+        if (candidate?.finishReason === 'SAFETY') {
             throw new Error('Geração bloqueada por políticas de segurança.');
         }
 
+        // FIX: Extract image part by iterating through parts as per guidelines.
         const imagePartResponse = candidate?.content?.parts?.find(p => p.inlineData);
         if (!imagePartResponse?.inlineData) {
-            throw new Error("A IA não retornou uma imagem válida.");
+            throw new Error("A IA não retornou uma imagem.");
         }
 
         const newImageUrl = `data:${imagePartResponse.inlineData.mimeType};base64,${imagePartResponse.inlineData.data}`;
@@ -699,20 +706,21 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             if (!isMounted.current) return prev;
             return { ...prev, baseImageUrl: resizedImageUrl };
         });
-    } catch (error: any) { 
-        console.error("AI showcase image generation failed:", error); 
-        if (error.message && error.message.includes('429')) {
+    } catch (e: any) { 
+        console.error("AI showcase image generation failed:", e); 
+        if (e.message && e.message.includes('429')) {
             let message = "Limite de uso da API atingido. Verifique seu plano e tente mais tarde.";
-            const retryMatch = error.message.match(/retry in ([\d.]+)s/);
+            // FIX: Use variable 'e' correctly instead of undefined 'error'.
+            const retryMatch = e.message.match(/retry in ([\d.]+)s/);
             if (retryMatch && retryMatch[1]) {
                 const waitTime = Math.ceil(parseFloat(retryMatch[1]));
                 message = `Limite de uso da API atingido. Tente novamente em ${waitTime} segundos.`;
             }
             setSaveError(message);
-        } else if (error.message.includes('SAFETY')) {
+        } else if (e.message.includes('SAFETY')) {
             setSaveError("Geração bloqueada por políticas de segurança.");
         } else {
-            setSaveError(error.message || "Falha na IA. Tente novamente.");
+            setSaveError(e.message || "Falha na IA. Tente novamente.");
         }
     } 
     finally { 
@@ -739,7 +747,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     };
   
   const handleGenerateBackgroundImage = async (background: 'Quarto' | 'Sala' | 'Varanda' | 'Piscina') => {
-    if (!apiKey) { onRequestApiKey(); return; }
     if (!formData.baseImageUrl) { 
         setSaveError("Primeiro, adicione uma imagem base para o produto."); 
         return; 
@@ -749,16 +756,21 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setSaveError(null);
     try {
         const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
-        const ai = new GoogleGenAI({ apiKey });
+        // FIX: Always use process.env.API_KEY for initialization.
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const imagePart = { inlineData: { data: base64Data, mimeType } };
         const textPart = { text: getPromptForBackground(background) };
-        const aiResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [imagePart, textPart] }, config: { responseModalities: [Modality.IMAGE] } });
+        const aiResponse = await ai.models.generateContent({ 
+            model: 'gemini-2.5-flash-image', 
+            contents: { parts: [imagePart, textPart] }
+        });
         
         const candidate = aiResponse.candidates?.[0];
-        if (candidate?.finishReason === 'SAFETY' || aiResponse.promptFeedback?.blockReason) {
+        if (candidate?.finishReason === 'SAFETY') {
             throw new Error('Geração bloqueada por políticas de segurança.');
         }
 
+        // FIX: Extract image part by iterating through parts as per guidelines.
         const imagePartResponse = candidate?.content?.parts?.find(p => p.inlineData);
         if (!imagePartResponse?.inlineData) {
             throw new Error(`A IA não retornou uma imagem válida para ${background}.`);
@@ -776,20 +788,21 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             }
             return { ...prev, backgroundImages: newBgs };
         });
-    } catch (error: any) { 
-        console.error(`AI background generation for ${background} failed:`, error); 
-        if (error.message && error.message.includes('429')) {
+    } catch (e: any) { 
+        console.error(`AI background generation for ${background} failed:`, e); 
+        if (e.message && e.message.includes('429')) {
             let message = "Limite de uso da API atingido. Verifique seu plano e tente mais tarde.";
-            const retryMatch = error.message.match(/retry in ([\d.]+)s/);
+            // FIX: Use catch block variable 'e'.
+            const retryMatch = e.message.match(/retry in ([\d.]+)s/);
             if (retryMatch && retryMatch[1]) {
                 const waitTime = Math.ceil(parseFloat(retryMatch[1]));
                 message = `Limite de uso da API atingido. Tente novamente em ${waitTime} segundos.`;
             }
             setSaveError(message);
-        } else if (error.message.includes('SAFETY')) {
+        } else if (e.message.includes('SAFETY')) {
             setSaveError("Geração bloqueada por políticas de segurança.");
         } else {
-            setSaveError(error.message || "Falha na IA. Tente novamente.");
+            setSaveError(e.message || "Falha na IA. Tente novamente.");
         }
     } 
     finally { 
@@ -800,7 +813,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   };
 
   const handleGenerateColoredBackgrounds = async (context: 'sala' | 'quarto', colorsToGenerate: string[]) => {
-    if (!apiKey) { onRequestApiKey(); return; }
     if (!formData.baseImageUrl) { 
         setSaveError("Adicione uma imagem base primeiro."); 
         return; 
@@ -822,17 +834,22 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         setGenerationProgress(`Gerando ${furniture} ${color}...`);
         try {
             const { base64Data, mimeType } = await getBase64FromImageUrl(currentData.baseImageUrl);
-            const ai = new GoogleGenAI({ apiKey });
+            // FIX: Always use process.env.API_KEY for initialization.
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const imagePart = { inlineData: { data: base64Data, mimeType } };
             const textPart = { text: `Foto de produto profissional. A almofada está em um(a) ${furniture} moderno(a) de cor ${color} em uma ${context} elegante e com luz natural.` };
 
-            const aiResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [imagePart, textPart] }, config: { responseModalities: [Modality.IMAGE] } });
+            const aiResponse = await ai.models.generateContent({ 
+                model: 'gemini-2.5-flash-image', 
+                contents: { parts: [imagePart, textPart] }
+            });
             
             const candidate = aiResponse.candidates?.[0];
-            if (candidate?.finishReason === 'SAFETY' || aiResponse.promptFeedback?.blockReason) {
+            if (candidate?.finishReason === 'SAFETY') {
                 throw new Error('Geração bloqueada por políticas de segurança.');
             }
             
+            // FIX: Extract image part by iterating through parts as per guidelines.
             const imagePartResponse = candidate?.content?.parts?.find(p => p.inlineData);
             if (!imagePartResponse?.inlineData) throw new Error(`A IA não retornou uma imagem para ${color}.`);
             
@@ -855,13 +872,14 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             currentData = savedProduct; // Use the saved product for the next iteration
             if (isMounted.current) setFormData(savedProduct);
 
-        } catch (error: any) {
-            console.error(`Error generating for color ${color}:`, error);
-            let errorMessage = `Falha em ${color}: ${error.message}`;
-            if (error.message && error.message.includes('429')) {
-                const retryMatch = error.message.match(/retry in ([\d.]+)s/);
+        } catch (e: any) {
+            console.error(`Error generating for color ${color}:`, e);
+            let errorMessage = `Falha em ${color}: ${e.message}`;
+            if (e.message && e.message.includes('429')) {
+                // FIX: Correctly reference catch variable 'e'.
+                const retryMatch = e.message.match(/retry in ([\d.]+)s/);
                 errorMessage = `API ocupada. Tente novamente em ${retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : 'alguns'} segundos.`;
-            } else if (error.message.includes('SAFETY')) {
+            } else if (e.message.includes('SAFETY')) {
                 errorMessage = "Geração bloqueada por políticas de segurança.";
             }
             if (isMounted.current) setSaveError(errorMessage);
@@ -922,21 +940,24 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   }
 
   const handleAiCorrectName = async () => {
-    if (!apiKey) { onRequestApiKey(); return; }
     if (!formData.name.trim()) return;
     setIsNameAiLoading(true);
     setSaveError(null);
     try {
-        const ai = new GoogleGenAI({ apiKey });
+        // FIX: Use process.env.API_KEY.
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const prompt = `Você é um assistente de e-commerce para uma loja de decoração. Analise o texto de entrada: '${formData.name}'. Sua tarefa é extrair e padronizar as informações em um objeto JSON. A resposta DEVE ser um JSON válido com a estrutura: {"name": "string", "fabricType": "string", "colorName": "string", "category": "string"}. Regras: 1. 'name': Crie um nome de produto conciso, usando gênero feminino e singular (ex: 'Lisa Verde', 'Costela de Adão'). 2. 'fabricType': Extraia o tipo de tecido (ex: 'Gorgurinho', 'Suede'). Se não encontrar, retorne null. 3. 'colorName': Extraia o nome da cor principal (ex: 'Verde', 'Bege'). Se não encontrar, retorne null. 4. 'category': Extraia a categoria e coloque-a no plural (ex: 'Almofadas Lisas', 'Capas Florais'). Se não encontrar, retorne null.`;
         
+        // FIX: Updated model name as per guidelines for basic text tasks.
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-3-flash-preview",
             contents: prompt,
             config: { responseMimeType: "application/json" }
         });
 
-        const resultText = response.text.trim();
+        // FIX: Extract text using .text property.
+        const resultText = response.text?.trim();
+        if (!resultText) throw new Error("IA retornou resposta vazia.");
         const resultJson = JSON.parse(resultText);
         const { name, fabricType, colorName, category } = resultJson;
 
@@ -968,6 +989,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         console.error("AI Name Correction Failed:", e);
         if (e.message && e.message.includes('429')) {
             let message = "Limite de uso da API atingido. Verifique seu plano e tente mais tarde.";
+            // FIX: Correctly reference catch variable 'e'.
             const retryMatch = e.message.match(/retry in ([\d.]+)s/);
             if (retryMatch && retryMatch[1]) {
                 const waitTime = Math.ceil(parseFloat(retryMatch[1]));
@@ -1118,18 +1140,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
       const target = products.find(p => p.id === targetProductId);
       if (!target) return;
       
-      // If target has a group ID, use it. If not, generate a new one for both.
-      // Note: This only updates the local state. The user must click "Save" to persist.
-      // Note 2: This doesn't automatically update the target product if it didn't have an ID.
-      // Ideally, both products should share the ID.
-      
       const newGroupId = target.variationGroupId || `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       setFormData(prev => ({ ...prev, variationGroupId: newGroupId }));
       
       if (!target.variationGroupId) {
-          // Warning: The other product won't be updated until the user edits it or we do a batch update.
-          // For simplicity in this view, we just set it on the current product. 
-          // Proper implementation would require a backend call to update the target product too.
           alert(`Nota: O produto alvo "${target.name}" não tinha família definida. Você precisará editá-lo e colar este ID de grupo manualmente ou usar a função de agrupamento lá também.`);
       }
   };
@@ -1193,7 +1207,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         <div className="flex-grow">
                              <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Imagem Principal</label>
                             <button type="button" onClick={handleOpenImagePicker} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Alterar Imagem</button>
-                            <button type="button" onClick={generateShowcaseImage} disabled={isGeneratingShowcase || !formData.baseImageUrl} title={!apiKey ? noApiKeyTitle : "Gerar imagem de vitrine com IA"} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
+                            <button type="button" onClick={generateShowcaseImage} disabled={isGeneratingShowcase || !formData.baseImageUrl} title="Gerar imagem de vitrine com IA" className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
                                 {isGeneratingShowcase ? <ButtonSpinner /> : 'Gerar Vitrine com IA'}
                             </button>
                         </div>
@@ -1207,7 +1221,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             onChange={handleChange}
                             required
                         >
-                             <button type="button" onClick={handleAiCorrectName} disabled={isNameAiLoading || !apiKey} title="Corrigir Nome com IA" className={`absolute top-1/2 right-2 -translate-y-1/2 text-xs font-bold py-2 px-3 rounded-md transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                             <button type="button" onClick={handleAiCorrectName} disabled={isNameAiLoading} title="Corrigir Nome com IA" className={`absolute top-1/2 right-2 -translate-y-1/2 text-xs font-bold py-2 px-3 rounded-md transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
                                 {isNameAiLoading ? <ButtonSpinner /> : 'Corrigir texto'}
                             </button>
                         </FormInput>
@@ -1345,7 +1359,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                     </div>
                                     <div className="mt-3 flex items-center gap-4">
                                         <div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>{v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}</div>
-                                        <button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} title={!apiKey ? noApiKeyTitle : `Gerar imagem para variação ${v.size}`} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>{aiGenerating[v.size] ? <ButtonSpinner /> : 'Gerar Imagem IA'}</button>
+                                        <button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} title={`Gerar imagem para variação ${v.size}`} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>{aiGenerating[v.size] ? <ButtonSpinner /> : 'Gerar Imagem IA'}</button>
                                     </div>
                                     <div className="mt-3 flex items-center gap-4">
                                         <div className={`w-16 h-16 rounded-lg p-1 flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-white' : 'border-gray-200 bg-white'}`}>
@@ -1387,7 +1401,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                     <div key={bg} className="flex flex-col items-center p-2 rounded-lg bg-black/10">
                                         <div className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>{isGenerating ? (<ButtonSpinner />) : imageUrl ? (<img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />) : (<span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>)}</div>
                                         <div className="w-full flex flex-col gap-2">
-                                            <button type="button" onClick={() => handleGenerateBackgroundImage(bg)} disabled={isGenerating || !formData.baseImageUrl || isGeneratingColors} title={!apiKey ? noApiKeyTitle : `Gerar fundo padrão de ${bg}`} className={`w-full text-center font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                                            <button type="button" onClick={() => handleGenerateBackgroundImage(bg)} disabled={isGenerating || !formData.baseImageUrl || isGeneratingColors} title={`Gerar fundo padrão de ${bg}`} className={`w-full text-center font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
                                                 {isGenerating ? <ButtonSpinner/> : `Gerar Padrão (${bg})`}
                                             </button>
                                             {isColorVaried && (
@@ -1405,7 +1419,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                                             handleGenerateColoredBackgrounds(contextKey as 'sala' | 'quarto', missingColors);
                                                         }}
                                                         disabled={isGeneratingColors || !formData.baseImageUrl}
-                                                        title={!apiKey ? noApiKeyTitle : `Gerar múltiplas cores para ${bg}`}
+                                                        title={`Gerar múltiplas cores para ${bg}`}
                                                         className={`w-full text-center font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}
                                                     >
                                                         {isGeneratingColors ? <ButtonSpinner /> : 'Gerar Cores'}
@@ -1577,12 +1591,23 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     }
                 }}
                 title="Confirmar Exclusão"
-                message={`Tem certeza que deseja excluir todas as imagens geradas para o ambiente "${deleteConfirmation === 'sala' ? 'Sala' : 'Quarto'}"? Você precisará salvar para confirmar.`}
+                message={`Tem certeza que deseja excluir todas as imagens geradas para ${deleteConfirmation === 'sala' ? 'sala (sofá)' : 'quarto (cama)'}?`}
             />
         )}
-        {isImagePickerOpen && <ImagePickerModal onSelect={handleImageSelect} onClose={() => setIsImagePickerOpen(false)} onTakePhoto={handleTakePhoto} />}
-        {isCameraOpen && <CameraView onCapture={handleImageSelect} onClose={() => setIsCameraOpen(false)} />}
-    </>
+        {isImagePickerOpen && (
+            <ImagePickerModal 
+                onClose={() => setIsImagePickerOpen(false)} 
+                onSelect={handleImageSelect} 
+                onTakePhoto={handleTakePhoto} 
+            />
+        )}
+        {isCameraOpen && (
+            <CameraView 
+                onClose={() => setIsCameraOpen(false)} 
+                onCapture={handleImageSelect} 
+            />
+        )}
+      </>
   );
 };
 

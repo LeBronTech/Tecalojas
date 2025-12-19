@@ -202,8 +202,6 @@ interface ShowcaseScreenProps {
   canManageStock: boolean;
   onEditProduct: (product: Product) => void;
   brands: DynamicBrand[];
-  apiKey: string | null;
-  onRequestApiKey: () => void;
   onNavigate: (view: View) => void;
   savedCompositions: SavedComposition[];
   onAddToCart: (product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number, isPreOrder?: boolean) => void;
@@ -211,7 +209,7 @@ interface ShowcaseScreenProps {
   cart: CartItem[];
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError, canManageStock, onEditProduct, brands, apiKey, onRequestApiKey, onNavigate, savedCompositions, onAddToCart, sofaColors, cart }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError, canManageStock, onEditProduct, brands, onNavigate, savedCompositions, onAddToCart, sofaColors, cart }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedFabric, setSelectedFabric] = useState<string>('Todos os Tecidos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -223,8 +221,10 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
 
   const categories = useMemo(() => {
     const allCategoryValues = products.flatMap(p => [p.category, p.subCategory]).filter((c): c is string => !!c && c.trim() !== '');
-    const uniqueCategories = [...new Set(allCategoryValues)];
-    return ['Todas', ...uniqueCategories.sort((a, b) => String(a).localeCompare(String(b)))];
+    // FIX: Cast to string array to avoid 'unknown' type error in .includes()
+    const uniqueCategories = ([...new Set(allCategoryValues)] as string[])
+        .filter(cat => !['Waterblock', 'Waterblocks', '(Gorgurão)', 'Gorgurão'].includes(cat));
+    return ['Todas', ...uniqueCategories.sort((a, b) => a.localeCompare(b))];
   }, [products]);
 
   const availableFabrics = useMemo(() => {
@@ -236,7 +236,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
       .map(p => p.fabricType);
     
     // Sort fabrics alphabetically
-    const uniqueFabrics = [...new Set(fabricsInCategory)].sort((a, b) => String(a).localeCompare(String(b)));
+    // FIX: Cast to string array to avoid type inference issues
+    const uniqueFabrics = ([...new Set(fabricsInCategory)] as string[]).sort((a, b) => a.localeCompare(b));
     return ['Todos os Tecidos', ...uniqueFabrics];
   }, [selectedCategory, products]);
 
@@ -477,8 +478,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
               canManageStock={canManageStock}
               onEditProduct={handleEdit}
               onSwitchProduct={handleSwitchProduct}
-              apiKey={apiKey}
-              onRequestApiKey={onRequestApiKey}
               savedCompositions={savedCompositions}
               onViewComposition={handleViewComposition}
               onAddToCart={onAddToCart}
@@ -492,8 +491,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
               compositions={compositionToView.compositions}
               startIndex={compositionToView.startIndex}
               onClose={() => setCompositionToView(null)}
-              apiKey={apiKey}
-              onRequestApiKey={onRequestApiKey}
               onViewProduct={() => {}}
               onSaveComposition={() => {}}
           />

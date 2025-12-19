@@ -15,11 +15,11 @@ import CartScreen from './views/CartScreen';
 import PaymentScreen from './views/PaymentScreen';
 import SalesScreen from './views/SalesScreen';
 import QrCodeScreen from './views/QrCodeScreen';
+// FIX: AddEditProductModal must have a default export in its own file.
 import AddEditProductModal from './components/AddEditProductModal';
 import SignUpModal from './SignUpModal';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
-import ApiKeyModal from './components/ApiKeyModal';
 import ConfirmationModal from './components/ConfirmationModal';
 import { ProductCreationWizard } from './views/ProductCreationWizard';
 import * as api from './firebase';
@@ -44,7 +44,7 @@ declare global {
 }
 
 const THEME_STORAGE_KEY = 'pillow-oasis-theme';
-const API_KEY_STORAGE_KEY = 'pillow-oasis-api-key';
+// FIX: Removed API_KEY_STORAGE_KEY as the key must now be obtained from environment variables only.
 const ALL_COLORS_STORAGE_KEY = 'pillow-oasis-all-colors';
 const SAVED_COMPOSITIONS_STORAGE_KEY = 'pillow-oasis-saved-compositions';
 const CART_STORAGE_KEY = 'pillow-oasis-cart';
@@ -290,7 +290,7 @@ const CatalogIcon = () => (
 );
 const CompositionIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
     </svg>
 );
 const ReplacementIcon = () => (
@@ -449,8 +449,7 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPixModalOpen, setIsPixModalOpen] = useState(false);
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem(API_KEY_STORAGE_KEY) || "AIzaSyCq8roeLwkCxFR8_HBlsVOHkM-LQiYNtto");
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  // FIX: Removed local state for API Key as it must be managed through environment variables only.
   const [allColors, setAllColors] = useState<{ name: string; hex: string }[]>([]);
   const [sofaColors, setSofaColors] = useState<{ name: string; hex: string }[]>([]);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
@@ -462,10 +461,7 @@ export default function App() {
   const loginRedirect = useRef<View | null>(null);
   const notifiedRequestIds = useRef(new Set<string>());
   const isFirstRequestsLoad = useRef(true);
-  const [cardFees, setCardFees] = useState<CardFees>(() => {
-    const storedFees = localStorage.getItem(CARD_FEES_STORAGE_KEY);
-    return storedFees ? JSON.parse(storedFees) : { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 };
-  });
+  const [cardFees, setCardFees] = useState<CardFees>({ debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 });
 
   const [isCustomerNameModalOpen, setIsCustomerNameModalOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
@@ -479,9 +475,25 @@ export default function App() {
 
   const isAdmin = useMemo(() => currentUser?.role === 'admin', [currentUser]);
 
+  // Load fees from Firestore if available
   useEffect(() => {
-    localStorage.setItem(CARD_FEES_STORAGE_KEY, JSON.stringify(cardFees));
-  }, [cardFees]);
+    if (!firebaseConfig.apiKey) return;
+    const unsubscribe = api.onSettingsUpdate((settings) => {
+        if (settings?.cardFees) {
+            setCardFees(settings.cardFees);
+        }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleUpdateCardFees = useCallback(async (newFees: CardFees) => {
+      setCardFees(newFees);
+      try {
+          await api.updateGlobalCardFees(newFees);
+      } catch (error) {
+          console.error("Failed to sync card fees to Firestore:", error);
+      }
+  }, []);
 
   useEffect(() => {
     try {
@@ -837,12 +849,6 @@ export default function App() {
     setView(View.SHOWCASE);
   }, []);
 
-  const handleSaveApiKey = useCallback((key: string) => {
-    setApiKey(key);
-    localStorage.setItem(API_KEY_STORAGE_KEY, key);
-    setIsApiKeyModalOpen(false);
-  }, []);
-
     const handleSaveProduct = useCallback(async (productToSave: Product, options?: { closeModal?: boolean }): Promise<Product> => {
         try {
             if (!productToSave.category?.trim() || !productToSave.fabricType?.trim() || !productToSave.colors || productToSave.colors.length === 0 || !productToSave.name?.trim()) {
@@ -1003,17 +1009,17 @@ export default function App() {
 
     switch (view) {
       case View.SHOWCASE:
-        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
+        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
       case View.STOCK:
         return <StockManagementScreen products={products} onEditProduct={setEditingProduct} onAddProduct={() => setIsWizardOpen(true)} onDeleteProduct={(id) => setDeletingProductId(id)} onUpdateStock={handleUpdateStock} canManageStock={isAdmin} hasFetchError={hasFetchError} brands={brands} onMenuClick={handleMenuClick} />;
        case View.SETTINGS:
-        return <SettingsScreen onSaveApiKey={handleSaveApiKey} onAddNewBrand={handleAddNewBrand} canManageStock={isAdmin} brands={brands} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} onMenuClick={handleMenuClick} cardFees={cardFees} onSaveCardFees={setCardFees} sofaColors={sofaColors} onAddSofaColor={handleAddSofaColor} onDeleteSofaColor={handleDeleteSofaColor} categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} />;
+        return <SettingsScreen canManageStock={isAdmin} brands={brands} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} onMenuClick={handleMenuClick} cardFees={cardFees} onSaveCardFees={handleUpdateCardFees} sofaColors={sofaColors} onAddSofaColor={handleAddSofaColor} onDeleteSofaColor={handleDeleteSofaColor} categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} />;
        case View.CATALOG:
         return <CatalogScreen catalogs={catalogs} onUploadCatalog={handleUploadCatalog} onMenuClick={handleMenuClick} canManageStock={isAdmin} brands={brands} />;
        case View.COMPOSITION_GENERATOR:
-        return <CompositionGeneratorScreen products={products} onNavigate={handleNavigate} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} savedCompositions={savedCompositions} onSaveComposition={handleSaveComposition} setSavedCompositions={setSavedCompositions} />;
+        return <CompositionGeneratorScreen products={products} onNavigate={handleNavigate} savedCompositions={savedCompositions} onSaveComposition={handleSaveComposition} setSavedCompositions={setSavedCompositions} />;
        case View.COMPOSITIONS:
-        return <CompositionsScreen savedCompositions={savedCompositions} setSavedCompositions={setSavedCompositions} onNavigate={handleNavigate} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} products={products} onEditProduct={setEditingProduct} onSaveComposition={handleSaveComposition} />;
+        return <CompositionsScreen savedCompositions={savedCompositions} setSavedCompositions={setSavedCompositions} onNavigate={handleNavigate} products={products} onEditProduct={setEditingProduct} onSaveComposition={handleSaveComposition} />;
        case View.ASSISTANT:
         return <AssistantScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={(id) => setDeletingProductId(id)} canManageStock={isAdmin} onMenuClick={handleMenuClick} />;
        case View.DIAGNOSTICS:
@@ -1038,7 +1044,7 @@ export default function App() {
        case View.QR_CODES:
         return <QrCodeScreen products={products} />;
       default:
-        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} apiKey={apiKey} onRequestApiKey={() => setIsApiKeyModalOpen(true)} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
+        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
     }
   };
 
@@ -1060,8 +1066,6 @@ export default function App() {
                     onSwitchProduct={setEditingProduct}
                     onRequestDelete={(id) => setDeletingProductId(id)}
                     categories={mergedCategories}
-                    apiKey={apiKey}
-                    onRequestApiKey={() => setIsApiKeyModalOpen(true)}
                     allColors={allColors}
                     onAddColor={handleAddColor}
                     onDeleteColor={handleDeleteColor}
@@ -1080,7 +1084,6 @@ export default function App() {
                     brands={brands}
                 />
             )}
-            {isApiKeyModalOpen && <ApiKeyModal onClose={() => setIsApiKeyModalOpen(false)} onSave={handleSaveApiKey} />}
             {isPixModalOpen && <PixPaymentModal onClose={() => setIsPixModalOpen(false)} />}
             {isCustomerNameModalOpen && <CustomerNameModal onClose={() => setIsCustomerNameModalOpen(false)} onConfirm={(name) => { setCustomerName(name); setIsCustomerNameModalOpen(false); handleNavigate(View.PAYMENT); }} />}
             {isSignUpModalOpen && <SignUpModal onClose={() => setIsSignUpModalOpen(false)} onSignUp={handleSignUp} />}
@@ -1091,7 +1094,7 @@ export default function App() {
                     <div className="flex items-start">
                         <div className="flex-shrink-0">
                             <svg className="h-6 w-6 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </div>
                         <div className="ml-3 w-0 flex-1 pt-0.5">
