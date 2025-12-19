@@ -11,7 +11,6 @@ interface CompositionsScreenProps {
   savedCompositions: SavedComposition[];
   setSavedCompositions: React.Dispatch<React.SetStateAction<SavedComposition[]>>;
   onNavigate: (view: View) => void;
-  // New props for AI generation and product details
   apiKey: string | null;
   onRequestApiKey: () => void;
   products: Product[];
@@ -45,16 +44,13 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
   };
 
   const openViewer = (index: number) => {
-    // Find the original index in the unfiltered list
     const originalIndex = savedCompositions.findIndex(c => c.id === filteredCompositions[index].id);
     setViewerState({ open: true, startIndex: originalIndex });
   };
   
   const handleViewProduct = (product: Product) => {
       setViewerState({ open: false, startIndex: 0 });
-      setTimeout(() => {
-          setViewingProduct(product);
-      }, 150);
+      setTimeout(() => { setViewingProduct(product); }, 150);
   };
 
   const titleClasses = isDark ? "text-white" : "text-gray-900";
@@ -80,26 +76,26 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
             <div className="relative mb-6">
                  <input
                     type="text"
-                    placeholder="Buscar por nome da composição..."
+                    placeholder="Buscar por nome..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${inputClasses}`}
                 />
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
 
-            <div className="mb-6">
-                <h3 className={`text-sm font-bold -mt-3 mb-1 ${subtitleClasses}`}>Filtrar por Cor</h3>
+            <div className="mb-8">
+                <h3 className={`text-[10px] font-black uppercase tracking-widest mb-1 ${subtitleClasses}`}>Filtrar por Cor</h3>
                 <ColorSelector 
                     allColors={PREDEFINED_COLORS}
                     onSelectColor={(color) => setSelectedColor(color)}
                     selectedColor={selectedColor || undefined}
+                    horizontal={true}
                 />
                 {selectedColor && (
-                    <button onClick={() => setSelectedColor(null)} className="mt-3 text-sm text-fuchsia-500 hover:underline">
-                        Limpar filtro de cor
+                    <button onClick={() => setSelectedColor(null)} className="mt-3 text-xs font-bold text-fuchsia-500 uppercase tracking-tight flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        Limpar filtro
                     </button>
                 )}
             </div>
@@ -107,27 +103,23 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
           {savedCompositions.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {filteredCompositions.map((comp, index) => (
-                <div key={comp.id} className={`rounded-2xl border ${cardClasses} flex flex-col`}>
-                  <button onClick={() => openViewer(index)} className="w-full aspect-square rounded-t-2xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-fuchsia-500">
-                    {comp.isGenerating ? (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-black/10">
-                             <svg className="animate-spin h-8 w-8 text-fuchsia-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            <p className="text-sm mt-2 text-fuchsia-300">Gerando imagem...</p>
-                        </div>
-                    ) : comp.imageUrl ? (
-                      <img src={comp.imageUrl} alt={comp.name} className="w-full h-full object-cover" />
+                <div key={comp.id} className={`rounded-2xl border ${cardClasses} flex flex-col group overflow-hidden`}>
+                  <button onClick={() => openViewer(index)} className="w-full aspect-square relative overflow-hidden focus:outline-none">
+                    {comp.imageUrl ? (
+                      <img src={comp.imageUrl} alt={comp.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                     ) : (
                       <div className="w-full h-full grid grid-cols-2 grid-rows-2">
-                        {comp.products.slice(0, 4).map(p => (
-                            <img key={p.id} src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover" />
-                        ))}
+                        {comp.products.slice(0, 4).map(p => (<img key={p.id} src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover" />))}
                       </div>
                     )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="bg-white text-black font-black px-4 py-2 rounded-full text-xs uppercase tracking-widest">Ver Detalhes</span>
+                    </div>
                   </button>
                   <div className="p-4 flex justify-between items-start">
                     <div>
                         <p className={`font-bold ${titleClasses}`}>{comp.name}</p>
-                        <p className={`text-sm ${subtitleClasses}`}>{comp.size} almofadas</p>
+                        <p className={`text-xs ${subtitleClasses}`}>{comp.size} almofadas</p>
                     </div>
                     <button onClick={(e) => handleDelete(e, comp.id)} className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-red-500/20 hover:text-red-400' : 'text-gray-500 hover:bg-red-100 hover:text-red-600'}`}>
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -139,51 +131,15 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
           ) : (
             <div className="text-center py-16">
               <p className={`text-lg font-semibold ${titleClasses}`}>Nenhuma composição salva</p>
-              <p className={`mt-2 ${subtitleClasses}`}>Use o Gerador de Composições para criar e salvar suas combinações favoritas.</p>
             </div>
           )}
         </main>
       </div>
       {viewerState.open && (
-        <CompositionViewerModal
-            compositions={savedCompositions}
-            startIndex={viewerState.startIndex}
-            onClose={() => setViewerState({ open: false, startIndex: 0 })}
-            apiKey={apiKey}
-            onRequestApiKey={onRequestApiKey}
-            onViewProduct={handleViewProduct}
-            onSaveComposition={onSaveComposition}
-        />
+        <CompositionViewerModal compositions={savedCompositions} startIndex={viewerState.startIndex} onClose={() => setViewerState({ open: false, startIndex: 0 })} apiKey={apiKey} onRequestApiKey={onRequestApiKey} onViewProduct={handleViewProduct} onSaveComposition={onSaveComposition} />
       )}
       {viewingProduct && (
-          <ProductDetailModal
-              product={viewingProduct}
-              products={products}
-              onClose={() => setViewingProduct(null)}
-              canManageStock={false}
-              onEditProduct={(productToEdit) => {
-                  setViewingProduct(null);
-                  onEditProduct(productToEdit);
-              }}
-              onSwitchProduct={setViewingProduct}
-              apiKey={apiKey}
-              onRequestApiKey={onRequestApiKey}
-              savedCompositions={savedCompositions}
-              onViewComposition={(compositions, startIndex) => {
-                  const compositionToView = compositions[startIndex];
-                  if (!compositionToView) return;
-
-                  const originalIndex = savedCompositions.findIndex(c => c.id === compositionToView.id);
-                  if (originalIndex > -1) {
-                      setViewingProduct(null); // Close current modal
-                      setViewerState({ open: true, startIndex: originalIndex });
-                  }
-              }}
-              // FIX: Added missing properties to satisfy the component's required props.
-              onAddToCart={() => {}}
-              onNavigate={onNavigate}
-              sofaColors={[]}
-          />
+          <ProductDetailModal product={viewingProduct} products={products} onClose={() => setViewingProduct(null)} canManageStock={false} onEditProduct={(p) => { setViewingProduct(null); onEditProduct(p); }} onSwitchProduct={setViewingProduct} apiKey={apiKey} onRequestApiKey={onRequestApiKey} savedCompositions={savedCompositions} onViewComposition={(c, s) => { const originalIndex = savedCompositions.findIndex(comp => comp.id === c[s].id); if (originalIndex > -1) { setViewingProduct(null); setViewerState({ open: true, startIndex: originalIndex }); } }} onAddToCart={() => {}} onNavigate={onNavigate} sofaColors={[]} cart={[]} />
       )}
     </>
   );

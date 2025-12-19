@@ -1,7 +1,8 @@
-import React, { useState, useContext, useEffect, useMemo } from 'react';
+
+import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import { Product, View, DynamicBrand, SavedComposition, ThemeContext, Variation, CushionSize, CartItem } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
-import { BRAND_LOGOS, WATER_RESISTANCE_INFO, PREDEFINED_SOFA_COLORS } from '../constants';
+import { BRAND_LOGOS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
 import CompositionViewerModal from '../components/CompositionViewerModal';
 
 type ProductGroup = Product[];
@@ -106,7 +107,7 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
 
         const timer = setInterval(() => {
             setActiveImageIndex(prev => (prev + 1) % validImages.length);
-        }, 3000); // Change image every 3 seconds
+        }, 3000);
 
         return () => clearInterval(timer);
     }, [validImages.length]);
@@ -117,42 +118,57 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
     const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
     
     const representativeProduct = group[0];
+    
+    const groupName = useMemo(() => {
+        if (representativeProduct.subCategory) return representativeProduct.subCategory;
+        
+        let nameBase = representativeProduct.name.toLowerCase();
+        const sortedColors = [...PREDEFINED_COLORS].sort((a, b) => b.name.length - a.name.length);
+        sortedColors.forEach(c => {
+            const regex = new RegExp(`\\b${c.name.toLowerCase()}\\b|\\(${c.name.toLowerCase()}\\)`, 'g');
+            nameBase = nameBase.replace(regex, '');
+        });
+        nameBase = nameBase.replace(/capa|almofada|lombar|lisas|belize/g, '').trim();
+        return nameBase.charAt(0).toUpperCase() + nameBase.slice(1) || representativeProduct.category;
+    }, [representativeProduct]);
 
     return (
         <button 
             onClick={() => onClick(representativeProduct)}
-            className={`rounded-3xl p-3 shadow-lg flex flex-col items-center text-center border transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2 ${cardClasses} ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
+            className={`rounded-3xl p-3 shadow-lg flex flex-col items-center justify-between text-center border transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2 ${cardClasses} ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
             style={{ animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms`, opacity: 0 }}
         >
-            <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
-                {validImages.length > 0 ? (
-                    validImages.map((src, idx) => (
-                         <img 
-                            key={idx}
-                            src={src} 
-                            alt={`${representativeProduct.name} variation`}
-                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${idx === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
-                        />
-                    ))
-                ) : (
-                     <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
-                        <img 
-                            src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
-                            alt="Sem Imagem" 
-                            className="w-1/2 h-1/2 object-contain opacity-20" 
-                        />
-                    </div>
-                )}
-            </div>
-            <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{representativeProduct.category}</h3>
-            <div className={`flex items-center justify-center flex-wrap gap-x-3 gap-y-2 text-xs mt-2`}>
-                 <div className={`flex items-center gap-1 ${textMetaClasses}`}>
-                    <img src={BRAND_LOGOS[representativeProduct.brand]} alt={representativeProduct.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
-                    <span className="font-semibold">{representativeProduct.brand}</span>
+            <div className="w-full">
+                <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
+                    {validImages.length > 0 ? (
+                        validImages.map((src, idx) => (
+                             <img 
+                                key={idx}
+                                src={src} 
+                                alt={`${representativeProduct.name} variation`}
+                                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${idx === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
+                            />
+                        ))
+                    ) : (
+                         <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
+                            <img 
+                                src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
+                                alt="Sem Imagem" 
+                                className="w-1/2 h-1/2 object-contain opacity-20" 
+                            />
+                        </div>
+                    )}
                 </div>
-                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
-                    {representativeProduct.fabricType}
-                </span>
+                <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{groupName}</h3>
+                <div className={`flex items-center justify-center flex-wrap gap-x-3 gap-y-2 text-xs mt-2`}>
+                     <div className={`flex items-center gap-1 ${textMetaClasses}`}>
+                        <img src={BRAND_LOGOS[representativeProduct.brand]} alt={representativeProduct.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
+                        <span className="font-semibold">{representativeProduct.brand}</span>
+                    </div>
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
+                        {representativeProduct.fabricType}
+                    </span>
+                </div>
             </div>
             <span className="text-md font-bold text-fuchsia-500 mt-2">{group.length} cores</span>
         </button>
@@ -234,59 +250,62 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
     return ['Todos os Tecidos', ...Array.from(new Set(fabricsInCategory))];
   }, [selectedCategory, products]);
 
-  const groupedProducts = useMemo((): (Product | ProductGroup)[] => {
+  const getProductFamilyKey = useCallback((p: Product) => {
+    if (p.variationGroupId) return p.variationGroupId;
+
+    const brand = p.brand;
+    const cat = p.category;
+    const sub = p.subCategory || '';
+    
+    let nameBase = p.name.toLowerCase();
+    const sortedColors = [...PREDEFINED_COLORS].sort((a, b) => b.name.length - a.name.length);
+    sortedColors.forEach(c => {
+        const regex = new RegExp(`\\b${c.name.toLowerCase()}\\b|\\(${c.name.toLowerCase()}\\)`, 'g');
+        nameBase = nameBase.replace(regex, '');
+    });
+    nameBase = nameBase.replace(/capa|almofada|lombar|lisas|belize/g, '').trim().split(' ')[0] || '';
+
+    return `${brand}|${cat}|${sub}|${nameBase}`;
+  }, []);
+
+  const displayedProducts = useMemo(() => {
+    // 1. Group FIRST (always group by family regardless of filter)
     const familyMap = new Map<string, ProductGroup>();
     products.forEach(p => {
-        const familyKey = `${p.category}|${p.fabricType}`;
-        if (!familyMap.has(familyKey)) {
-            familyMap.set(familyKey, []);
-        }
+        const familyKey = getProductFamilyKey(p);
+        if (!familyMap.has(familyKey)) familyMap.set(familyKey, []);
         familyMap.get(familyKey)!.push(p);
     });
 
-    const result: (Product | ProductGroup)[] = [];
+    const allGroups: (Product | ProductGroup)[] = [];
     familyMap.forEach(group => {
-        if (group.length > 1) {
-            result.push(group);
-        } else {
-            result.push(group[0]);
-        }
+        if (group.length > 1) allGroups.push(group);
+        else allGroups.push(group[0]);
     });
 
-    return result;
-  }, [products]);
+    // 2. Filter the grouped results
+    let filtered = allGroups.filter(item => {
+        const rep = Array.isArray(item) ? item[0] : item;
+        const categoryMatch = selectedCategory === 'Todas' || rep.category === selectedCategory || rep.subCategory === selectedCategory;
+        const fabricMatch = selectedFabric === 'Todos os Tecidos' || rep.fabricType === selectedFabric;
+        return categoryMatch && fabricMatch;
+    });
 
-  const displayedProducts = useMemo(() => {
-    let filtered: (Product | ProductGroup)[];
-    
-    if (selectedCategory === 'Todas') {
-      filtered = groupedProducts;
-    } else {
-      let categoryProducts: Product[] = products.filter(p => p.category === selectedCategory || p.subCategory === selectedCategory);
-      if (selectedFabric !== 'Todos os Tecidos') {
-          categoryProducts = categoryProducts.filter(p => p.fabricType === selectedFabric);
-      }
-      filtered = categoryProducts;
-    }
-
-    const sorted = [...filtered].sort((a, b) => {
+    // 3. Sort
+    return filtered.sort((a, b) => {
         if (sortOrder === 'alpha') {
-            const nameA = Array.isArray(a) ? a[0]?.category : a.name;
-            const nameB = Array.isArray(b) ? b[0]?.category : b.name;
+            const nameA = Array.isArray(a) ? (a[0].subCategory || a[0].category) : (a as Product).name;
+            const nameB = Array.isArray(b) ? (b[0].subCategory || b[0].category) : (b as Product).name;
             return String(nameA || '').localeCompare(String(nameB || ''));
-        } else { // 'recent'
+        } else {
             const itemA = Array.isArray(a) ? a[0] : a;
             const itemB = Array.isArray(b) ? b[0] : b;
-            if (!itemA || !itemB) return 0;
-            
-            const timeA = parseInt(itemA.id.split('-')[0], 10) || 0;
-            const timeB = parseInt(itemB.id.split('-')[0], 10) || 0;
+            const timeA = itemA ? parseInt(itemA.id.split('-')[0], 10) || 0 : 0;
+            const timeB = itemB ? parseInt(itemB.id.split('-')[0], 10) || 0 : 0;
             return timeB - timeA;
         }
     });
-    
-    return sorted;
-  }, [selectedCategory, selectedFabric, products, groupedProducts, sortOrder]);
+  }, [products, selectedCategory, selectedFabric, sortOrder, getProductFamilyKey]);
 
   const handleEdit = (product: Product) => {
     setSelectedProduct(null); 
@@ -328,12 +347,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
         </div>
 
           <main className="flex-grow overflow-y-auto px-6 pt-20 pb-36 md:pb-6 flex flex-col no-scrollbar z-10">
-              {hasFetchError && (
-                <div className={`p-4 mb-4 rounded-xl text-center font-semibold border ${isDark ? 'bg-red-900/50 text-red-300 border-red-500/30' : 'bg-red-100 text-red-800 border-red-200'}`}>
-                    <p className="font-bold text-lg">Modo de Demonstração Ativo</p>
-                    <p className="text-sm">Você está vendo uma vitrine de exemplo. O conteúdo real não pôde ser carregado.</p>
-                </div>
-              )}
                <div className="mb-6">
                   <h2 className={`text-sm font-bold tracking-widest ${headerTextClasses}`}>CATÁLOGO</h2>
                   <h3 className={`text-3xl font-bold ${titleTextClasses}`}>Almofadas</h3>
@@ -369,9 +382,14 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
                     </select>
               </div>
               
-              <div className="flex flex-wrap gap-3 mb-4">
+              <div className="flex flex-wrap gap-3 mb-4 overflow-hidden">
                   {categories.map(category => {
                       const isActive = selectedCategory === category;
+                      const isAnySelected = selectedCategory !== 'Todas';
+                      
+                      // COLLAPSE LOGIC: Hide other buttons if one is selected, except "Todas" button which becomes "Voltar"
+                      if (isAnySelected && !isActive && category !== 'Todas') return null;
+
                       const activeClasses = isDark 
                           ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30 border-transparent hover:bg-fuchsia-500' 
                           : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20 border-transparent hover:bg-purple-700';
@@ -386,18 +404,21 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
                                 setSelectedCategory(category);
                                 setSelectedFabric('Todos os Tecidos');
                               }}
-                              className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
+                              className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-500 whitespace-nowrap border transform hover:scale-105 flex items-center gap-2 ${
                                   isActive ? activeClasses : inactiveClasses
                               }`}
                           >
-                              {category}
+                              {isActive && category !== 'Todas' && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                              )}
+                              {category === 'Todas' && isAnySelected ? 'Voltar para Todas' : category}
                           </button>
                       );
                   })}
               </div>
 
-              {availableFabrics.length > 0 && (
-                <div className="flex flex-wrap gap-3 mb-8 transition-all duration-300" style={{ animation: 'float-in 0.3s forwards', opacity: 0 }}>
+              {availableFabrics.length > 1 && (
+                <div className="flex flex-wrap gap-3 mb-8 transition-all duration-500" style={{ animation: 'float-in 0.4s forwards', opacity: 0 }}>
                     {availableFabrics.map(fabric => {
                       const isActive = selectedFabric === fabric;
                       const activeClasses = isDark 
@@ -410,7 +431,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
                          <button
                               key={fabric}
                               onClick={() => setSelectedFabric(fabric)}
-                              className={`px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
+                              className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
                                   isActive ? activeClasses : inactiveClasses
                               }`}
                           >
@@ -424,7 +445,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {displayedProducts.map((item, index) => (
                       Array.isArray(item)
-                        ? <ProductGroupCard key={`${item[0].category}-${item[0].fabricType}`} group={item} index={index} onClick={setSelectedProduct} />
+                        ? <ProductGroupCard key={`group-${index}`} group={item} index={index} onClick={setSelectedProduct} />
                         : <ProductCard key={(item as Product).id} product={item as Product} index={index} onClick={() => setSelectedProduct(item as Product)} />
                   ))}
               </div>
@@ -436,12 +457,10 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
               product={selectedProduct}
               products={products}
               onClose={() => setSelectedProduct(null)}
-              // FIX: Use prop 'canManageStock' instead of undefined 'isAdmin'
               canManageStock={canManageStock}
               onEditProduct={handleEdit}
               onSwitchProduct={handleSwitchProduct}
               apiKey={apiKey}
-              // FIX: Use prop 'onRequestApiKey' instead of undefined 'setIsApiKeyModalOpen'
               onRequestApiKey={onRequestApiKey}
               savedCompositions={savedCompositions}
               onViewComposition={handleViewComposition}
@@ -457,7 +476,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
               startIndex={compositionToView.startIndex}
               onClose={() => setCompositionToView(null)}
               apiKey={apiKey}
-              // FIX: Use prop 'onRequestApiKey' instead of undefined 'setIsApiKeyModalOpen'
               onRequestApiKey={onRequestApiKey}
               onViewProduct={() => {}}
               onSaveComposition={() => {}}

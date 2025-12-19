@@ -1,5 +1,4 @@
 
-// FIX: Import 'useCallback' from React.
 import React, { useState, useContext, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Product, Variation, WaterResistanceLevel, SavedComposition, ThemeContext, View, StoreName, CushionSize, CartItem } from '../types';
 import { WATER_RESISTANCE_INFO, BRAND_LOGOS, PREDEFINED_COLORS } from '../constants';
@@ -100,7 +99,6 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
-    // Snapshot do carrinho no momento da abertura
     const cartSnapshot = useMemo(() => {
         const snapshot: Record<string, number> = {};
         product.variations.forEach(v => {
@@ -114,10 +112,31 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     const [variationQuantities, setVariationQuantities] = useState<Record<string, { cover: number, full: number }>>({});
     const [addStatus, setAddStatus] = useState<Record<string, 'idle' | 'added' | 'goToCart'>>({});
     
+    // --- Lógica Unificada de Família (Igual ao menu de edição) ---
+    const getProductFamilyKey = useCallback((p: Product) => {
+        if (p.variationGroupId) return p.variationGroupId;
+
+        // Se não tiver GroupID, agrupa por Brand + Category + SubCategory + Primeiro Nome (Limpo)
+        // Isso garante que se o usuário usar o campo Sub-categoria, o agrupamento seja perfeito.
+        const brand = p.brand;
+        const cat = p.category;
+        const sub = p.subCategory || '';
+        
+        let nameBase = p.name.toLowerCase();
+        const sortedColors = [...PREDEFINED_COLORS].sort((a, b) => b.name.length - a.name.length);
+        sortedColors.forEach(c => {
+            const regex = new RegExp(`\\b${c.name.toLowerCase()}\\b|\\(${c.name.toLowerCase()}\\)`, 'g');
+            nameBase = nameBase.replace(regex, '');
+        });
+        nameBase = nameBase.replace(/capa|almofada|lombar|lisas|belize/g, '').trim().split(' ')[0] || '';
+
+        return `${brand}|${cat}|${sub}|${nameBase}`;
+    }, []);
+
     const familyProducts = useMemo(() => {
-        if (!product.variationGroupId) return [];
-        return products.filter(p => p.variationGroupId === product.variationGroupId && p.id !== product.id);
-    }, [products, product]);
+        const currentKey = getProductFamilyKey(product);
+        return products.filter(p => p.id !== product.id && getProductFamilyKey(p) === currentKey);
+    }, [products, product, getProductFamilyKey]);
     
     const waterResistanceDetails = WATER_RESISTANCE_INFO[product.waterResistance];
 
@@ -156,20 +175,14 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         const processItem = (qty: number, type: 'cover' | 'full', price: number) => {
             if (qty <= 0) return;
             
-            // Lógica de divisão: Se o que estou adicionando supera o estoque disponível AGORA
             if (availableNow > 0) {
                 const canTakeFromStock = Math.min(qty, availableNow);
                 const overflow = qty - canTakeFromStock;
-                
-                // Parte Física
                 onAddToCart(product, variation, canTakeFromStock, type, price, false);
-                
-                // Parte Encomenda
                 if (overflow > 0) {
                     onAddToCart(product, variation, overflow, type, price, true);
                 }
             } else {
-                // Tudo Encomenda
                 onAddToCart(product, variation, qty, type, price, true);
             }
         };
@@ -383,7 +396,6 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                     </p>
 
                                     <div className="w-full mt-3 space-y-2">
-                                        {/* Cover */}
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <p className="font-semibold text-sm">Capa</p>
@@ -395,7 +407,6 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                                 <button onClick={() => handleQuantityChange(variation.size, 'cover', 1)} className="w-8 h-8 rounded bg-black/20 text-white font-bold text-lg">+</button>
                                             </div>
                                         </div>
-                                        {/* Full */}
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <p className="font-semibold text-sm">Cheia</p>
