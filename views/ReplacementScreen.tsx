@@ -1,3 +1,4 @@
+
 import React, { useState, useContext, useMemo } from 'react';
 import { Product, StoreName, ThemeContext, Variation } from '../types';
 import { BRAND_LOGOS } from '../constants';
@@ -181,7 +182,7 @@ const AssistantScreen: React.FC<AssistantScreenProps> = ({ products, onEditProdu
 
   return (
     <div className="h-full w-full flex flex-col relative overflow-hidden">
-      <main className="flex-grow overflow-y-auto px-6 pt-24 pb-36 md:pb-6 no-scrollbar z-10">
+      <main className="flex-grow overflow-y-auto px-6 pt-24 pb-52 md:pb-52 no-scrollbar z-10">
         <div className="max-w-4xl mx-auto">
             {!currentAlert ? (
                 <>

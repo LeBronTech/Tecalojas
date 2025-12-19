@@ -181,7 +181,7 @@ const WhatsAppButton = () => {
             href={whatsappUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={`fixed bottom-28 right-6 z-[60] flex items-center bg-[#25D366] text-white rounded-full shadow-2xl transition-all duration-700 ease-in-out h-14 ${isExpanded ? 'px-5 py-3 w-auto' : 'w-14 p-0 justify-center overflow-hidden'}`}
+            className={`fixed bottom-32 right-6 z-[60] flex items-center bg-[#25D366] text-white rounded-full shadow-2xl transition-all duration-700 ease-in-out h-14 ${isExpanded ? 'px-5 py-3 w-auto' : 'w-14 p-0 justify-center overflow-hidden'}`}
         >
             <div className={`flex items-center justify-center ${isExpanded ? '' : 'w-full h-full'}`}>
                 <svg className="w-8 h-8 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
@@ -221,7 +221,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
 
   const categories = useMemo(() => {
     const allCategoryValues = products.flatMap(p => [p.category, p.subCategory]).filter((c): c is string => !!c && c.trim() !== '');
-    // FIX: Cast to string array to avoid 'unknown' type error in .includes()
     const uniqueCategories = ([...new Set(allCategoryValues)] as string[])
         .filter(cat => !['Waterblock', 'Waterblocks', '(Gorgurão)', 'Gorgurão'].includes(cat));
     return ['Todas', ...uniqueCategories.sort((a, b) => a.localeCompare(b))];
@@ -235,26 +234,21 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
       .filter(p => p.category === selectedCategory || p.subCategory === selectedCategory)
       .map(p => p.fabricType);
     
-    // Sort fabrics alphabetically
-    // FIX: Cast to string array to avoid type inference issues
     const uniqueFabrics = ([...new Set(fabricsInCategory)] as string[]).sort((a, b) => a.localeCompare(b));
     return ['Todos os Tecidos', ...uniqueFabrics];
   }, [selectedCategory, products]);
 
-  // --- Função Robusta de Chave de Família ---
   const getProductFamilyKey = useCallback((p: Product) => {
     if (p.variationGroupId) return p.variationGroupId;
 
     let baseName = p.name.toLowerCase();
     
-    // Remove TODAS as cores conhecidas do nome para sobrar apenas a "Coleção"
     const sortedColors = [...PREDEFINED_COLORS].sort((a, b) => b.name.length - a.name.length);
     sortedColors.forEach(c => {
         const regex = new RegExp(`\\b${c.name.toLowerCase()}\\b|\\(${c.name.toLowerCase()}\\)`, 'g');
         baseName = baseName.replace(regex, '');
     });
 
-    // Remove termos redundantes
     baseName = baseName.replace(/capa|almofada|cheia|vazia|enchimento|kit|lombar/g, '');
     const cleanBase = baseName.replace(/\s\s+/g, ' ').replace(/[()]/g, '').trim();
 
@@ -262,18 +256,14 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
   }, []);
 
   const displayedProducts = useMemo(() => {
-    // 1. Filtrar
     let filtered = products.filter(p => {
         const categoryMatch = selectedCategory === 'Todas' || p.category === selectedCategory || p.subCategory === selectedCategory;
         const fabricMatch = selectedFabric === 'Todos os Tecidos' || p.fabricType === selectedFabric;
         return categoryMatch && fabricMatch;
     });
 
-    // 2. Agrupar (Condicional)
     const grouped: (Product | ProductGroup)[] = [];
 
-    // SE um tecido específico for selecionado, mostre os produtos separadamente (não agrupe).
-    // SE estiver em "Todos os Tecidos" (ou visualização padrão), agrupe por família.
     if (selectedFabric !== 'Todos os Tecidos') {
          grouped.push(...filtered);
     } else {
@@ -290,7 +280,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
         });
     }
 
-    // 3. Ordenar
     return grouped.sort((a, b) => {
         const itemA = Array.isArray(a) ? a[0] : a;
         const itemB = Array.isArray(b) ? b[0] : b;
@@ -299,7 +288,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
             const nameA = String(itemA?.name || '');
             const nameB = String(itemB?.name || '');
             return nameA.localeCompare(nameB);
-        } else { // 'recent'
+        } else { 
             const timeA = parseInt(itemA.id.split('-')[0], 10) || 0;
             const timeB = parseInt(itemB.id.split('-')[0], 10) || 0;
             return timeB - timeA;
@@ -348,7 +337,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
             )}
         </div>
 
-          <main className="flex-grow overflow-y-auto px-6 pt-20 pb-36 md:pb-6 flex flex-col no-scrollbar z-10">
+          <main className="flex-grow overflow-y-auto px-6 pt-20 pb-52 md:pb-52 flex flex-col no-scrollbar z-10">
               {hasFetchError && (
                 <div className={`p-4 mb-4 rounded-xl text-center font-semibold border ${isDark ? 'bg-red-900/50 text-red-300 border-red-500/30' : 'bg-red-100 text-red-800 border-red-200'}`}>
                     <p className="font-bold text-lg">Modo de Demonstração Ativo</p>
@@ -391,7 +380,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
               </div>
               
               <div className="flex flex-wrap gap-3 mb-4 transition-all duration-300">
-                  {/* Back Button - Only visible when a category is selected */}
                   {isCategorySelected && (
                       <button
                           onClick={() => {
@@ -406,8 +394,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
                   )}
 
                   {categories.map(category => {
-                      // Logic: If a category is selected, HIDE all other categories.
-                      // If 'Todas' is selected, show all (except 'Todas' itself if desired, but your array includes it).
                       if (isCategorySelected && category !== selectedCategory) return null;
 
                       const isActive = selectedCategory === category;

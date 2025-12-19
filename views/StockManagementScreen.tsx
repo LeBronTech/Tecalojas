@@ -1,5 +1,5 @@
+
 import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
-// FIX: Add DynamicBrand to imports to be used in component props.
 import { Product, StoreName, View, Brand, CushionSize, DynamicBrand, ThemeContext } from '../types';
 import { BRAND_LOGOS } from '../constants';
 
@@ -21,7 +21,6 @@ const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> =
     );
 };
 
-// --- StockControl Sub-component ---
 const StockControl: React.FC<{
     store: StoreName;
     stock: number;
@@ -58,7 +57,6 @@ const StockControl: React.FC<{
     );
 }
 
-// --- StockItem Component ---
 interface StockItemProps {
     product: Product;
     index: number;
@@ -217,7 +215,6 @@ interface StockManagementScreenProps {
   onMenuClick: () => void;
   canManageStock: boolean;
   hasFetchError: boolean;
-  // FIX: Add the 'brands' property to align with the props passed in App.tsx, resolving the TypeScript error.
   brands: DynamicBrand[];
 }
 
@@ -238,17 +235,14 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
     if (scrollContainerRef.current) {
         const currentScrollY = scrollContainerRef.current.scrollTop;
 
-        if (currentScrollY > 100) { // Threshold to start hiding
+        if (currentScrollY > 100) {
             if (currentScrollY > lastScrollY.current) {
-                // Scrolling Down
                 if (isHeaderVisible) setIsHeaderVisible(false);
-                if (isFilterHeaderOpen) setIsFilterHeaderOpen(false); // Collapse filters
+                if (isFilterHeaderOpen) setIsFilterHeaderOpen(false);
             } else {
-                // Scrolling Up
                 if (!isHeaderVisible) setIsHeaderVisible(true);
             }
         } else {
-            // Always show header when near the top
             if (!isHeaderVisible) setIsHeaderVisible(true);
         }
         
@@ -264,14 +258,11 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
 
 
     useEffect(() => {
-        // This effect now preserves existing selections and only sets defaults for new products.
-        // This prevents the user's selection from being reset on every data refresh.
         setSelectedVariations(prevSelections => {
             const newSelections = { ...prevSelections };
             let hasChanged = false;
     
             products.forEach(p => {
-                // If a product doesn't have a selected variation yet, set a default one.
                 if (!newSelections[p.id] && p.variations && p.variations.length > 0) {
                     const defaultVar = p.variations.find(v => v.size === CushionSize.SQUARE_40) || p.variations[0];
                     newSelections[p.id] = defaultVar.size;
@@ -279,7 +270,6 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                 }
             });
             
-            // Only update state if there are new products to add, to avoid unnecessary re-renders.
             return hasChanged ? newSelections : prevSelections;
         });
     }, [products]);
@@ -293,17 +283,15 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
     const filteredProducts = useMemo(() => {
         let tempProducts = [...products];
 
-        // Apply existing text search and category filters
         tempProducts = tempProducts.filter(product =>
             product.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
             (selectedCategory === 'Todas' || product.category === selectedCategory)
         );
 
-        // Apply sorting
         return tempProducts.sort((a, b) => {
             if (sortOrder === 'alpha') {
                 return a.name.localeCompare(b.name);
-            } else { // 'recent'
+            } else { 
                 const timeA = parseInt(a.id.split('-')[0], 10) || 0;
                 const timeB = parseInt(b.id.split('-')[0], 10) || 0;
                 return timeB - timeA;
@@ -401,7 +389,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                 </div>
             </div>
             
-            <main className="px-4 space-y-3 pb-44 md:pb-6 z-0">
+            <main className="px-4 space-y-3 pb-60 md:pb-60 z-0">
                 {canManageStock && showWarning && (
                     <div className={`relative border-l-4 p-4 rounded-lg shadow-md ${isDark ? 'bg-red-900/50 border-red-500 text-red-200' : 'bg-red-100 border-red-500 text-red-800'}`}>
                         <button 
@@ -443,7 +431,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
         </div>
 
        <div 
-         className="absolute bottom-24 md:bottom-6 left-0 right-0 p-6 z-20" 
+         className="absolute bottom-28 left-0 right-0 p-6 z-20" 
          style={{
            background: `linear-gradient(to top, ${isDark ? '#1A1129f0' : '#fffffff0'}, transparent)`
          }}

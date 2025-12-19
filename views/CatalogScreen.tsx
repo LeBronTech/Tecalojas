@@ -1,3 +1,4 @@
+
 import React, { useState, useContext, useRef, useMemo } from 'react';
 import { ThemeContext } from '../types';
 import { CatalogPDF, DynamicBrand, Brand } from '../types';
@@ -11,7 +12,6 @@ interface CatalogScreenProps {
   brands: DynamicBrand[];
 }
 
-// --- Helper Component (Moved Outside to prevent re-rendering bugs) ---
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
@@ -22,7 +22,6 @@ const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ chi
     );
 };
 
-// --- Main Component ---
 const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog, onMenuClick, canManageStock, brands }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -97,7 +96,6 @@ const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog
       await promise;
       resetForm();
     } catch (error: any) {
-      // Don't show an error if the user cancelled the upload
       if (error.code !== 'storage/canceled') {
         setUploadError(error.message || 'Falha ao enviar o catálogo.');
       } else {
@@ -119,7 +117,7 @@ const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog
 
   return (
     <div className="h-full w-full flex flex-col relative overflow-hidden">
-      <main className="flex-grow overflow-y-auto px-6 pt-24 pb-36 md:pb-6 no-scrollbar z-10">
+      <main className="flex-grow overflow-y-auto px-6 pt-24 pb-52 md:pb-52 no-scrollbar z-10">
         <h1 className={`text-3xl font-bold mb-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>Catálogos</h1>
         
         {canManageStock && (
@@ -139,7 +137,7 @@ const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog
                     </div>
 
                     {selectionMode === 'existing' && (
-                        <div className={`p-3 rounded-lg border max-h-40 overflow-y-auto ${isDark ? 'bg-black/10 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className={`p-3 rounded-lg border max-h-40 overflow-y-auto ${isDark ? 'bg-black/10 border-white/10' : 'bg-white border-gray-200'}`}>
                             <div className="flex flex-wrap gap-3">
                                 {allBrandsToDisplay.map(brand => (
                                     <button

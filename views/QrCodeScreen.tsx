@@ -1,3 +1,4 @@
+
 import React, { useState, useContext, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, ThemeContext, CushionSize, Variation } from '../types';
@@ -15,8 +16,8 @@ const PrintLabel: React.FC<{ product: Product, size: CushionSize, qrCodeUrl: str
         justifyContent: 'space-between',
         padding: '8px',
         border: isPreview ? (isDark ? '1px solid #4A5568' : '1px solid #E2E8F0') : 'none',
-        backgroundColor: 'white', // Force white background for printing
-        color: 'black', // Force black text for printing
+        backgroundColor: 'white', 
+        color: 'black', 
         boxSizing: 'border-box',
         overflow: 'hidden',
     };
@@ -160,7 +161,7 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
         }));
 
         setPrintQueue(prev => [...prev, ...newLabels]);
-        handleQuantityChange(key, ''); // Clear input after adding
+        handleQuantityChange(key, ''); 
         
         setAddConfirmation(prev => ({ ...prev, [key]: true }));
         setTimeout(() => {
@@ -173,8 +174,6 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
         
         setIsPreviewing(false);
 
-        // Timeout allows React to unmount the modal before calling print().
-        // The browser will then apply the @media print styles automatically.
         setTimeout(() => {
             window.print();
         }, 500); 
@@ -189,7 +188,7 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
     return (
         <>
             <div className="h-full w-full flex flex-col relative overflow-hidden">
-                <main className="flex-grow overflow-y-auto px-6 pt-24 pb-36 md:pb-6 no-scrollbar z-10">
+                <main className="flex-grow overflow-y-auto px-6 pt-24 pb-52 md:pb-52 no-scrollbar z-10">
                     <div className="max-w-4xl mx-auto">
                         <h1 className={`text-3xl font-bold mb-2 ${titleClasses}`}>Etiquetas QR Code</h1>
                         <p className={`text-md mb-6 ${subtitleClasses}`}>Defina as quantidades e imprima as etiquetas para seus produtos.</p>
@@ -284,7 +283,6 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
 
              {createPortal(
                 <div className="print-area">
-                    {/* Front Pages */}
                     {Array.from({ length: Math.ceil(printQueue.length / LABELS_PER_PAGE) }).map((_, pageIndex) => (
                         <div key={`front-${pageIndex}`} className="print-page">
                             {printQueue.slice(pageIndex * LABELS_PER_PAGE, (pageIndex + 1) * LABELS_PER_PAGE).map(label => (
@@ -293,7 +291,6 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                         </div>
                     ))}
                     
-                    {/* Back Pages */}
                     {printQueue.length > 0 && Array.from({ length: Math.ceil(printQueue.length / LABELS_PER_PAGE) }).map((_, pageIndex) => (
                         <div key={`back-${pageIndex}`} className="print-page">
                             {printQueue.slice(pageIndex * LABELS_PER_PAGE, (pageIndex + 1) * LABELS_PER_PAGE).map(label => (

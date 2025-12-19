@@ -11,16 +11,13 @@ interface CompositionsScreenProps {
   savedCompositions: SavedComposition[];
   setSavedCompositions: React.Dispatch<React.SetStateAction<SavedComposition[]>>;
   onNavigate: (view: View) => void;
-  // New props for AI generation and product details
-  apiKey: string | null;
-  onRequestApiKey: () => void;
   products: Product[];
   onEditProduct: (product: Product) => void;
   onSaveComposition: (composition: Omit<SavedComposition, 'id'>) => void;
 }
 
 const CompositionsScreen: React.FC<CompositionsScreenProps> = ({ 
-  savedCompositions, setSavedCompositions, onNavigate, apiKey, onRequestApiKey, products, onEditProduct, onSaveComposition 
+  savedCompositions, setSavedCompositions, onNavigate, products, onEditProduct, onSaveComposition 
 }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -45,7 +42,6 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
   };
 
   const openViewer = (index: number) => {
-    // Find the original index in the unfiltered list
     const originalIndex = savedCompositions.findIndex(c => c.id === filteredCompositions[index].id);
     setViewerState({ open: true, startIndex: originalIndex });
   };
@@ -65,7 +61,7 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
   return (
     <>
       <div className="h-full w-full flex flex-col relative overflow-hidden">
-        <main className="flex-grow overflow-y-auto px-6 pt-24 pb-36 md:pb-6 no-scrollbar z-10">
+        <main className="flex-grow overflow-y-auto px-6 pt-24 pb-52 md:pb-52 no-scrollbar z-10">
           <div className="flex justify-between items-center mb-4">
             <h1 className={`text-3xl font-bold ${titleClasses}`}>Composições Salvas</h1>
              <button
@@ -98,11 +94,6 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
                     selectedColor={selectedColor || undefined}
                     layout="horizontal"
                 />
-                {selectedColor && (
-                    <button onClick={() => setSelectedColor(null)} className="mt-3 text-sm text-fuchsia-500 hover:underline">
-                        Limpar filtro de cor
-                    </button>
-                )}
             </div>
           
           {savedCompositions.length > 0 ? (
@@ -140,7 +131,6 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
           ) : (
             <div className="text-center py-16">
               <p className={`text-lg font-semibold ${titleClasses}`}>Nenhuma composição salva</p>
-              <p className={`mt-2 ${subtitleClasses}`}>Use o Gerador de Composições para criar e salvar suas combinações favoritas.</p>
             </div>
           )}
         </main>
@@ -150,8 +140,6 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
             compositions={savedCompositions}
             startIndex={viewerState.startIndex}
             onClose={() => setViewerState({ open: false, startIndex: 0 })}
-            apiKey={apiKey}
-            onRequestApiKey={onRequestApiKey}
             onViewProduct={handleViewProduct}
             onSaveComposition={onSaveComposition}
         />
@@ -167,20 +155,16 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
                   onEditProduct(productToEdit);
               }}
               onSwitchProduct={setViewingProduct}
-              apiKey={apiKey}
-              onRequestApiKey={onRequestApiKey}
               savedCompositions={savedCompositions}
               onViewComposition={(compositions, startIndex) => {
                   const compositionToView = compositions[startIndex];
                   if (!compositionToView) return;
-
                   const originalIndex = savedCompositions.findIndex(c => c.id === compositionToView.id);
                   if (originalIndex > -1) {
-                      setViewingProduct(null); // Close current modal
+                      setViewingProduct(null);
                       setViewerState({ open: true, startIndex: originalIndex });
                   }
               }}
-              // FIX: Added missing properties to satisfy the component's required props.
               onAddToCart={() => {}}
               onNavigate={onNavigate}
               sofaColors={[]}

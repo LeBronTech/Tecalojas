@@ -1,11 +1,9 @@
 
 import React, { useState, useContext, useRef, useMemo, useEffect } from 'react';
 import { ThemeContext, DynamicBrand, Brand, CardFees, CategoryItem } from '../types';
-import ApiKeyModal from '../components/ApiKeyModal';
 import { BRANDS, BRAND_LOGOS } from '../constants';
 
 interface SettingsScreenProps {
-  onSaveApiKey: (key: string) => void;
   onAddNewBrand: (brandName: string, logoFile?: File, logoUrl?: string) => Promise<void>;
   onMenuClick: () => void;
   canManageStock: boolean;
@@ -54,7 +52,7 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
 });
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ 
-    onSaveApiKey, onAddNewBrand, onMenuClick, canManageStock, brands, 
+    onAddNewBrand, onMenuClick, canManageStock, brands, 
     allColors, onAddColor, onDeleteColor, 
     cardFees, onSaveCardFees,
     sofaColors, onAddSofaColor, onDeleteSofaColor,
@@ -63,7 +61,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
   const [newBrandLogoUrl, setNewBrandLogoUrl] = useState('');
   const [newBrandLogoFile, setNewBrandLogoFile] = useState<File | null>(null);
@@ -193,7 +190,7 @@ const handleAddCategorySubmit = async () => {
  
  return (
      <div className="h-full w-full flex flex-col relative overflow-hidden">
-     <main className="flex-grow overflow-y-auto px-6 pt-24 pb-36 md:pb-6 no-scrollbar z-10">
+     <main className="flex-grow overflow-y-auto px-6 pt-24 pb-52 md:pb-52 no-scrollbar z-10">
        <div className="max-w-4xl mx-auto space-y-8">
          <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Configurações</h1>
          
@@ -208,11 +205,6 @@ const handleAddCategorySubmit = async () => {
                     {canManageStock ? 'Administrador' : 'Usuário Comum'}
                 </div>
             </div>
-            {!canManageStock && (
-                <p className="mt-4 text-sm text-amber-500 font-semibold">
-                    Aviso: Para ativar notificações de vendas e gerenciar estoque, seu usuário precisa ter a role 'admin' no Firebase Console.
-                </p>
-            )}
          </Card>
 
          {!canManageStock ? (
@@ -221,14 +213,6 @@ const handleAddCategorySubmit = async () => {
              </Card>
          ) : (
            <>
-             <Card>
-                 <SectionTitle>Chave de API (Gemini)</SectionTitle>
-                 <p className={subtitleClasses}>Necessária para recursos de Inteligência Artificial, como geração de imagens.</p>
-                 <button onClick={() => setIsApiKeyModalOpen(true)} className="mt-4 bg-fuchsia-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">
-                     Gerenciar Chave de API
-                 </button>
-             </Card>
-
              <Card>
                 <SectionTitle>Notificações de Venda</SectionTitle>
                 <p className={subtitleClasses}>Receba alertas no seu dispositivo quando um cliente solicitar um pedido.</p>
@@ -248,9 +232,6 @@ const handleAddCategorySubmit = async () => {
                         </button>
                     )}
                 </div>
-                {notificationPermission === 'denied' && (
-                    <p className="mt-2 text-xs text-red-500 font-semibold">As notificações foram bloqueadas no seu navegador. Ative-as nas configurações do site (ícone de cadeado na barra de endereços).</p>
-                )}
             </Card>
 
              <Card>
@@ -291,7 +272,6 @@ const handleAddCategorySubmit = async () => {
                              </button>
                          </div>
                      ))}
-                     {categories.filter(c => c.type === categoryTab).length === 0 && <p className="text-sm text-gray-500 w-full text-center">Nenhum item cadastrado.</p>}
                  </div>
 
                  <div className="flex gap-2">
@@ -331,7 +311,6 @@ const handleAddCategorySubmit = async () => {
                      </div>
                      <button onClick={handleAddProductColor} className="bg-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar</button>
                  </div>
-                  {productColorNameError && <p className="text-sm text-red-500 mt-2">{productColorNameError}</p>}
              </Card>
              
              <Card>
@@ -359,7 +338,6 @@ const handleAddCategorySubmit = async () => {
                      </div>
                      <button onClick={handleAddSofaColor} className="bg-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar</button>
                  </div>
-                  {sofaColorNameError && <p className="text-sm text-red-500 mt-2">{sofaColorNameError}</p>}
              </Card>
 
               <Card>
@@ -391,12 +369,6 @@ const handleAddCategorySubmit = async () => {
          )}
        </div>
      </main>
-     {isApiKeyModalOpen && (
-         <ApiKeyModal
-             onClose={() => setIsApiKeyModalOpen(false)}
-             onSave={(key) => { onSaveApiKey(key); setIsApiKeyModalOpen(false); }}
-         />
-     )}
    </div>
  );
 };

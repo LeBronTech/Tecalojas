@@ -71,7 +71,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
 
     const handleRandomSelection = () => {
         if (products.length === 0) return;
-        const count = Math.floor(Math.random() * 3) + 2; // 2 to 4
+        const count = Math.floor(Math.random() * 3) + 2; 
         const shuffled = [...products].sort(() => 0.5 - Math.random());
         setSelectedIds(shuffled.slice(0, count).map(p => p.id));
         setGeneratedImage(null);
@@ -86,7 +86,6 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             
-            // 1. Generate Name using gemini-3-flash-preview
             const namePrompt = `Crie um nome elegante para uma composição de almofadas com estes itens: ${selectedProducts.map(p => p.name).join(', ')}. O nome deve ser curto e inspirador (ex: 'Refúgio Natural', 'Elegância Urbana'). Retorne apenas o nome.`;
             const nameResponse = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
@@ -95,7 +94,6 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             const newName = nameResponse.text?.trim() || 'Nova Composição';
             if (isMounted.current) setGeneratedName(newName);
 
-            // 2. Generate Image using gemini-2.5-flash-image
             const imageParts = await Promise.all(selectedProducts.map(p => getBase64FromImageUrl(p.baseImageUrl).then(img => ({ inlineData: img }))));
             const imagePrompt = `Crie uma foto de catálogo profissional. Arrume estas ${selectedProducts.length} almofadas de forma realista e harmoniosa em um sofá moderno em uma sala de estar elegante. Luz suave natural vindo de uma janela lateral.`;
             
@@ -109,7 +107,6 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                 throw new Error('Geração de imagem bloqueada por segurança.');
             }
 
-            // Correct part extraction iterating through parts
             const imagePart = candidate?.content?.parts?.find(p => p.inlineData);
             if (!imagePart?.inlineData) throw new Error("IA não retornou imagem.");
 
@@ -142,7 +139,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
 
     return (
         <div className="h-full w-full flex flex-col relative overflow-hidden">
-            <main className="flex-grow overflow-y-auto px-6 pt-24 pb-36 md:pb-6 no-scrollbar z-10">
+            <main className="flex-grow overflow-y-auto px-6 pt-24 pb-52 md:pb-52 no-scrollbar z-10">
                 <div className="max-w-2xl mx-auto space-y-6">
                     <div className="text-center">
                         <h1 className={`text-3xl font-bold ${titleClasses}`}>Gerador de Composições</h1>

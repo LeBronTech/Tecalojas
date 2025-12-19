@@ -1,4 +1,3 @@
-
 import React, { useState, useContext, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Product, Variation, WaterResistanceLevel, SavedComposition, ThemeContext, View, StoreName, CushionSize, CartItem } from '../types';
 import { WATER_RESISTANCE_INFO, BRAND_LOGOS, PREDEFINED_COLORS } from '../constants';
@@ -11,8 +10,6 @@ interface ProductDetailModalProps {
     canManageStock: boolean;
     onEditProduct: (product: Product) => void;
     onSwitchProduct: (product: Product) => void;
-    apiKey: string | null;
-    onRequestApiKey: () => void;
     savedCompositions: SavedComposition[];
     onViewComposition: (compositions: SavedComposition[], startIndex: number) => void;
     onAddToCart: (product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number, isPreOrder?: boolean) => void;
@@ -95,7 +92,7 @@ const FurnitureColorPopover: React.FC<FurnitureColorPopoverProps> = ({ isOpen, o
 };
 
 
-const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct, apiKey, onRequestApiKey, onAddToCart, onNavigate, sofaColors, cart }) => {
+const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct, onAddToCart, onNavigate, sofaColors, cart }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 

@@ -1,13 +1,15 @@
+
 import React, { useContext, useState, useMemo } from 'react';
 import { CartItem, View, CushionSize, ThemeContext, Product, StoreName } from '../types';
 import * as api from '../firebase';
 
+// --- FIX: Defined CartScreenProps interface to resolve the missing type definition error ---
 interface CartScreenProps {
-    cart: CartItem[];
-    products: Product[];
-    onUpdateQuantity: (productId: string, variationSize: CushionSize, itemType: 'cover' | 'full', newQuantity: number) => void;
-    onRemoveItem: (productId: string, variationSize: CushionSize, itemType: 'cover' | 'full') => void;
-    onNavigate: (view: View) => void;
+  cart: CartItem[];
+  products: Product[];
+  onUpdateQuantity: (productId: string, variationSize: CushionSize, itemType: 'cover' | 'full', newQuantity: number) => void;
+  onRemoveItem: (productId: string, variationSize: CushionSize, itemType: 'cover' | 'full') => void;
+  onNavigate: (view: View) => void;
 }
 
 const PreOrderModal: React.FC<{
@@ -84,11 +86,9 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
-    // Logic for CartScreen
     const [isPreOrderModalOpen, setIsPreOrderModalOpen] = useState(false);
     const [isSavingPreOrder, setIsSavingPreOrder] = useState(false);
 
-    // Identify items that are pre-orders vs physical stock
     const { physicalItems, preOrderItems, physicalTotal } = useMemo(() => {
         const physical: CartItem[] = [];
         const preorder: CartItem[] = [];
@@ -118,7 +118,6 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
                 type: 'preorder'
             });
             
-            // Remove pre-order items from cart
             preOrderItems.forEach(item => {
                 onRemoveItem(item.productId, item.variationSize, item.type);
             });
@@ -139,7 +138,7 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
 
     return (
         <div className="h-full w-full flex flex-col relative overflow-hidden">
-            <main className="flex-grow overflow-y-auto px-6 pt-24 pb-36 md:pb-6 no-scrollbar z-10">
+            <main className="flex-grow overflow-y-auto px-6 pt-24 pb-60 md:pb-60 no-scrollbar z-10">
                 <div className="max-w-2xl mx-auto">
                     <div className="flex items-center mb-8">
                         <button onClick={() => onNavigate(View.SHOWCASE)} className={`p-2 rounded-full ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>
@@ -176,7 +175,7 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
                         </div>
                     )}
 
-                    {preOrderItems.length > 0 ? (
+                    {preOrderItems.length > 0 && (
                         <div className="mb-8">
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className={`text-lg font-bold ${titleClasses}`}>Encomendas (Sem Estoque)</h3>
@@ -221,8 +220,6 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
                                 </div>
                             </div>
                         </div>
-                    ) : (
-                        null
                     )}
 
                     {physicalItems.length === 0 && preOrderItems.length === 0 && (
@@ -237,7 +234,7 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
             </main>
 
             {physicalItems.length > 0 && (
-                <div className={`fixed bottom-24 left-4 right-4 p-5 z-40 rounded-3xl border shadow-2xl safe-area-bottom ${isDark ? 'bg-[#2D1F49]/95 backdrop-blur-xl border-white/10' : 'bg-white/95 backdrop-blur-xl border-gray-200'}`}>
+                <div className={`fixed bottom-28 left-4 right-4 p-5 z-40 rounded-3xl border shadow-2xl safe-area-bottom ${isDark ? 'bg-[#2D1F49]/95 backdrop-blur-xl border-white/10' : 'bg-white/95 backdrop-blur-xl border-gray-200'}`}>
                     <div className="max-w-2xl mx-auto">
                         <div className="flex justify-between items-center mb-3">
                             <p className={`text-sm font-semibold ${subtitleClasses}`}>Valor Total (Disponível):</p>

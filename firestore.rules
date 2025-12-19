@@ -4,22 +4,21 @@ service cloud.firestore {
   match /databases/{database}/documents {
   
     // Função auxiliar robusta para verificar se o usuário é um administrador
-    // O uso de exists() evita que a regra quebre caso o documento do usuário ainda não tenha sido criado
+    // Evita recursividade garantindo que o get não dependa de si mesmo
     function isAdmin() {
       return request.auth != null && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // Regras para a coleção 'settings'
-    // Prioridade total para leitura pública: Necessário para carregar taxas e configurações globais na vitrine
+    // Prioridade máxima: Leitura pública para que qualquer cliente veja preços corretos (taxas)
     match /settings/global_settings {
       allow read: if true;
       allow write: if isAdmin();
     }
     
-    // Fallback genérico para a coleção settings
-    match /settings/{allPaths=**} {
+    // Fallback para outros documentos de configuração
+    match /settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
@@ -30,7 +29,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
-    // Regras para marcas, catálogos e categorias (Leitura pública, Escrita admin)
+    // Regras para marcas, catálogos e categorias
     match /brands/{brandId} {
         allow read: if true;
         allow write: if isAdmin();
@@ -46,15 +45,17 @@ service cloud.firestore {
 
     // Regras para a coleção 'users'
     match /users/{userId} {
-      // Usuários podem ler seu próprio perfil, admins podem ler todos
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      // Apenas o próprio usuário pode criar/editar seu perfil básico (role é atribuída manualmente no console para segurança)
+      // Usuário pode ler seu próprio documento sem recursividade. 
+      // Admins podem ler qualquer um usando get direto no campo role.
+      allow read: if request.auth != null && (request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      
+      // Apenas o próprio usuário pode editar seu perfil básico
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
     // Regras para a coleção 'saleRequests'
     match /saleRequests/{requestId} {
-      // Qualquer usuário logado pode criar um pedido (venda ou encomenda)
+      // Qualquer usuário logado pode criar um pedido
       allow create: if request.auth != null;
       // Apenas administradores podem gerenciar e visualizar a lista de pedidos
       allow read, list, update, delete: if isAdmin();

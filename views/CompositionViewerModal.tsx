@@ -1,15 +1,14 @@
+
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { SavedComposition, Product } from '../types';
 import { ThemeContext } from '../types';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 import { STORE_IMAGE_URLS } from '../constants';
 
 interface CompositionViewerModalProps {
   compositions: SavedComposition[];
   startIndex: number;
   onClose: () => void;
-  apiKey: string | null;
-  onRequestApiKey: () => void;
   onViewProduct: (product: Product) => void;
   onSaveComposition: (composition: Omit<SavedComposition, 'id'>) => void;
 }
@@ -39,7 +38,7 @@ const loadLogos = (): Promise<[HTMLImageElement, HTMLImageElement]> => {
     return Promise.all([tecaPromise, ionePromise]);
 };
 
-const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ compositions, startIndex, onClose, apiKey, onRequestApiKey, onViewProduct, onSaveComposition }) => {
+const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ compositions, startIndex, onClose, onViewProduct, onSaveComposition }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [currentIndex, setCurrentIndex] = useState(startIndex);
@@ -233,18 +232,24 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
     };
 
     const handleGenerateEnvironment = async () => {
-        if (!currentComposition || !apiKey) { onRequestApiKey(); return; }
+        if (!currentComposition) return;
         setIsGenerating(true); setError(null);
         try {
             const imageParts = await Promise.all(currentComposition.products.map(p => getBase64FromImageUrl(p.baseImageUrl).then(img => ({inlineData: img}))));
-            const ai = new GoogleGenAI({ apiKey });
+            // FIX: Always use process.env.API_KEY for initialization as per guidelines.
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const textPart = { text: `Arrume estas ${currentComposition.products.length} almofadas de forma natural e esteticamente agradável em um sofá moderno de cor neutra, em uma sala de estar elegante e bem iluminada.` };
-            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [...imageParts, textPart] }, config: { responseModalities: [Modality.IMAGE] } });
+            // FIX: Removed invalid responseModalities for image generation and correctly extracted parts.
+            const response = await ai.models.generateContent({ 
+                model: 'gemini-2.5-flash-image', 
+                contents: { parts: [...imageParts, textPart] } 
+            });
             
             const candidate = response.candidates?.[0];
-            if (candidate?.finishReason === 'SAFETY' || response.promptFeedback?.blockReason) {
+            if (candidate?.finishReason === 'SAFETY') {
                 throw new Error('Geração bloqueada por políticas de segurança.');
             }
+            // FIX: Extract image part by iterating through parts as per guidelines.
             const generatedImagePart = candidate?.content?.parts?.find(p => p.inlineData);
 
             if (!generatedImagePart?.inlineData) throw new Error("A IA não retornou uma imagem.");
