@@ -27,23 +27,9 @@ const ButtonSpinner = () => (
     </svg>
 );
 
-const InstagramIcon = () => (
-    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M3 16V8C3 5.23858 5.23858 3 8 3H16C18.7614 3 21 5.23858 21 8V16C21 18.7614 18.7614 21 16 21H8C5.23858 21 3 18.7614 3 16Z" stroke="currentColor" strokeWidth="2"/>
-        <path d="M17.5 6.51L17.51 6.49889" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-);
-
-const FacebookIcon = () => (
-    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-    </svg>
-);
-
-const WhatsAppIcon = () => (
-    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+const ShareIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12s-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
     </svg>
 );
 
@@ -209,36 +195,30 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     const showSalaColorButton = typeof availableSalaColors === 'object' && availableSalaColors !== null && Object.keys(availableSalaColors).length > 1;
     const showQuartoColorButton = typeof availableQuartoColors === 'object' && availableQuartoColors !== null && Object.keys(availableQuartoColors).length > 1;
 
-    // --- Share Functions ---
-    const generateShareText = (isSocial: boolean) => {
+    // --- Share Function (Native) ---
+    const handleShare = async () => {
         const minPrice = Math.min(...product.variations.map(v => v.priceFull));
-        const colorNames = product.colors.map(c => c.name).join(', ');
-        const url = window.location.href;
+        const shareData = {
+            title: product.name,
+            text: `Confira ${product.name} na Têca! A partir de R$ ${minPrice.toFixed(2)}.`,
+            url: window.location.href
+        };
 
-        if (isSocial) {
-            return `✨ *${product.name}* ✨\n\n🎨 Cor: ${colorNames}\n🧵 Tecido: ${product.fabricType}\n📏 Tamanhos: ${product.variations.map(v => v.size).join(', ')}\n💰 A partir de R$ ${minPrice.toFixed(2)}\n\n🛍️ Veja mais no nosso catálogo:\n${url}`;
-        }
-        return `Olá! Veja esta linda almofada das Lojas Têca:\n\n*${product.name}*\nTecido: ${product.fabricType}\nPreço: R$ ${minPrice.toFixed(2)}\n\nImagem: ${product.baseImageUrl}\n\nConsulte estoque pelo app: ${url}`;
-    };
-
-    const handleShareWhatsApp = () => {
-        const text = encodeURIComponent(generateShareText(false));
-        window.open(`https://wa.me/?text=${text}`, '_blank');
-    };
-
-    const handleShareFacebook = () => {
-        const url = encodeURIComponent(window.location.href);
-        window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
-    };
-
-    const handleCopyForSocial = async () => {
-        const text = generateShareText(true);
-        try {
-            await navigator.clipboard.writeText(text);
-            setCopyFeedback("Texto pronto para Stories/Legenda!");
-            setTimeout(() => setCopyFeedback(null), 3000);
-        } catch (e) {
-            alert("Erro ao copiar.");
+        if (navigator.share) {
+            try {
+                await navigator.share(shareData);
+            } catch (err) {
+                console.log('User cancelled share or error:', err);
+            }
+        } else {
+            // Fallback
+            try {
+                await navigator.clipboard.writeText(window.location.href);
+                setCopyFeedback("Link copiado!");
+                setTimeout(() => setCopyFeedback(null), 3000);
+            } catch (e) {
+                alert("Não foi possível compartilhar.");
+            }
         }
     };
 
@@ -317,31 +297,17 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                     </div>
 
                     <div className="px-6 mt-4 space-y-4">
-                        {/* --- NEW: Share Section --- */}
+                        {/* --- NEW: Unified Share Section --- */}
                         <div className={`p-4 rounded-2xl border ${isDark ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
-                            <p className={`text-[10px] font-black uppercase tracking-widest mb-3 text-center ${subtitleClasses}`}>Vincular e Compartilhar</p>
-                            <div className="flex justify-around items-center">
-                                <button onClick={handleShareWhatsApp} className="flex flex-col items-center gap-1 group">
-                                    <div className="w-12 h-12 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-lg transform group-active:scale-90 transition-transform">
-                                        <WhatsAppIcon />
-                                    </div>
-                                    <span className="text-[10px] font-bold text-gray-500">Zap</span>
-                                </button>
-                                <button onClick={handleCopyForSocial} className="flex flex-col items-center gap-1 group">
-                                    <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white flex items-center justify-center shadow-lg transform group-active:scale-90 transition-transform">
-                                        <InstagramIcon />
-                                    </div>
-                                    <span className="text-[10px] font-bold text-gray-500">Instagram</span>
-                                </button>
-                                <button onClick={handleShareFacebook} className="flex flex-col items-center gap-1 group">
-                                    <div className="w-12 h-12 rounded-full bg-[#1877F2] text-white flex items-center justify-center shadow-lg transform group-active:scale-90 transition-transform">
-                                        <FacebookIcon />
-                                    </div>
-                                    <span className="text-[10px] font-bold text-gray-500">Facebook</span>
-                                </button>
-                            </div>
+                            <button 
+                                onClick={handleShare}
+                                className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-3 transition-colors shadow-lg ${isDark ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'}`}
+                            >
+                                <ShareIcon />
+                                Compartilhar Produto
+                            </button>
                             {copyFeedback && (
-                                <p className="text-[10px] text-center font-bold text-fuchsia-500 mt-2 animate-pulse">{copyFeedback}</p>
+                                <p className="text-[10px] text-center font-bold text-green-500 mt-2 animate-pulse">{copyFeedback}</p>
                             )}
                         </div>
 

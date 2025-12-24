@@ -1,7 +1,7 @@
-
 import React, { useState, useContext, useRef, useMemo, useEffect } from 'react';
-import { ThemeContext, DynamicBrand, Brand, CardFees, CategoryItem } from '../types';
+import { ThemeContext, DynamicBrand, Brand, CardFees, CategoryItem, Product } from '../types';
 import { BRANDS, BRAND_LOGOS } from '../constants';
+import * as api from '../firebase';
 
 interface SettingsScreenProps {
   onAddNewBrand: (brandName: string, logoFile?: File, logoUrl?: string) => Promise<void>;
@@ -78,6 +78,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [categoryTab, setCategoryTab] = useState<'category' | 'subcategory'>('category');
   const [newCategoryName, setNewCategoryName] = useState('');
   const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
      setFees(cardFees);
@@ -186,6 +187,58 @@ const handleAddCategorySubmit = async () => {
     }
 };
 
+// --- Facebook Catalog Export ---
+const handleExportMetaCSV = () => {
+    setIsExporting(true);
+    // Fetch all products just once to be safe, or assume 'products' prop is passed?
+    // Since SettingsScreen doesn't receive products prop in the interface, we need to fetch or use a context.
+    // For now, let's attach a temporary listener to get the products for export.
+    const unsubscribe = api.onProductsUpdate((products: Product[]) => {
+        const headers = ['id', 'title', 'description', 'availability', 'condition', 'price', 'link', 'image_link', 'brand', 'google_product_category'];
+        const rows = [headers.join(',')];
+        const baseUrl = window.location.origin;
+
+        products.forEach(p => {
+            const price = p.variations?.[0]?.priceFull || 0;
+            const stock = p.variations?.reduce((acc, v) => acc + (v.stock.Têca || 0) + (v.stock['Ione Decor'] || 0), 0) || 0;
+            const availability = stock > 0 ? 'in stock' : 'out of stock';
+            
+            // CSV Escape function
+            const esc = (t: string) => `"${(t || '').replace(/"/g, '""')}"`;
+
+            const row = [
+                esc(p.id),
+                esc(p.name),
+                esc(p.description || p.name),
+                availability,
+                'new',
+                `${price.toFixed(2)} BRL`,
+                esc(baseUrl), // Ideally deep link to product
+                esc(p.baseImageUrl),
+                esc(p.brand),
+                'Home & Garden > Decor > Throw Pillows' // Google Category Code
+            ];
+            rows.push(row.join(','));
+        });
+
+        const csvContent = "data:text/csv;charset=utf-8," + rows.join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "catalogo_teca_meta.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setIsExporting(false);
+        unsubscribe();
+    }, (err) => {
+        console.error("Export failed", err);
+        setIsExporting(false);
+        alert("Erro ao exportar catálogo.");
+    });
+};
+
  const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
  
  return (
@@ -213,6 +266,35 @@ const handleAddCategorySubmit = async () => {
              </Card>
          ) : (
            <>
+             <Card>
+                <SectionTitle>Integrações & Catálogo</SectionTitle>
+                <p className={`mb-4 ${subtitleClasses}`}>Gerencie a conexão com plataformas externas (Facebook, Instagram, Google).</p>
+                
+                <div className="space-y-4">
+                    <div className={`p-4 rounded-xl border ${isDark ? 'bg-black/30 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className="flex items-center gap-3 mb-2">
+                            <svg className="w-6 h-6 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                            <h3 className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Catálogo Meta (Facebook/Instagram)</h3>
+                        </div>
+                        <p className={`text-sm mb-4 ${subtitleClasses}`}>
+                            Para ativar a sacolinha do Instagram, exporte seus produtos e faça upload no Gerenciador de Comércio do Facebook.
+                        </p>
+                        <button 
+                            onClick={handleExportMetaCSV} 
+                            disabled={isExporting}
+                            className="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-blue-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {isExporting ? (
+                                <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            )}
+                            Exportar CSV para Meta
+                        </button>
+                    </div>
+                </div>
+             </Card>
+
              <Card>
                 <SectionTitle>Notificações de Venda</SectionTitle>
                 <p className={subtitleClasses}>Receba alertas no seu dispositivo quando um cliente solicitar um pedido.</p>
