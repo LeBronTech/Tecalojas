@@ -711,7 +711,12 @@ export const deleteCategory = (categoryId: string) => {
 
 // --- FIRESTORE (GLOBAL SETTINGS) ---
 export const onSettingsUpdate = (
-    onSuccess: (settings: { cardFees: CardFees, weeklyGoal: number }) => void,
+    onSuccess: (settings: { 
+        cardFees: CardFees, 
+        weeklyGoal: number,
+        colors?: { name: string; hex: string }[],
+        sofaColors?: { name: string; hex: string }[]
+    }) => void,
     onError?: (error: FirestoreError) => void
 ) => {
     const settingsDoc = doc(db, "settings", "global_settings");
@@ -720,7 +725,9 @@ export const onSettingsUpdate = (
             const data = snapshot.data();
             onSuccess({
                 cardFees: data.cardFees,
-                weeklyGoal: data.weeklyGoal || 0
+                weeklyGoal: data.weeklyGoal || 0,
+                colors: data.colors,
+                sofaColors: data.sofaColors
             });
         } else {
             console.log("Configurações globais ainda não existem.");
@@ -732,7 +739,12 @@ export const onSettingsUpdate = (
     });
 };
 
-export const updateGlobalSettings = async (data: Partial<{ cardFees: CardFees; weeklyGoal: number }>): Promise<void> => {
+export const updateGlobalSettings = async (data: Partial<{ 
+    cardFees: CardFees; 
+    weeklyGoal: number;
+    colors: { name: string; hex: string }[];
+    sofaColors: { name: string; hex: string }[];
+}>): Promise<void> => {
     const settingsDoc = doc(db, "settings", "global_settings");
     await setDoc(settingsDoc, data, { merge: true });
 };

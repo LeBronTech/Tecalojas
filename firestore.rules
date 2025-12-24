@@ -3,62 +3,34 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
   
-    // Função auxiliar robusta para verificar se o usuário é um administrador
-    // Evita recursividade garantindo que o get não dependa de si mesmo
+    // Função auxiliar para verificar se o usuário autenticado é um administrador.
     function isAdmin() {
       return request.auth != null && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Regras para a coleção 'settings'
-    // Prioridade máxima: Leitura pública para que qualquer cliente veja preços corretos (taxas)
-    match /settings/global_settings {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    
-    // Fallback para outros documentos de configuração
-    match /settings/{docId} {
+    // Coleções com leitura pública:
+    // Qualquer pessoa (logada ou não) pode ler os dados, o que é essencial para a vitrine.
+    // Apenas administradores podem escrever, editar ou apagar.
+    match /(products|brands|catalogs|categories|settings)/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Regras para a coleção 'products'
-    match /products/{productId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    
-    // Regras para marcas, catálogos e categorias
-    match /brands/{brandId} {
-        allow read: if true;
-        allow write: if isAdmin();
-    }
-    match /catalogs/{catalogId} {
-        allow read: if true;
-        allow write: if isAdmin();
-    }
-    match /categories/{categoryId} {
-        allow read: if true;
-        allow write: if isAdmin();
-    }
-
-    // Regras para a coleção 'users'
+    // Perfis de usuário:
+    // Usuários podem ler seu próprio perfil. Administradores podem ler qualquer perfil.
     match /users/{userId} {
-      // Usuário pode ler seu próprio documento sem recursividade. 
-      // Admins podem ler qualquer um usando get direto no campo role.
-      allow read: if request.auth != null && (request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-      
-      // Apenas o próprio usuário pode editar seu perfil básico
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      // Usuários podem criar ou editar seu próprio documento de perfil.
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Regras para a coleção 'saleRequests'
+    // Solicitações de Venda:
+    // Qualquer usuário logado pode criar uma solicitação (fazer um pedido).
+    // Apenas administradores podem ler, atualizar ou deletar os pedidos.
     match /saleRequests/{requestId} {
-      // Qualquer usuário logado pode criar um pedido
       allow create: if request.auth != null;
-      // Apenas administradores podem gerenciar e visualizar a lista de pedidos
-      allow read, list, update, delete: if isAdmin();
+      allow read, update, delete: if isAdmin();
     }
   }
 }

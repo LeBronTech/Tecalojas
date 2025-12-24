@@ -1,19 +1,27 @@
 rules_version = '2';
 
-// Copie este conteúdo EXCLUSIVAMENTE para a aba "Storage" > "Rules" no Console do Firebase.
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Regra global para todos os arquivos
+    // Função auxiliar para verificar no Firestore se o usuário é um administrador.
+    // O '(default)' é necessário para referenciar o banco de dados padrão.
+    function isAdmin() {
+      return request.auth != null && 
+             get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Regra de leitura global:
+    // Permite que qualquer pessoa veja as imagens dos produtos, logos, etc.
+    // Essencial para a vitrine funcionar para visitantes.
     match /{allPaths=**} {
-      
-      // Permite leitura pública: Necessário para que clientes vejam as fotos na vitrine.
       allow read: if true;
-      
-      // Permite escrita (upload/delete): Necessário para que o app salve as fotos.
-      // A restrição `request.auth != null` exige que o usuário esteja logado no app.
-      // Isso resolve o erro de permissão/carregamento infinito ao salvar produtos.
-      allow write: if request.auth != null;
+    }
+
+    // Regras de escrita (Upload/Delete):
+    // Apenas administradores podem enviar ou apagar arquivos nas pastas protegidas.
+    // Isso garante que somente admins possam alterar imagens de produtos, logos e catálogos.
+    match /(products|brand_logos|catalogs)/{allPaths=**} {
+      allow write: if isAdmin();
     }
   }
 }

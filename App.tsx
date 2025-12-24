@@ -42,7 +42,7 @@ declare global {
 }
 
 const THEME_STORAGE_KEY = 'pillow-oasis-theme';
-const ALL_COLORS_STORAGE_KEY = 'pillow-oasis-all-colors';
+// Removed ALL_COLORS_STORAGE_KEY since we are moving to Firebase
 const SAVED_COMPOSITIONS_STORAGE_KEY = 'pillow-oasis-saved-compositions';
 const CART_STORAGE_KEY = 'pillow-oasis-cart';
 
@@ -258,7 +258,7 @@ const HomeIcon = () => (
 );
 const CompositionIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
     </svg>
 );
 const InventoryIcon = () => (
@@ -448,6 +448,18 @@ export default function App() {
         if (settings?.weeklyGoal !== undefined) {
             setWeeklyGoal(settings.weeklyGoal);
         }
+        // Sync Colors with Firestore
+        if (settings?.colors && settings.colors.length > 0) {
+            setAllColors(settings.colors);
+        } else {
+            setAllColors(PREDEFINED_COLORS);
+        }
+        // Sync Sofa Colors with Firestore
+        if (settings?.sofaColors && settings.sofaColors.length > 0) {
+            setSofaColors(settings.sofaColors);
+        } else {
+            setSofaColors(PREDEFINED_SOFA_COLORS);
+        }
     });
     return () => unsubscribe();
   }, []);
@@ -622,12 +634,40 @@ export default function App() {
     setView(newView ?? View.SHOWCASE);
   }, [currentUser, cart, customerName]);
 
+  const sendSystemNotification = (title: string, body: string) => {
+        // Try Cordova Plugin first (Android/iOS Native)
+        const cordovaWindow = window as any;
+        if (cordovaWindow.cordova && cordovaWindow.cordova.plugins && cordovaWindow.cordova.plugins.notification && cordovaWindow.cordova.plugins.notification.local) {
+            cordovaWindow.cordova.plugins.notification.local.schedule({
+                title: title,
+                text: body,
+                foreground: true,
+                smallIcon: 'res://icon',
+                icon: 'res://icon'
+            });
+        }
+        
+        // Try Standard Web API (PWA/Chrome Android)
+        else if (('Notification' in window) && Notification.permission === 'granted') {
+            try {
+              new Notification(title, {
+                  body: body,
+                  icon: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png',
+                  tag: 'sale-update' // Tag prevents duplicate stacking
+              });
+            } catch (e) {
+                console.error("Web Notification Error:", e);
+            }
+        }
+  };
+
   useEffect(() => {
     if (!isAdmin) return;
     
     const newItems = saleRequests.filter(r => r.status === 'pending' && !notifiedRequestIds.current.has(r.id));
     
     if (newItems.length > 0) {
+        // Play Sound
         try {
             const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
             if (AudioContextClass) {
@@ -636,52 +676,39 @@ export default function App() {
               const gain = audioCtx.createGain();
               osc.connect(gain);
               gain.connect(audioCtx.destination);
-              osc.type = 'triangle';
-              osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-              gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+              osc.type = 'sine'; // More pleasant 'ping'
+              osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+              osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.1);
+              gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
               osc.start();
               osc.stop(audioCtx.currentTime + 0.5);
             }
-            if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
-        } catch (e) {}
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        } catch (e) {
+            console.error("Audio playback blocked", e);
+        }
 
         const latest = newItems[0];
         const isPre = latest.type === 'preorder';
-        const title = isPre ? 'Nova Encomenda!' : 'Nova Venda Pendente!';
+        const title = isPre ? 'Nova Encomenda!' : 'Nova Venda!';
         const body = `${latest.customerName || 'Cliente'} - R$ ${(latest.totalPrice).toFixed(2)}`;
 
+        // Show Custom In-App Notification
         setToastNotification({ message: title, sub: body, type: latest.type });
-        setTimeout(() => setToastNotification(null), 5000);
+        
+        // Trigger System Notification (Web or Cordova)
+        sendSystemNotification(title, body);
 
-        if (('Notification' in window) && (Notification as any).permission === 'granted') {
-            try {
-              new Notification(title, {
-                  body: body,
-                  icon: 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png',
-                  tag: 'sale-update'
-              });
-            } catch (e) {}
-        }
+        // Auto-hide in-app notification after 6 seconds
+        setTimeout(() => setToastNotification(null), 6000);
+
         newItems.forEach(r => notifiedRequestIds.current.add(r.id));
     }
   }, [isAdmin, saleRequests]);
 
   useEffect(() => {
     try {
-      const storedColors = localStorage.getItem(ALL_COLORS_STORAGE_KEY);
-      if (storedColors) setAllColors(JSON.parse(storedColors));
-      else {
-        setAllColors(PREDEFINED_COLORS);
-        localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(PREDEFINED_COLORS));
-      }
-      
-      const storedSofaColors = localStorage.getItem(SOFA_COLORS_STORAGE_KEY);
-      if (storedSofaColors) setSofaColors(JSON.parse(storedSofaColors));
-      else {
-        setSofaColors(PREDEFINED_SOFA_COLORS);
-        localStorage.setItem(SOFA_COLORS_STORAGE_KEY, JSON.stringify(PREDEFINED_SOFA_COLORS));
-      }
-
       const storedCompositions = localStorage.getItem(SAVED_COMPOSITIONS_STORAGE_KEY);
       if (storedCompositions) setSavedCompositions(JSON.parse(storedCompositions));
     } catch (error) {
@@ -694,12 +721,6 @@ export default function App() {
         localStorage.setItem(SAVED_COMPOSITIONS_STORAGE_KEY, JSON.stringify(savedCompositions));
     } catch (error) { console.error("Failed to save compositions", error); }
   }, [savedCompositions]);
-
-  useEffect(() => {
-    try {
-        localStorage.setItem(SOFA_COLORS_STORAGE_KEY, JSON.stringify(sofaColors));
-    } catch (error) { console.error("Failed to save sofa colors", error); }
-  }, [sofaColors]);
 
   const handleSaveComposition = useCallback((compositionToSave: Omit<SavedComposition, 'id'>) => {
     const id = `${compositionToSave.size}-${compositionToSave.products.map(p => p.id).sort().join('-')}`;
@@ -714,32 +735,52 @@ export default function App() {
     });
   }, []);
 
-  const handleAddColor = (color: { name: string; hex: string }) => {
-    setAllColors(prevColors => {
-        if (prevColors.some(c => c.name.toLowerCase() === color.name.toLowerCase())) return prevColors;
-        const newColors = [...prevColors, color];
-        localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
-        return newColors;
-    });
+  const handleAddColor = async (color: { name: string; hex: string }) => {
+    // Optimistic update
+    let newColors = [...allColors];
+    if (!newColors.some(c => c.name.toLowerCase() === color.name.toLowerCase())) {
+        newColors.push(color);
+        setAllColors(newColors); // Update UI immediately
+        try {
+            await api.updateGlobalSettings({ colors: newColors });
+        } catch (e) {
+            console.error("Failed to save color to Firestore", e);
+            // Optionally revert state here if needed, but for colors it's usually fine
+        }
+    }
   };
 
-  const handleDeleteColor = (colorName: string) => {
-      setAllColors(prevColors => {
-          const newColors = prevColors.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
-          localStorage.setItem(ALL_COLORS_STORAGE_KEY, JSON.stringify(newColors));
-          return newColors;
-      });
+  const handleDeleteColor = async (colorName: string) => {
+      let newColors = allColors.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
+      setAllColors(newColors); // Update UI immediately
+      try {
+          await api.updateGlobalSettings({ colors: newColors });
+      } catch (e) {
+          console.error("Failed to delete color from Firestore", e);
+      }
   };
   
-  const handleAddSofaColor = (color: { name: string; hex: string }) => {
-    setSofaColors(prevColors => {
-        if (prevColors.some(c => c.name.toLowerCase() === color.name.toLowerCase())) return prevColors;
-        return [...prevColors, color];
-    });
+  const handleAddSofaColor = async (color: { name: string; hex: string }) => {
+    let newColors = [...sofaColors];
+    if (!newColors.some(c => c.name.toLowerCase() === color.name.toLowerCase())) {
+        newColors.push(color);
+        setSofaColors(newColors);
+        try {
+            await api.updateGlobalSettings({ sofaColors: newColors });
+        } catch (e) {
+            console.error("Failed to save sofa color", e);
+        }
+    }
   };
 
-  const handleDeleteSofaColor = (colorName: string) => {
-      setSofaColors(prevColors => prevColors.filter(c => c.name.toLowerCase() !== colorName.toLowerCase()));
+  const handleDeleteSofaColor = async (colorName: string) => {
+      let newColors = sofaColors.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
+      setSofaColors(newColors);
+      try {
+          await api.updateGlobalSettings({ sofaColors: newColors });
+      } catch (e) {
+          console.error("Failed to delete sofa color", e);
+      }
   };
   
   const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_REAL_API_KEY_HERE";
@@ -990,7 +1031,7 @@ export default function App() {
       case View.STOCK:
         return <StockManagementScreen products={products} onEditProduct={setEditingProduct} onAddProduct={() => setIsWizardOpen(true)} onDeleteProduct={(id) => setDeletingProductId(id)} onUpdateStock={handleUpdateStock} canManageStock={isAdmin} hasFetchError={hasFetchError} brands={brands} onMenuClick={handleMenuClick} />;
        case View.SETTINGS:
-        return <SettingsScreen canManageStock={isAdmin} brands={brands} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} onMenuClick={handleMenuClick} cardFees={cardFees} onSaveCardFees={handleUpdateCardFees} sofaColors={sofaColors} onAddSofaColor={handleAddSofaColor} onDeleteSofaColor={handleDeleteSofaColor} categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} />;
+        return <SettingsScreen canManageStock={isAdmin} brands={brands} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} onMenuClick={handleMenuClick} cardFees={cardFees} onSaveCardFees={handleUpdateCardFees} sofaColors={sofaColors} onAddSofaColor={handleAddSofaColor} onDeleteSofaColor={handleDeleteSofaColor} categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} onAddNewBrand={handleAddNewBrand} />;
        case View.CATALOG:
         return <CatalogScreen catalogs={catalogs} onUploadCatalog={handleUploadCatalog} onMenuClick={handleMenuClick} canManageStock={isAdmin} brands={brands} />;
        case View.COMPOSITION_GENERATOR:
@@ -1066,19 +1107,43 @@ export default function App() {
             {isSignUpModalOpen && <SignUpModal onClose={() => setIsSignUpModalOpen(false)} onSignUp={handleSignUp} />}
             <ConfirmationModal isOpen={!!deletingProductId} onClose={() => setDeletingProductId(null)} onConfirm={confirmDeleteProduct} title="Excluir Produto" message="Tem certeza que deseja excluir este produto? Esta ação não pode ser desfeita." />
             <InfoModal isOpen={infoModalState.isOpen} onClose={() => setInfoModalState(prev => ({...prev, isOpen: false}))} title={infoModalState.title} message={infoModalState.message} onConfirm={infoModalState.onConfirm} />
+            
             {toastNotification && (
-                <div className="fixed top-24 right-4 z-[200] max-w-xs w-full bg-white dark:bg-[#2D1F49] border-l-4 border-green-500 rounded-r shadow-lg p-4 animate-slide-in-right">
-                    <div className="flex items-start">
-                        <div className="flex-shrink-0">
-                            <svg className="h-6 w-6 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <div 
+                    className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[200] max-w-sm w-full px-4 animate-slide-down"
+                    onClick={() => {
+                        handleNavigate(View.SALES);
+                        setToastNotification(null);
+                    }}
+                >
+                    <div className="bg-white/80 dark:bg-[#2D1F49]/80 backdrop-blur-md border-l-4 border-fuchsia-500 rounded-2xl shadow-2xl p-4 flex items-center justify-between cursor-pointer hover:scale-105 transition-transform duration-300">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-fuchsia-500 rounded-full p-2 text-white shadow-lg animate-pulse">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p className="font-black text-gray-900 dark:text-white text-lg leading-tight">{toastNotification.message}</p>
+                                <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mt-1">{toastNotification.sub}</p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setToastNotification(null); }}
+                            className="text-gray-400 hover:text-gray-600 dark:hover:text-white p-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
-                        </div>
-                        <div className="ml-3 w-0 flex-1 pt-0.5">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">{toastNotification.message}</p>
-                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{toastNotification.sub}</p>
-                        </div>
+                        </button>
                     </div>
+                    <style>{`
+                        @keyframes slide-down {
+                            0% { transform: translate(-50%, -100%); opacity: 0; }
+                            100% { transform: translate(-50%, 0); opacity: 1; }
+                        }
+                        .animate-slide-down { animation: slide-down 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+                    `}</style>
                 </div>
             )}
         </div>
