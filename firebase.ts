@@ -28,7 +28,7 @@ import {
     where,
     orderBy
 } from "firebase/firestore";
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, uploadString } from "firebase/storage";
 
 import { User, Product, DynamicBrand, CatalogPDF, SaleRequest, CartItem, StoreName, PosCartItem, Variation, CategoryItem, CardFees } from './types';
 import { firebaseConfig } from './firebaseConfig';
@@ -387,6 +387,78 @@ export const deleteProduct = (productId: string): Promise<void> => {
     const productDoc = doc(db, "products", productId);
     return deleteDoc(productDoc);
 };
+
+// --- META / FACEBOOK CATALOG SYNC ---
+// This function generates a CSV file from the product list and uploads it to Firebase Storage.
+// The public URL of this file can be used as a "Data Feed" in Facebook Commerce Manager.
+export const updateMetaCatalogFeed = async (products: Product[]): Promise<string> => {
+    const headers = ['id', 'title', 'description', 'availability', 'condition', 'price', 'link', 'image_link', 'brand', 'google_product_category'];
+    const rows = [headers.join(',')];
+    const baseUrl = window.location.href.split('#')[0]; // Base URL of the app
+
+    // CSV Escape function to handle commas and quotes
+    const esc = (t: string) => `"${(t || '').replace(/"/g, '""')}"`;
+
+    products.forEach(p => {
+        // Facebook requires unique IDs for items. We can treat variations as items.
+        // If no variations, use main product.
+        const variations = p.variations && p.variations.length > 0 ? p.variations : [];
+        
+        if (variations.length > 0) {
+            variations.forEach(v => {
+                const stock = (v.stock[StoreName.TECA] || 0) + (v.stock[StoreName.IONE] || 0);
+                const availability = stock > 0 ? 'in stock' : 'out of stock';
+                const price = v.priceFull || 0;
+                const imageUrl = v.imageUrl || p.baseImageUrl;
+                
+                const row = [
+                    esc(`${p.id}-${v.size}`), // Unique ID per variation
+                    esc(`${p.name} - ${v.size}`), // Title includes size
+                    esc(p.description || p.name),
+                    availability,
+                    'new',
+                    `${price.toFixed(2)} BRL`,
+                    esc(baseUrl), // Link to app
+                    esc(imageUrl),
+                    esc(typeof p.brand === 'string' ? p.brand : 'Lojas Têca'),
+                    'Home & Garden > Decor > Throw Pillows'
+                ];
+                rows.push(row.join(','));
+            });
+        } else {
+            // Fallback for product without variations (shouldn't happen given logic, but safe to have)
+            const row = [
+                esc(p.id),
+                esc(p.name),
+                esc(p.description || p.name),
+                'out of stock',
+                'new',
+                `0.00 BRL`,
+                esc(baseUrl),
+                esc(p.baseImageUrl),
+                esc(typeof p.brand === 'string' ? p.brand : 'Lojas Têca'),
+                'Home & Garden > Decor > Throw Pillows'
+            ];
+            rows.push(row.join(','));
+        }
+    });
+
+    const csvContent = rows.join("\n");
+    
+    // Upload to a fixed path in storage. This URL will be permanent and updated.
+    const storageRef = ref(storage, 'catalogs/meta_feed.csv');
+    
+    try {
+        await uploadString(storageRef, csvContent, 'raw', { contentType: 'text/csv' });
+        const downloadURL = await getDownloadURL(storageRef);
+        console.log("Catalog Feed Updated:", downloadURL);
+        return downloadURL;
+    } catch (error) {
+        console.error("Error updating catalog feed:", error);
+        throw error;
+    }
+};
+
 
 // Helper to sanitize items for Firestore storage
 const sanitizeCartItems = (items: CartItem[] | PosCartItem[]) => {

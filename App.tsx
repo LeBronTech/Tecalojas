@@ -884,6 +884,15 @@ export default function App() {
                 const { id, ...productData } = productWithGroupId;
                 productForBackgroundUpload = await api.addProductData(productData);
             }
+            
+            // --- NEW: Trigger Meta Feed Update ---
+            // Construct a temporary updated product list including this new/updated product to ensure feed is instant
+            const updatedProductList = products.map(p => p.id === productForBackgroundUpload.id ? productForBackgroundUpload : p);
+            if (!productWithGroupId.id) updatedProductList.push(productForBackgroundUpload); // New product case
+            
+            api.updateMetaCatalogFeed(updatedProductList).catch(err => console.error("Failed to update Meta Feed:", err));
+            // -------------------------------------
+
             api.processImageUploadsForProduct(productForBackgroundUpload).catch(err => {
                 console.error("Background image processing failed:", err);
             });
@@ -895,7 +904,7 @@ export default function App() {
             }
             throw error;
         }
-    }, []);
+    }, [products]); // Added dependency on products
 
     const handleCreateColorVariations = useCallback(async (parentProduct: Product, newColors: {name: string, hex: string}[]) => {
         try {
@@ -926,16 +935,29 @@ export default function App() {
                 const { id, ...rest } = newProductData as any;
                 return rest;
             });
-            await Promise.all(productsToCreate.map(p => api.addProductData(p)));
+            const createdDocs = await Promise.all(productsToCreate.map(p => api.addProductData(p)));
+            
+            // --- NEW: Trigger Meta Feed Update ---
+            const newProductsWithIds = createdDocs;
+            const updatedProductList = [...products, ...newProductsWithIds];
+            api.updateMetaCatalogFeed(updatedProductList).catch(err => console.error("Failed to update Meta Feed after batch creation:", err));
+            // -------------------------------------
+
         } catch (error: any) {
             if (error.code === 'permission-denied') throw new Error('Permissão negada.');
             throw error;
         }
-    }, []);
+    }, [products]);
 
   const handleCreateProductsFromWizard = useCallback(async (productsToCreate: Omit<Product, 'id'>[], productToConfigure: Omit<Product, 'id'>) => {
       try {
           const createdDocs = await Promise.all(productsToCreate.map(p => api.addProductData(p)));
+          
+          // --- NEW: Trigger Meta Feed Update ---
+          const updatedProductList = [...products, ...createdDocs];
+          api.updateMetaCatalogFeed(updatedProductList).catch(err => console.error("Failed to update Meta Feed after wizard:", err));
+          // -------------------------------------
+
           const configuredProductDoc = createdDocs.find((doc, index) => productsToCreate[index].colors[0]?.name === productToConfigure.colors[0]?.name);
           if (!configuredProductDoc) throw new Error("Could not find created product.");
           setIsWizardOpen(false);
@@ -944,7 +966,7 @@ export default function App() {
           if (error.code === 'permission-denied') throw new Error('Permissão negada.');
           throw error;
       }
-  }, []);
+  }, [products]);
 
   const handleAddNewBrand = useCallback(async (brandName: string, logoFile?: File, logoUrl?: string) => {
     try {
@@ -990,13 +1012,27 @@ export default function App() {
     if (!variationToUpdate) return;
     variationToUpdate.stock[store] = Math.max(0, variationToUpdate.stock[store] + change);
     const { id, ...productData } = updatedProduct;
-    try { await api.updateProductData(id, productData); } catch (error: any) { alert('Falha ao atualizar o estoque.'); }
+    try { 
+        await api.updateProductData(id, productData); 
+        
+        // --- NEW: Trigger Meta Feed Update ---
+        const updatedList = products.map(p => p.id === id ? updatedProduct : p);
+        api.updateMetaCatalogFeed(updatedList).catch(e => console.error("Feed update error", e));
+        // -------------------------------------
+
+    } catch (error: any) { alert('Falha ao atualizar o estoque.'); }
   }, [products]);
 
   const confirmDeleteProduct = async () => {
     if (!deletingProductId) return;
     try {
       await api.deleteProduct(deletingProductId);
+      
+      // --- NEW: Trigger Meta Feed Update ---
+      const updatedList = products.filter(p => p.id !== deletingProductId);
+      api.updateMetaCatalogFeed(updatedList).catch(e => console.error("Feed update error", e));
+      // -------------------------------------
+
       if (typeof editingProduct === 'object' && editingProduct?.id === deletingProductId) setEditingProduct(null);
     } catch (error: any) { alert(`Falha ao excluir o produto.`); }
     // --- FIX: Fixed typo where setDeletingRequestId was called instead of setDeletingProductId ---
