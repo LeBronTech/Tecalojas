@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -9,25 +10,45 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Coleções com leitura pública:
-    // Qualquer pessoa (logada ou não) pode ler os dados, o que é essencial para a vitrine.
-    // Apenas administradores podem escrever, editar ou apagar.
-    match /(products|brands|catalogs|categories|settings)/{docId} {
+    // Coleção Settings (Cores, Taxas, etc):
+    // CRÍTICO: 'allow read: if true' é essencial para que o menu de cores funcione
+    // para todos os usuários, inclusive visitantes não logados na vitrine.
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Produtos, Marcas, Catálogos e Categorias:
+    // Leitura pública (Vitrine), Escrita apenas Admins.
+    match /products/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /brands/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /catalogs/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /categories/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
     // Perfis de usuário:
-    // Usuários podem ler seu próprio perfil. Administradores podem ler qualquer perfil.
     match /users/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      // Usuários podem criar ou editar seu próprio documento de perfil.
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
     // Solicitações de Venda:
-    // Qualquer usuário logado pode criar uma solicitação (fazer um pedido).
-    // Apenas administradores podem ler, atualizar ou deletar os pedidos.
+    // Qualquer usuário logado pode criar (fazer pedido).
+    // Admins gerenciam tudo.
     match /saleRequests/{requestId} {
       allow create: if request.auth != null;
       allow read, update, delete: if isAdmin();
