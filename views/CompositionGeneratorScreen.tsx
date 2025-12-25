@@ -135,103 +135,136 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             const ctx = canvas.getContext('2d');
             if (!ctx) return;
 
-            // Canvas expandido para caber a lista de nomes embaixo
+            // Canvas expandido com design aprimorado
             const W = 1200; 
-            const SOFA_H = 800;
-            const LIST_H = 100 + (compItems.length * 45);
-            const H = SOFA_H + LIST_H;
+            const SOFA_H = 850;
+            const ITEM_H = 65; // Altura de cada linha de item
+            const LIST_H = 150 + (compItems.length * ITEM_H);
+            const FOOTER_H = 160;
+            const H = SOFA_H + LIST_H + FOOTER_H;
             
             canvas.width = W; 
             canvas.height = H;
 
-            // Fundo Branco Geral
+            // 1. Fundo Geral Branco/Limpo
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, W, H);
 
-            // Fundo do Sofá
+            // 2. Área do Sofá (Topo)
             ctx.fillStyle = selectedSofaColor.hex;
             ctx.fillRect(0, 0, W, SOFA_H);
             
-            // Título
-            ctx.fillStyle = isDark ? '#FFFFFF' : '#4A044E';
-            ctx.font = 'bold 45px sans-serif';
+            // Título Elegante no Sofá
+            ctx.fillStyle = isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)';
+            ctx.font = 'bold 52px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText("MEU SOFÁ VIRTUAL - LOJAS TÊCA", W/2, 80);
+            ctx.fillText("VITRINE EXCLUSIVA", W/2, 100);
+            
+            ctx.font = '300 24px sans-serif';
+            ctx.fillText("PERSONALIZADA NO SOFÁ VIRTUAL", W/2, 140);
 
-            // Desenhar almofadas no sofá
+            // 3. Desenhar Almofadas no Sofá
             for (const item of [...compItems].sort((a,b) => a.zIndex - b.zIndex)) {
                 const img = new Image();
                 img.crossOrigin = 'Anonymous';
                 img.src = item.product.baseImageUrl;
                 await new Promise(res => img.onload = res);
 
-                const baseSize = 280;
+                const baseSize = 300;
                 let drawW = baseSize; let drawH = baseSize;
 
-                if (item.size === CushionSize.SQUARE_40) { drawW = 240; drawH = 240; }
-                else if (item.size === CushionSize.SQUARE_50) { drawW = 320; drawH = 320; }
-                else if (item.size === CushionSize.SQUARE_60) { drawW = 380; drawH = 380; }
-                else if (item.size === CushionSize.LUMBAR) { drawW = 340; drawH = 200; }
+                if (item.size === CushionSize.SQUARE_40) { drawW = 250; drawH = 250; }
+                else if (item.size === CushionSize.SQUARE_50) { drawW = 340; drawH = 340; }
+                else if (item.size === CushionSize.SQUARE_60) { drawW = 400; drawH = 400; }
+                else if (item.size === CushionSize.LUMBAR) { drawW = 360; drawH = 210; }
 
                 const posX = (item.x / 100) * W;
-                const posY = 150 + (item.y / 100) * (SOFA_H - 450);
+                const posY = 180 + (item.y / 100) * (SOFA_H - 550);
 
                 ctx.save();
-                ctx.shadowColor = 'rgba(0,0,0,0.4)';
-                ctx.shadowBlur = 30;
-                ctx.shadowOffsetY = 15;
+                ctx.shadowColor = 'rgba(0,0,0,0.35)';
+                ctx.shadowBlur = 40;
+                ctx.shadowOffsetY = 20;
                 ctx.drawImage(img, posX, posY, drawW, drawH);
                 
-                // Marca d'água de tamanho na imagem compartilhada
-                ctx.fillStyle = 'rgba(0,0,0,0.6)';
-                ctx.fillRect(posX + 10, posY + 10, 80, 30);
+                // Marca d'água de tamanho (Design novo)
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.roundRect(posX + 15, posY + 15, 90, 35, 8);
+                ctx.fill();
                 ctx.fillStyle = 'white';
-                ctx.font = 'bold 16px sans-serif';
+                ctx.font = 'bold 18px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(item.size, posX + 50, posY + 31);
+                ctx.fillText(item.size, posX + 60, posY + 40);
                 ctx.restore();
             }
 
-            // Área da Lista de Almofadas (Rodapé)
-            let currentY = SOFA_H + 70;
+            // 4. Área do Catálogo Nominal (Meio)
+            let currentY = SOFA_H + 80;
             ctx.textAlign = 'left';
-            ctx.fillStyle = '#111827';
-            ctx.font = 'bold 32px sans-serif';
-            ctx.fillText("ALMOFADAS ESCOLHIDAS:", 60, currentY);
             
-            currentY += 60;
+            // Cabeçalho da Lista
+            ctx.fillStyle = '#A21CAF';
+            ctx.font = '900 38px sans-serif';
+            ctx.fillText("CATÁLOGO DE ITENS", 80, currentY);
+            
+            ctx.strokeStyle = '#F0ABFC';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(80, currentY + 20);
+            ctx.lineTo(250, currentY + 20);
+            ctx.stroke();
+
+            currentY += 100;
             compItems.forEach((item, idx) => {
                 const displayName = getItemDisplayName(item);
-                ctx.fillStyle = '#A21CAF';
-                ctx.font = 'bold 24px sans-serif';
-                ctx.fillText(`${idx + 1}. ${displayName.toUpperCase()}`, 70, currentY);
                 
+                // Marcador lateral fúcsia
+                ctx.fillStyle = '#A21CAF';
+                ctx.fillRect(80, currentY - 35, 10, 40);
+
+                // Nome da Almofada
+                ctx.fillStyle = '#111827';
+                ctx.font = 'bold 30px sans-serif';
+                ctx.fillText(displayName.toUpperCase(), 110, currentY);
+                
+                // Detalhes (Tamanho e Marca)
                 ctx.fillStyle = '#6B7280';
-                ctx.font = 'medium 20px sans-serif';
-                ctx.fillText(`- Tamanho: ${item.size}`, 700, currentY);
-                currentY += 45;
+                ctx.font = '500 24px sans-serif';
+                ctx.fillText(`Tamanho: ${item.size}  |  Tecido: ${item.product.fabricType}`, 110, currentY + 38);
+                
+                currentY += ITEM_H + 30;
             });
 
-            // Footer institucional
+            // 5. Rodapé Institucional com Instagrams
+            const footerY = H - FOOTER_H;
             ctx.fillStyle = '#FDF4FF';
-            ctx.fillRect(0, H - 80, W, 80);
-            ctx.fillStyle = '#4A044E';
-            ctx.font = 'bold 22px sans-serif';
+            ctx.fillRect(0, footerY, W, FOOTER_H);
+            
             ctx.textAlign = 'center';
-            ctx.fillText("tecalojas.vercel.app | @tecadecoracoestorredetv", W/2, H - 35);
+            ctx.fillStyle = '#4A044E';
+            
+            // Site
+            ctx.font = 'bold 28px sans-serif';
+            ctx.fillText("tecalojas.vercel.app", W/2, footerY + 50);
+            
+            // Instagrams e Logos
+            ctx.font = 'bold 24px sans-serif';
+            ctx.fillStyle = '#A21CAF';
+            const instaText = "@tecadecoracoestorredetv   •   @ionelourencodecor";
+            ctx.fillText(instaText, W/2, footerY + 105);
 
             canvas.toBlob(async (blob) => {
                 if (blob && navigator.share) {
-                    const file = new File([blob], 'meu-sofa-virtual.png', { type: 'image/png' });
+                    const file = new File([blob], 'meu-sofa-virtual-teca.png', { type: 'image/png' });
                     await navigator.share({
-                        title: 'Meu Design de Almofadas',
-                        text: 'Olha como ficou minha composição no Sofá Virtual das Lojas Têca!',
+                        title: 'Minha Composição - Lojas Têca',
+                        text: 'Confira as almofadas que escolhi para meu ambiente!',
                         files: [file]
                     });
                 }
             }, 'image/png', 0.95);
         } catch (e) {
-            alert("Erro ao preparar imagem de compartilhamento.");
+            alert("Erro ao criar a imagem do catálogo.");
         }
     };
 
@@ -324,17 +357,11 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                         </div>
                     </div>
 
-                    {/* 2. Botões de Ação logo abaixo dos controles */}
-                    <div className="flex gap-3">
-                        <button onClick={() => setIsProductSelectOpen(true)} className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 ${isDark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}>
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth={3}/></svg>
-                            Adicionar Almofadas
-                        </button>
-                        <button onClick={handleShareCurrentDesign} disabled={compItems.length === 0} className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 ${isDark ? 'bg-green-600/20 text-green-400 hover:bg-green-600/40' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                            Compartilhar no Whats
-                        </button>
-                    </div>
+                    {/* 2. Botão Adicionar (Topo) */}
+                    <button onClick={() => setIsProductSelectOpen(true)} className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 ${isDark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth={3}/></svg>
+                        Adicionar Almofadas
+                    </button>
 
                     {/* 3. Área do Sofá Virtual */}
                     <div className={`relative p-2 rounded-[2.5rem] border ${cardClasses} overflow-hidden shadow-2xl`}>
@@ -420,9 +447,15 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                             )}
                         </div>
 
-                        <div className="p-4 bg-black/5">
+                        <div className="p-4 bg-black/5 space-y-3">
                             <button onClick={handleGenerate} disabled={isGenerating || compItems.length === 0} className="w-full py-4 bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white font-black rounded-2xl shadow-xl uppercase tracking-widest text-xs disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
                                 {isGenerating ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" /> : 'Renderizar Vitrine Realista com IA'}
+                            </button>
+                            
+                            {/* Botão Compartilhar (Inferior) */}
+                            <button onClick={handleShareCurrentDesign} disabled={compItems.length === 0} className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 ${isDark ? 'bg-green-600/20 text-green-400 hover:bg-green-600/40' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                                Compartilhar no Whats
                             </button>
                         </div>
                     </div>
