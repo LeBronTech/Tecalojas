@@ -60,7 +60,6 @@ export const STORE_IMAGE_URLS = {
   ione: 'https://i.postimg.cc/R0Sn8Tw2/Logo-lojas-teca-20251017-210317-0001.png',
 };
 
-// FIX: Exporting shared scale constants to avoid duplications and fix missing reference errors
 export const SIZE_SCALES: Record<CushionSize, { w: string; h: string }> = {
     [CushionSize.SQUARE_40]: { w: '80px', h: '80px' },
     [CushionSize.SQUARE_45]: { w: '95px', h: '95px' },
@@ -69,13 +68,28 @@ export const SIZE_SCALES: Record<CushionSize, { w: string; h: string }> = {
     [CushionSize.LUMBAR]: { w: '120px', h: '70px' },
 };
 
-// FIX: Exporting shared fabric patterns for UI simulation to ensure consistency across the app
+// Realistic CSS Patterns for Sofa Fabrics
 export const SOFA_FABRICS = [
-    { name: 'Suede', pattern: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 80%)' },
-    { name: 'Linho', pattern: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 4px), repeating-linear-gradient(90deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 4px)' },
-    { name: 'Veludo', pattern: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)' },
-    { name: 'Couro', pattern: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E"), linear-gradient(to bottom, rgba(255,255,255,0.05), transparent)' },
-    { name: 'Jacquard', pattern: 'radial-gradient(circle at 2px 2px, rgba(0,0,0,0.05) 1px, transparent 0)' }
+    { 
+        name: 'Suede', 
+        pattern: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.1) 0%, transparent 2px), radial-gradient(circle at 20% 20%, rgba(0,0,0,0.05) 0%, transparent 3px)' 
+    },
+    { 
+        name: 'Linho', 
+        pattern: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.05) 1px, rgba(0,0,0,0.02) 2px), repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.05) 1px, rgba(0,0,0,0.02) 2px)' 
+    },
+    { 
+        name: 'Veludo', 
+        pattern: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%, rgba(0,0,0,0.1) 100%), radial-gradient(circle at 50% 0, rgba(255,255,255,0.1), transparent 70%)' 
+    },
+    { 
+        name: 'Couro', 
+        pattern: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.6\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\' opacity=\'0.05\'/%3E%3C/svg%3E")' 
+    },
+    { 
+        name: 'Jacquard', 
+        pattern: 'repeating-radial-gradient(circle at 0 0, transparent 0, rgba(255,255,255,0.03) 10px), repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.02) 1%, transparent 1%, transparent 20%)' 
+    }
 ];
 
 export const SEMI_WATERPROOF_ICON_URL = 'https://i.postimg.cc/LsMLB14R/Gemini-Generated-Image-fxdnhcfxdnhcfxdn.png';

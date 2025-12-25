@@ -216,6 +216,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
 
             } else {
                 // Renderizar Sofá Virtual
+                // Para o canvas de exportação, usamos a cor sólida por simplicidade e robustez
                 ctx.fillStyle = selectedSofaColor.hex;
                 ctx.fillRect(0, HEADER_H, W, VISUAL_H);
                 
