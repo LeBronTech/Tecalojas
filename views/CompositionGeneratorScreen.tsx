@@ -119,7 +119,6 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
         if (selectedId === id) setSelectedId(null);
     };
 
-    // Função para pegar o nome com número se for repetido
     const getItemDisplayName = (item: CompositionItem) => {
         const sameProductItems = compItems.filter(i => i.product.id === item.product.id);
         if (sameProductItems.length <= 1) return item.product.name;
@@ -260,7 +259,38 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                         <p className={`${textClasses} text-sm font-medium uppercase tracking-widest`}>Design Livre & Proporções Reais</p>
                     </div>
 
-                    {/* Botões de Ação no Topo */}
+                    {/* 1. Controles do Sofá no Topo */}
+                    <div className={`p-6 rounded-[2.5rem] border ${cardClasses} grid grid-cols-1 md:grid-cols-2 gap-6`}>
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-fuchsia-500 mb-2 block">Tecido do Sofá</label>
+                            <div className="flex flex-wrap gap-2">
+                                {SOFA_FABRICS.map(f => (
+                                    <button 
+                                        key={f.name} 
+                                        onClick={() => setSelectedSofaFabric(f)}
+                                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all border ${selectedSofaFabric.name === f.name ? 'bg-fuchsia-600 text-white border-fuchsia-500' : 'bg-black/10 text-gray-500 border-transparent'}`}
+                                    >
+                                        {f.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-fuchsia-500 mb-2 block">Cor do Sofá</label>
+                            <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                                {PREDEFINED_SOFA_COLORS.map(c => (
+                                    <button 
+                                        key={c.name} 
+                                        onClick={() => setSelectedSofaColor(c)} 
+                                        className={`w-8 h-8 rounded-full border-2 flex-shrink-0 transition-all ${selectedSofaColor.name === c.name ? 'ring-2 ring-fuchsia-500 ring-offset-2 scale-110' : 'border-black/20 opacity-60'}`}
+                                        style={{ backgroundColor: c.hex }}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 2. Botões de Ação logo abaixo dos controles */}
                     <div className="flex gap-3">
                         <button onClick={() => setIsProductSelectOpen(true)} className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 ${isDark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}>
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth={3}/></svg>
@@ -272,8 +302,8 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                         </button>
                     </div>
 
-                    {/* Área do Sofá Virtual */}
-                    <div className={`relative p-2 rounded-[2.5rem] border ${cardClasses} overflow-hidden`}>
+                    {/* 3. Área do Sofá Virtual */}
+                    <div className={`relative p-2 rounded-[2.5rem] border ${cardClasses} overflow-hidden shadow-2xl`}>
                         <div 
                             ref={sofaRef}
                             className="relative min-h-[450px] rounded-[2rem] transition-all duration-500 overflow-hidden"
@@ -294,7 +324,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                     <div
                                         key={item.id}
                                         onPointerDown={(e) => handleStartDrag(e, item.id)}
-                                        className={`absolute cursor-move select-none touch-none ${isSelected ? 'ring-2 ring-fuchsia-500 rounded-xl' : ''}`}
+                                        className={`absolute cursor-move select-none touch-none transition-shadow ${isSelected ? 'ring-4 ring-fuchsia-500 rounded-xl' : ''}`}
                                         style={{ 
                                             left: `${item.x}%`, 
                                             top: `${item.y}%`, 
@@ -309,29 +339,29 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                             <img src={item.product.baseImageUrl} alt="" className="w-full h-full object-cover pointer-events-none" />
                                             
                                             {/* Marca d'água de tamanho (Superior Esquerdo) */}
-                                            <div className="absolute top-1 left-1 bg-black/40 backdrop-blur-sm text-[8px] font-black text-white px-1.5 py-0.5 rounded uppercase tracking-tighter pointer-events-none">
+                                            <div className="absolute top-1 left-1 bg-black/40 backdrop-blur-sm text-[8px] font-black text-white px-1.5 py-0.5 rounded uppercase tracking-tighter pointer-events-none border border-white/10">
                                                 {item.size}
                                             </div>
 
                                             {/* Nome com número (Badge Inferior) */}
-                                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 pt-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                                <p className="text-[7px] text-white font-black truncate text-center uppercase">{displayName}</p>
+                                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5 pt-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                                <p className="text-[7px] text-white font-black truncate text-center uppercase tracking-tighter">{displayName}</p>
                                             </div>
                                         </div>
 
-                                        {/* Botão de Excluir Externo (Aparece ao selecionar) */}
+                                        {/* Botão de Excluir Externo (Aparece ao selecionar no canto superior direito fora da almofada) */}
                                         {isSelected && (
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); removeItem(item.id); }} 
-                                                className="absolute -top-3 -right-3 w-8 h-8 bg-red-600 text-white rounded-full shadow-lg flex items-center justify-center border-2 border-white z-[60] transition-transform active:scale-75"
+                                                className="absolute -top-4 -right-4 w-9 h-9 bg-red-600 text-white rounded-full shadow-2xl flex items-center justify-center border-2 border-white z-[60] transition-transform active:scale-75 hover:bg-red-700"
                                             >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth={3}/></svg>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth={4}/></svg>
                                             </button>
                                         )}
                                         
                                         {/* Seletor de Tamanho Flutuante (Aparece ao selecionar) */}
                                         {isSelected && (
-                                            <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 z-50 bg-black/80 backdrop-blur-md p-1.5 rounded-xl flex gap-1 shadow-2xl animate-fade-in">
+                                            <div className="absolute -bottom-14 left-1/2 -translate-x-1/2 z-50 bg-black/85 backdrop-blur-md p-1.5 rounded-xl flex gap-1 shadow-2xl animate-fade-in border border-white/10">
                                                 {Object.values(CushionSize).map(s => (
                                                     <button 
                                                         key={s} 
@@ -351,35 +381,14 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                             {compItems.length === 0 && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40 uppercase tracking-widest font-black text-center p-8">
                                     <svg className="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 6v6m0 0v6m0-6h6m-6 0H6" strokeWidth={2}/></svg>
-                                    Adicione almofadas para<br/>começar a montar
+                                    Adicione almofadas acima para<br/>começar sua montagem livre
                                 </div>
                             )}
                         </div>
 
-                        <div className="p-4 bg-black/5 flex flex-col gap-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-[9px] font-black uppercase tracking-widest text-fuchsia-500 mb-2 block">Tecido do Sofá</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {SOFA_FABRICS.map(f => (
-                                            <button key={f.name} onClick={() => setSelectedSofaFabric(f)} className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all border ${selectedSofaFabric.name === f.name ? 'bg-fuchsia-600 text-white border-fuchsia-500' : 'bg-black/10 text-gray-500 border-transparent'}`}>
-                                                {f.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-black uppercase tracking-widest text-fuchsia-500 mb-2 block">Cor do Sofá</label>
-                                    <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
-                                        {PREDEFINED_SOFA_COLORS.map(c => (
-                                            <button key={c.name} onClick={() => setSelectedSofaColor(c)} className={`w-7 h-7 rounded-full border-2 flex-shrink-0 transition-all ${selectedSofaColor.name === c.name ? 'ring-2 ring-fuchsia-500 ring-offset-2 scale-110' : 'border-black/20 opacity-60'}`} style={{ backgroundColor: c.hex }} />
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <button onClick={handleGenerate} disabled={isGenerating || compItems.length === 0} className="w-full py-4 bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white font-black rounded-2xl shadow-xl uppercase tracking-widest text-xs disabled:opacity-50 flex items-center justify-center gap-2">
-                                {isGenerating ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" /> : 'Renderizar Vitrine Realista'}
+                        <div className="p-4 bg-black/5">
+                            <button onClick={handleGenerate} disabled={isGenerating || compItems.length === 0} className="w-full py-4 bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white font-black rounded-2xl shadow-xl uppercase tracking-widest text-xs disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
+                                {isGenerating ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" /> : 'Renderizar Vitrine Realista com IA'}
                             </button>
                         </div>
                     </div>
@@ -417,6 +426,13 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     predefinedName={generatedName}
                 />
             )}
+            
+             <style>{`
+                @keyframes fade-in { 0% { opacity: 0; } 100% { opacity: 1; } }
+                .animate-fade-in { animation: fade-in 0.3s forwards; }
+                @keyframes fade-in-up { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
+                .animate-fade-in-up { animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+            `}</style>
         </div>
     );
 };
