@@ -1,7 +1,6 @@
 
 import { createContext } from 'react';
 
-// FIX: Defined and exported the StoreName enum here to resolve a circular dependency.
 export enum StoreName {
   TECA = 'Têca',
   IONE = 'Ione Decor',
@@ -15,7 +14,6 @@ export enum CushionSize {
   LUMBAR = 'Lombar (25x45)',
 }
 
-// The Brand enum is being deprecated in favor of a dynamic Brand interface
 export enum Brand {
   DOLHER = 'Döhler®',
   KARSTEN = 'Karsten®',
@@ -40,7 +38,6 @@ export interface CatalogPDF {
     fileName: string;
     pdfUrl: string;
 }
-
 
 export enum WaterResistanceLevel {
   NONE = 'none',
@@ -85,13 +82,26 @@ export interface Product {
   productionCost?: number;
 }
 
+export interface CompositionItem {
+  id: string;
+  product: Product;
+  size: CushionSize;
+  x: number; // Porcentagem 0-100
+  y: number; // Porcentagem 0-100
+  zIndex: number;
+}
+
 export interface SavedComposition {
   id: string;
   name: string;
   products: Product[];
+  productSizes?: CushionSize[];
+  items?: CompositionItem[]; // Novo: suporte para arranjo livre
   imageUrl?: string;
   isGenerating?: boolean;
   size: number;
+  sofaFabric?: string;
+  sofaColor?: string;
 }
 
 export interface CartItem {
@@ -139,7 +149,6 @@ export interface CardFees {
   credit3x: number;
 }
 
-
 export enum View {
   SHOWCASE,
   STOCK,
@@ -163,15 +172,6 @@ export interface User {
   role?: 'admin' | 'user';
 }
 
-export interface CompositionViewerModalProps {
-    compositions: SavedComposition[];
-    startIndex: number;
-    onClose: () => void;
-    onViewProduct: (product: Product) => void;
-    onSaveComposition: (composition: Omit<SavedComposition, 'id'>) => void;
-}
-
-// --- Theme Context ---
 export interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
