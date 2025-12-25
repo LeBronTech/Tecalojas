@@ -43,7 +43,6 @@ declare global {
 }
 
 const THEME_STORAGE_KEY = 'pillow-oasis-theme';
-// Removed ALL_COLORS_STORAGE_KEY since we are moving to Firebase
 const SAVED_COMPOSITIONS_STORAGE_KEY = 'pillow-oasis-saved-compositions';
 const CART_STORAGE_KEY = 'pillow-oasis-cart';
 
@@ -250,16 +249,19 @@ const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose, title, message, 
     );
 };
 
-// --- FIX: Added icons and SideMenu component to resolve the error in App.tsx ---
+// --- Icons ---
 
 const HomeIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
     </svg>
 );
+// Ícone de composições em formato de pirâmide de 3 almofadas
 const CompositionIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 14a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H7a2 2 0 01-2-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13 14a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
     </svg>
 );
 const InventoryIcon = () => (
@@ -300,7 +302,7 @@ const LogoutIcon = () => (
 );
 const LoginIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 v1" />
     </svg>
 );
 
@@ -321,17 +323,19 @@ interface SideMenuProps {
 const MenuButton: React.FC<{ icon: React.ReactNode, label: string, isActive?: boolean, onClick: () => void, hasNotification?: boolean }> = ({ icon, label, isActive, onClick, hasNotification }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
-    const activeClasses = isDark ? 'bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30' : 'bg-purple-100 text-purple-700 border-purple-200';
+    
+    // Exact colors from the screenshot model for light mode
+    const activeClasses = isDark ? 'bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30' : 'bg-[#F5EBFF] text-[#A21CAF] border-transparent';
     const inactiveClasses = isDark ? 'text-gray-400 hover:bg-white/5 border-transparent' : 'text-gray-600 hover:bg-gray-50 border-transparent';
 
     return (
         <button
             onClick={onClick}
-            className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all duration-200 ${isActive ? activeClasses : inactiveClasses}`}
+            className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${isActive ? activeClasses : inactiveClasses}`}
         >
-            <div className="flex items-center gap-3">
-                <span className={isActive ? (isDark ? 'text-fuchsia-400' : 'text-purple-700') : 'text-gray-400'}>{icon}</span>
-                <span className="font-bold text-sm">{label}</span>
+            <div className="flex items-center gap-4">
+                <span className={isActive ? (isDark ? 'text-fuchsia-400' : 'text-[#A21CAF]') : 'text-gray-400'}>{icon}</span>
+                <span className={`text-sm ${isActive ? 'font-bold' : 'font-medium'}`}>{label}</span>
             </div>
             {hasNotification && (
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
@@ -350,21 +354,21 @@ const SideMenu: React.FC<SideMenuProps> = ({
         <div className={`fixed inset-0 z-[120] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
             <div className={`absolute top-0 left-0 w-80 max-w-[85%] h-full flex flex-col transition-transform duration-300 ease-out border-r ${isDark ? 'bg-[#1A1129] border-white/10' : 'bg-white border-gray-200'} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className="p-6 border-b border-white/10 flex justify-between items-center">
-                    <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Menu</h2>
+                <div className="p-6 flex justify-between items-center">
+                    <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Menu</h2>
                     <button onClick={onClose} className={`p-2 rounded-full ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
                 
-                <div className="flex-grow overflow-y-auto p-4 space-y-1 no-scrollbar">
-                    <div className="pb-2 px-2 text-[10px] font-black uppercase tracking-widest text-gray-500">Navegação</div>
+                <div className="flex-grow overflow-y-auto px-4 py-2 space-y-1 no-scrollbar">
+                    <div className="pb-3 px-3 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500/80">Navegação</div>
                     <MenuButton icon={<HomeIcon />} label="Vitrine" isActive={activeView === View.SHOWCASE} onClick={() => { onNavigate(View.SHOWCASE); onClose(); }} />
                     <MenuButton icon={<CompositionIcon />} label="Composições" isActive={activeView === View.COMPOSITIONS} onClick={() => { onNavigate(View.COMPOSITIONS); onClose(); }} />
                     
                     {isAdmin && (
                         <>
-                            <div className="pt-4 pb-2 px-2 text-[10px] font-black uppercase tracking-widest text-gray-500">Administração</div>
+                            <div className="pt-6 pb-3 px-3 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500/80">Administração</div>
                             <MenuButton icon={<SalesIcon />} label="Vendas" isActive={activeView === View.SALES} onClick={() => { onNavigate(View.SALES); onClose(); }} hasNotification={hasNewSaleRequests} />
                             <MenuButton icon={<InventoryIcon />} label="Estoque" isActive={activeView === View.STOCK} onClick={() => { onNavigate(View.STOCK); onClose(); }} />
                             <MenuButton icon={<ReplacementIcon />} label="Assistente" isActive={activeView === View.ASSISTANT} onClick={() => { onNavigate(View.ASSISTANT); onClose(); }} hasNotification={hasItemsToRestock} />
@@ -374,18 +378,18 @@ const SideMenu: React.FC<SideMenuProps> = ({
                         </>
                     )}
 
-                    <div className="pt-4 pb-2 px-2 text-[10px] font-black uppercase tracking-widest text-gray-500">Ações</div>
+                    <div className="pt-6 pb-3 px-3 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500/80">Ações</div>
                     <MenuButton icon={<PixIcon />} label="Pagamento via PIX" onClick={() => { onPixClick(); onClose(); }} />
                 </div>
 
-                <div className="p-4 border-t border-white/10">
+                <div className="p-4 border-t border-gray-100 dark:border-white/5">
                     {isLoggedIn ? (
-                        <button onClick={onLogout} className="w-full flex items-center gap-3 p-3 rounded-xl text-red-500 font-bold hover:bg-red-500/10 transition-colors">
+                        <button onClick={onLogout} className="w-full flex items-center gap-4 p-4 rounded-2xl text-red-500 font-bold hover:bg-red-500/10 transition-colors">
                             <LogoutIcon />
                             Sair da Conta
                         </button>
                     ) : (
-                        <button onClick={onLoginClick} className="w-full flex items-center gap-3 p-3 rounded-xl bg-fuchsia-600 text-white font-bold shadow-lg hover:bg-fuchsia-700 transition-colors">
+                        <button onClick={onLoginClick} className="w-full flex items-center gap-4 p-4 rounded-2xl bg-[#A21CAF] text-white font-black shadow-xl shadow-fuchsia-500/30 hover:bg-fuchsia-700 transition-all active:scale-95 uppercase tracking-wider text-sm">
                             <LoginIcon />
                             Acessar Sistema
                         </button>
@@ -460,10 +464,11 @@ export default function App() {
             setSofaColors(settings.sofaColors);
         } 
     }, (error) => {
-        // ERROR HANDLING: If permission denied (common on fresh setups/visitor view if rules aren't perfect),
-        // we ensure we still have the predefined colors so the UI doesn't break.
-        // We already initialized with defaults, so we just log the error.
-        console.warn("Settings sync warning:", error.message);
+        // ERROR HANDLING: Silence permission-denied to prevent console spam.
+        // The app uses defaults (PREDEFINED_COLORS) so functionality is preserved.
+        if (error.code !== 'permission-denied') {
+            console.warn("Settings sync warning:", error.message);
+        }
     });
     return () => unsubscribe();
   }, []);
@@ -1110,7 +1115,7 @@ export default function App() {
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
         <div className={`h-screen w-screen overflow-hidden flex flex-col font-sans transition-colors duration-300 ${theme === 'dark' ? 'bg-[#1A1129] text-white' : 'bg-white text-gray-900'}`}>
             {!isConfigValid && <ConfigurationRequiredModal />}
-            <Header onMenuClick={handleMenuClick} cartItemCount={cart.reduce((sum, i) => sum + i.quantity, 0)} onCartClick={() => handleNavigate(View.CART)} activeView={view} onNavigate={handleNavigate} isAdmin={isAdmin} />
+            <Header onMenuClick={handleMenuClick} cartItemCount={cart.reduce((sum, i) => sum + i.quantity, 0)} onCartClick={() => handleNavigate(View.CART)} activeView={view} onNavigate={handleNavigate} isAdmin={isAdmin} isLoggedIn={isLoggedIn} />
             {renderView()}
             <BottomNav activeView={view} onNavigate={handleNavigate} hasItemsToRestock={hasItemsToRestock} isAdmin={isAdmin} hasNewSaleRequests={hasNewSaleRequests} />
             <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} onLogout={handleLogout} onLoginClick={() => handleNavigate(View.STOCK)} onPixClick={() => setIsPixModalOpen(true)} activeView={view} onNavigate={handleNavigate} isLoggedIn={isLoggedIn} isAdmin={isAdmin} hasItemsToRestock={hasItemsToRestock} hasNewSaleRequests={hasNewSaleRequests} />

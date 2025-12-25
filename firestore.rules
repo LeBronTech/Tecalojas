@@ -10,45 +10,51 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Coleção Settings (Cores, Taxas, etc):
-    // CRÍTICO: 'allow read: if true' é essencial para que o menu de cores funcione
-    // para todos os usuários, inclusive visitantes não logados na vitrine.
+    // --- COLEÇÕES DE LEITURA PÚBLICA (Essenciais para a Vitrine) ---
+
+    // Configurações (Cores, Taxas, Metas):
+    // allow read: if true; -> Resolve o erro "permission-denied" no listener de configurações.
     match /settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Produtos, Marcas, Catálogos e Categorias:
-    // Leitura pública (Vitrine), Escrita apenas Admins.
+    // Produtos: Todos podem ver, apenas Admin edita.
     match /products/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
     
+    // Marcas: Todos podem ver.
     match /brands/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
     
+    // Catálogos PDF: Todos podem ver.
     match /catalogs/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
     
+    // Categorias: Todos podem ver.
     match /categories/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
+    // --- COLEÇÕES PROTEGIDAS ---
+
     // Perfis de usuário:
+    // Usuário lê/escreve o próprio perfil. Admin lê tudo.
     match /users/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Solicitações de Venda:
-    // Qualquer usuário logado pode criar (fazer pedido).
-    // Admins gerenciam tudo.
+    // Solicitações de Venda (Pedidos):
+    // Usuário logado pode criar pedido.
+    // Apenas Admin pode ler a lista de pedidos, editar ou excluir.
     match /saleRequests/{requestId} {
       allow create: if request.auth != null;
       allow read, update, delete: if isAdmin();
