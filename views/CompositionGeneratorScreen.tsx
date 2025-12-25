@@ -135,17 +135,30 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             const ctx = canvas.getContext('2d');
             if (!ctx) return;
 
-            const W = 1200; const H = 800;
-            canvas.width = W; canvas.height = H;
-
-            ctx.fillStyle = selectedSofaColor.hex;
-            ctx.fillRect(0, 0, W, H);
+            // Canvas expandido para caber a lista de nomes embaixo
+            const W = 1200; 
+            const SOFA_H = 800;
+            const LIST_H = 100 + (compItems.length * 45);
+            const H = SOFA_H + LIST_H;
             
-            ctx.fillStyle = isDark ? '#FFFFFF' : '#4A044E';
-            ctx.font = 'bold 40px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText("MEU DESIGN NO SOFÁ VIRTUAL", W/2, 80);
+            canvas.width = W; 
+            canvas.height = H;
 
+            // Fundo Branco Geral
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, W, H);
+
+            // Fundo do Sofá
+            ctx.fillStyle = selectedSofaColor.hex;
+            ctx.fillRect(0, 0, W, SOFA_H);
+            
+            // Título
+            ctx.fillStyle = isDark ? '#FFFFFF' : '#4A044E';
+            ctx.font = 'bold 45px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText("MEU SOFÁ VIRTUAL - LOJAS TÊCA", W/2, 80);
+
+            // Desenhar almofadas no sofá
             for (const item of [...compItems].sort((a,b) => a.zIndex - b.zIndex)) {
                 const img = new Image();
                 img.crossOrigin = 'Anonymous';
@@ -161,7 +174,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                 else if (item.size === CushionSize.LUMBAR) { drawW = 340; drawH = 200; }
 
                 const posX = (item.x / 100) * W;
-                const posY = 150 + (item.y / 100) * (H - 450);
+                const posY = 150 + (item.y / 100) * (SOFA_H - 450);
 
                 ctx.save();
                 ctx.shadowColor = 'rgba(0,0,0,0.4)';
@@ -169,35 +182,56 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                 ctx.shadowOffsetY = 15;
                 ctx.drawImage(img, posX, posY, drawW, drawH);
                 
-                // Marca d'água no canvas também
-                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                // Marca d'água de tamanho na imagem compartilhada
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
                 ctx.fillRect(posX + 10, posY + 10, 80, 30);
                 ctx.fillStyle = 'white';
-                ctx.font = 'bold 14px sans-serif';
+                ctx.font = 'bold 16px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(item.size, posX + 50, posY + 30);
-                
+                ctx.fillText(item.size, posX + 50, posY + 31);
                 ctx.restore();
             }
 
-            ctx.fillStyle = 'rgba(255,255,255,0.9)';
-            ctx.fillRect(0, H - 100, W, 100);
+            // Área da Lista de Almofadas (Rodapé)
+            let currentY = SOFA_H + 70;
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#111827';
+            ctx.font = 'bold 32px sans-serif';
+            ctx.fillText("ALMOFADAS ESCOLHIDAS:", 60, currentY);
+            
+            currentY += 60;
+            compItems.forEach((item, idx) => {
+                const displayName = getItemDisplayName(item);
+                ctx.fillStyle = '#A21CAF';
+                ctx.font = 'bold 24px sans-serif';
+                ctx.fillText(`${idx + 1}. ${displayName.toUpperCase()}`, 70, currentY);
+                
+                ctx.fillStyle = '#6B7280';
+                ctx.font = 'medium 20px sans-serif';
+                ctx.fillText(`- Tamanho: ${item.size}`, 700, currentY);
+                currentY += 45;
+            });
+
+            // Footer institucional
+            ctx.fillStyle = '#FDF4FF';
+            ctx.fillRect(0, H - 80, W, 80);
             ctx.fillStyle = '#4A044E';
-            ctx.font = 'bold 24px sans-serif';
-            ctx.fillText("tecalojas.vercel.app | @tecadecoracoestorredetv", W/2, H - 40);
+            ctx.font = 'bold 22px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText("tecalojas.vercel.app | @tecadecoracoestorredetv", W/2, H - 35);
 
             canvas.toBlob(async (blob) => {
                 if (blob && navigator.share) {
-                    const file = new File([blob], 'design-sofa.png', { type: 'image/png' });
+                    const file = new File([blob], 'meu-sofa-virtual.png', { type: 'image/png' });
                     await navigator.share({
                         title: 'Meu Design de Almofadas',
-                        text: 'Olha como está ficando minha composição nas Lojas Têca!',
+                        text: 'Olha como ficou minha composição no Sofá Virtual das Lojas Têca!',
                         files: [file]
                     });
                 }
-            });
+            }, 'image/png', 0.95);
         } catch (e) {
-            alert("Erro ao gerar imagem.");
+            alert("Erro ao preparar imagem de compartilhamento.");
         }
     };
 
@@ -255,8 +289,8 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             <main className="flex-grow overflow-y-auto px-4 pt-20 pb-52 no-scrollbar z-10" onClick={() => setSelectedId(null)}>
                 <div className="max-w-3xl mx-auto space-y-6">
                     <div className="text-center">
-                        <h1 className={`text-4xl font-black uppercase tracking-tighter ${titleClasses}`}>Estúdio de Vitrine</h1>
-                        <p className={`${textClasses} text-sm font-medium uppercase tracking-widest`}>Design Livre & Proporções Reais</p>
+                        <h1 className={`text-4xl font-black uppercase tracking-tighter ${titleClasses}`}>Sofá Virtual</h1>
+                        <p className={`${textClasses} text-sm font-medium uppercase tracking-widest`}>Arranjo Livre & Catálogo no Zap</p>
                     </div>
 
                     {/* 1. Controles do Sofá no Topo */}
@@ -298,7 +332,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                         </button>
                         <button onClick={handleShareCurrentDesign} disabled={compItems.length === 0} className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 ${isDark ? 'bg-green-600/20 text-green-400 hover:bg-green-600/40' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                            Whats Design
+                            Compartilhar no Whats
                         </button>
                     </div>
 
@@ -349,7 +383,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                             </div>
                                         </div>
 
-                                        {/* Botão de Excluir Externo (Aparece ao selecionar no canto superior direito fora da almofada) */}
+                                        {/* Botão de Excluir Externo */}
                                         {isSelected && (
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); removeItem(item.id); }} 
@@ -359,7 +393,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                             </button>
                                         )}
                                         
-                                        {/* Seletor de Tamanho Flutuante (Aparece ao selecionar) */}
+                                        {/* Seletor de Tamanho Flutuante */}
                                         {isSelected && (
                                             <div className="absolute -bottom-14 left-1/2 -translate-x-1/2 z-50 bg-black/85 backdrop-blur-md p-1.5 rounded-xl flex gap-1 shadow-2xl animate-fade-in border border-white/10">
                                                 {Object.values(CushionSize).map(s => (
@@ -381,7 +415,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                             {compItems.length === 0 && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40 uppercase tracking-widest font-black text-center p-8">
                                     <svg className="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 6v6m0 0v6m0-6h6m-6 0H6" strokeWidth={2}/></svg>
-                                    Adicione almofadas acima para<br/>começar sua montagem livre
+                                    Use os botões acima para<br/>montar seu sofá virtual
                                 </div>
                             )}
                         </div>
