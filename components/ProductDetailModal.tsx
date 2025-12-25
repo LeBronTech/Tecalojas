@@ -1,3 +1,4 @@
+
 import React, { useState, useContext, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Product, Variation, WaterResistanceLevel, SavedComposition, ThemeContext, View, StoreName, CushionSize, CartItem } from '../types';
 import { WATER_RESISTANCE_INFO, BRAND_LOGOS, PREDEFINED_COLORS } from '../constants';
@@ -10,8 +11,6 @@ interface ProductDetailModalProps {
     canManageStock: boolean;
     onEditProduct: (product: Product) => void;
     onSwitchProduct: (product: Product) => void;
-    apiKey: string | null;
-    onRequestApiKey: () => void;
     savedCompositions: SavedComposition[];
     onViewComposition: (compositions: SavedComposition[], startIndex: number) => void;
     onAddToCart: (product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number, isPreOrder?: boolean) => void;
@@ -297,7 +296,6 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                     </div>
 
                     <div className="px-6 mt-4 space-y-4">
-                        {/* --- NEW: Unified Share Section --- */}
                         <div className={`p-4 rounded-2xl border ${isDark ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
                             <button 
                                 onClick={handleShare}

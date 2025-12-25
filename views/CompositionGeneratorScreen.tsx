@@ -135,136 +135,226 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             const ctx = canvas.getContext('2d');
             if (!ctx) return;
 
-            // Canvas expandido com design aprimorado
-            const W = 1200; 
-            const SOFA_H = 850;
-            const ITEM_H = 65; // Altura de cada linha de item
-            const LIST_H = 150 + (compItems.length * ITEM_H);
-            const FOOTER_H = 160;
-            const H = SOFA_H + LIST_H + FOOTER_H;
+            // Determinar se vamos usar a imagem da IA ou o Sofá Virtual
+            const useAIImage = !!generatedImage;
+
+            // Configuração de Dimensões
+            const W = 1080; // Largura padrão Instagram/Whats
+            const HEADER_H = 200; // Espaço para o Logo
+            const VISUAL_H = 800; // Altura da área principal (Sofá ou IA)
+            
+            // Cálculo da grade de itens (Rodapé)
+            const uniqueItems = compItems; // Listar todos individualmente
+            const COLS = 2; // Duas colunas para nomes legíveis
+            const ROW_HEIGHT = 350; // Altura generosa para item + nome
+            const ROWS = Math.ceil(uniqueItems.length / COLS);
+            const FOOTER_CONTENT_H = ROWS * ROW_HEIGHT;
+            const FOOTER_PADDING = 50;
+            const TOTAL_FOOTER_H = FOOTER_CONTENT_H + (FOOTER_PADDING * 2) + 80; // +80 para título "Itens"
+
+            const H = HEADER_H + VISUAL_H + TOTAL_FOOTER_H;
             
             canvas.width = W; 
             canvas.height = H;
 
-            // 1. Fundo Geral Branco/Limpo
+            // 1. Fundo Geral
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, W, H);
 
-            // 2. Área do Sofá (Topo)
-            ctx.fillStyle = selectedSofaColor.hex;
-            ctx.fillRect(0, 0, W, SOFA_H);
-            
-            // Título Elegante no Sofá
-            ctx.fillStyle = isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)';
-            ctx.font = 'bold 52px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText("VITRINE EXCLUSIVA", W/2, 100);
-            
-            ctx.font = '300 24px sans-serif';
-            ctx.fillText("PERSONALIZADA NO SOFÁ VIRTUAL", W/2, 140);
-
-            // 3. Desenhar Almofadas no Sofá
-            for (const item of [...compItems].sort((a,b) => a.zIndex - b.zIndex)) {
-                const img = new Image();
-                img.crossOrigin = 'Anonymous';
-                img.src = item.product.baseImageUrl;
-                await new Promise(res => img.onload = res);
-
-                const baseSize = 300;
-                let drawW = baseSize; let drawH = baseSize;
-
-                if (item.size === CushionSize.SQUARE_40) { drawW = 250; drawH = 250; }
-                else if (item.size === CushionSize.SQUARE_50) { drawW = 340; drawH = 340; }
-                else if (item.size === CushionSize.SQUARE_60) { drawW = 400; drawH = 400; }
-                else if (item.size === CushionSize.LUMBAR) { drawW = 360; drawH = 210; }
-
-                const posX = (item.x / 100) * W;
-                const posY = 180 + (item.y / 100) * (SOFA_H - 550);
-
-                ctx.save();
-                ctx.shadowColor = 'rgba(0,0,0,0.35)';
-                ctx.shadowBlur = 40;
-                ctx.shadowOffsetY = 20;
-                ctx.drawImage(img, posX, posY, drawW, drawH);
-                
-                // Marca d'água de tamanho (Design novo)
-                ctx.fillStyle = 'rgba(0,0,0,0.5)';
-                ctx.roundRect(posX + 15, posY + 15, 90, 35, 8);
-                ctx.fill();
-                ctx.fillStyle = 'white';
-                ctx.font = 'bold 18px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(item.size, posX + 60, posY + 40);
-                ctx.restore();
-            }
-
-            // 4. Área do Catálogo Nominal (Meio)
-            let currentY = SOFA_H + 80;
-            ctx.textAlign = 'left';
-            
-            // Cabeçalho da Lista
-            ctx.fillStyle = '#A21CAF';
-            ctx.font = '900 38px sans-serif';
-            ctx.fillText("CATÁLOGO DE ITENS", 80, currentY);
-            
-            ctx.strokeStyle = '#F0ABFC';
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.moveTo(80, currentY + 20);
-            ctx.lineTo(250, currentY + 20);
-            ctx.stroke();
-
-            currentY += 100;
-            compItems.forEach((item, idx) => {
-                const displayName = getItemDisplayName(item);
-                
-                // Marcador lateral fúcsia
-                ctx.fillStyle = '#A21CAF';
-                ctx.fillRect(80, currentY - 35, 10, 40);
-
-                // Nome da Almofada
-                ctx.fillStyle = '#111827';
-                ctx.font = 'bold 30px sans-serif';
-                ctx.fillText(displayName.toUpperCase(), 110, currentY);
-                
-                // Detalhes (Tamanho e Marca)
-                ctx.fillStyle = '#6B7280';
-                ctx.font = '500 24px sans-serif';
-                ctx.fillText(`Tamanho: ${item.size}  |  Tecido: ${item.product.fabricType}`, 110, currentY + 38);
-                
-                currentY += ITEM_H + 30;
+            // 2. Cabeçalho com Logo
+            const logoUrl = 'https://i.postimg.cc/QtcYsyhQ/Cabe-alho-claro.png';
+            const logoImg = new Image();
+            logoImg.crossOrigin = 'Anonymous';
+            logoImg.src = logoUrl;
+            await new Promise((resolve, reject) => {
+                logoImg.onload = resolve;
+                logoImg.onerror = () => { console.warn("Logo failed to load"); resolve(null); };
             });
 
-            // 5. Rodapé Institucional com Instagrams
-            const footerY = H - FOOTER_H;
-            ctx.fillStyle = '#FDF4FF';
-            ctx.fillRect(0, footerY, W, FOOTER_H);
-            
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#4A044E';
-            
-            // Site
-            ctx.font = 'bold 28px sans-serif';
-            ctx.fillText("tecalojas.vercel.app", W/2, footerY + 50);
-            
-            // Instagrams e Logos
-            ctx.font = 'bold 24px sans-serif';
-            ctx.fillStyle = '#A21CAF';
-            const instaText = "@tecadecoracoestorredetv   •   @ionelourencodecor";
-            ctx.fillText(instaText, W/2, footerY + 105);
+            if (logoImg.complete) {
+                const logoRatio = logoImg.width / logoImg.height;
+                const drawH = 140; 
+                const drawW = drawH * logoRatio;
+                const drawX = (W - drawW) / 2;
+                const drawY = (HEADER_H - drawH) / 2;
+                ctx.drawImage(logoImg, drawX, drawY, drawW, drawH);
+            }
 
+            // 3. Área Visual Principal
+            if (useAIImage && generatedImage) {
+                // Renderizar Imagem da IA
+                const aiImg = new Image();
+                aiImg.crossOrigin = 'Anonymous';
+                aiImg.src = generatedImage;
+                await new Promise(r => aiImg.onload = r);
+                
+                // Centralizar e cobrir (cover)
+                const sRatio = aiImg.width / aiImg.height;
+                const dRatio = W / VISUAL_H;
+                let sx, sy, sw, sh;
+
+                if (sRatio > dRatio) {
+                    sh = aiImg.height;
+                    sw = sh * dRatio;
+                    sx = (aiImg.width - sw) / 2;
+                    sy = 0;
+                } else {
+                    sw = aiImg.width;
+                    sh = sw / dRatio;
+                    sx = 0;
+                    sy = (aiImg.height - sh) / 2;
+                }
+                
+                ctx.drawImage(aiImg, sx, sy, sw, sh, 0, HEADER_H, W, VISUAL_H);
+                
+                // Tag "IA" discreta
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fillRect(W - 120, HEADER_H + VISUAL_H - 40, 120, 40);
+                ctx.fillStyle = '#FFF';
+                ctx.font = 'bold 16px sans-serif';
+                ctx.fillText("Design IA", W - 100, HEADER_H + VISUAL_H - 15);
+
+            } else {
+                // Renderizar Sofá Virtual
+                ctx.fillStyle = selectedSofaColor.hex;
+                ctx.fillRect(0, HEADER_H, W, VISUAL_H);
+                
+                // Desenhar almofadas
+                for (const item of [...compItems].sort((a,b) => a.zIndex - b.zIndex)) {
+                    const img = new Image();
+                    img.crossOrigin = 'Anonymous';
+                    img.src = item.product.baseImageUrl;
+                    await new Promise(res => img.onload = res);
+
+                    const baseSize = 300;
+                    let drawW = baseSize; let drawH = baseSize;
+
+                    if (item.size === CushionSize.SQUARE_40) { drawW = 250; drawH = 250; }
+                    else if (item.size === CushionSize.SQUARE_50) { drawW = 340; drawH = 340; }
+                    else if (item.size === CushionSize.SQUARE_60) { drawW = 400; drawH = 400; }
+                    else if (item.size === CushionSize.LUMBAR) { drawW = 360; drawH = 210; }
+
+                    const posX = (item.x / 100) * W;
+                    // Ajustar Y para ficar dentro da área VISUAL_H, considerando o offset do HEADER_H
+                    const relativeY = (item.y / 100) * (VISUAL_H - 400); 
+                    const posY = HEADER_H + 100 + relativeY;
+
+                    ctx.save();
+                    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+                    ctx.shadowBlur = 40;
+                    ctx.shadowOffsetY = 20;
+                    ctx.drawImage(img, posX, posY, drawW, drawH);
+                    
+                    // Marca d'água de tamanho na almofada (apenas no modo sofá)
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.beginPath();
+                    ctx.roundRect(posX + 10, posY + 10, 80, 28, 6);
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 14px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(item.size, posX + 50, posY + 29);
+                    ctx.restore();
+                }
+            }
+
+            // 4. Rodapé com Grade de Produtos (Estilo Catálogo)
+            let startY = HEADER_H + VISUAL_H + 40;
+            
+            // Título da Seção
+            ctx.fillStyle = '#A21CAF'; // Roxo/Fúcsia da marca
+            ctx.font = '900 32px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText("ITENS SELECIONADOS", W / 2, startY);
+            
+            // Linha decorativa
+            ctx.beginPath();
+            ctx.moveTo(W/2 - 100, startY + 15);
+            ctx.lineTo(W/2 + 100, startY + 15);
+            ctx.strokeStyle = '#F0ABFC';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            startY += 60;
+
+            // Renderizar Grade
+            const colWidth = W / COLS;
+            
+            for (let i = 0; i < uniqueItems.length; i++) {
+                const item = uniqueItems[i];
+                const col = i % COLS;
+                const row = Math.floor(i / COLS);
+                
+                const itemX = col * colWidth;
+                const itemY = startY + (row * ROW_HEIGHT);
+                const centerX = itemX + (colWidth / 2);
+
+                const itemImg = new Image();
+                itemImg.crossOrigin = 'Anonymous';
+                itemImg.src = item.product.baseImageUrl;
+                await new Promise(r => itemImg.onload = r);
+
+                // Desenhar Imagem do Produto
+                const thumbSize = 200;
+                // Centralizar imagem na célula
+                const imgX = centerX - (thumbSize / 2);
+                const imgY = itemY + 20;
+                
+                // Sombra leve
+                ctx.save();
+                ctx.shadowColor = 'rgba(0,0,0,0.15)';
+                ctx.shadowBlur = 15;
+                ctx.shadowOffsetY = 5;
+                ctx.drawImage(itemImg, imgX, imgY, thumbSize, thumbSize);
+                ctx.restore();
+
+                // Texto: Nome da Almofada (Abaixo da imagem)
+                const textY = imgY + thumbSize + 40;
+                const displayName = getItemDisplayName(item).toUpperCase();
+                
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#111827'; // Preto suave
+                ctx.font = 'bold 24px sans-serif';
+                
+                // Quebra de linha simples se nome for muito longo
+                const maxTextW = colWidth - 40;
+                if (ctx.measureText(displayName).width > maxTextW) {
+                    const words = displayName.split(' ');
+                    const half = Math.ceil(words.length / 2);
+                    const line1 = words.slice(0, half).join(' ');
+                    const line2 = words.slice(half).join(' ');
+                    ctx.fillText(line1, centerX, textY);
+                    ctx.fillText(line2, centerX, textY + 30);
+                    
+                    // Tamanho e Tecido
+                    ctx.fillStyle = '#6B7280'; // Cinza
+                    ctx.font = '500 20px sans-serif';
+                    ctx.fillText(`${item.size} | ${item.product.fabricType}`, centerX, textY + 65);
+
+                } else {
+                    ctx.fillText(displayName, centerX, textY);
+                    
+                    // Tamanho e Tecido
+                    ctx.fillStyle = '#6B7280'; // Cinza
+                    ctx.font = '500 20px sans-serif';
+                    ctx.fillText(`${item.size} | ${item.product.fabricType}`, centerX, textY + 35);
+                }
+            }
+
+            // Exportar
             canvas.toBlob(async (blob) => {
                 if (blob && navigator.share) {
-                    const file = new File([blob], 'meu-sofa-virtual-teca.png', { type: 'image/png' });
+                    const file = new File([blob], 'minha-composicao-teca.png', { type: 'image/png' });
                     await navigator.share({
                         title: 'Minha Composição - Lojas Têca',
-                        text: 'Confira as almofadas que escolhi para meu ambiente!',
+                        text: 'Confira as almofadas que escolhi!',
                         files: [file]
                     });
                 }
             }, 'image/png', 0.95);
         } catch (e) {
-            alert("Erro ao criar a imagem do catálogo.");
+            console.error(e);
+            alert("Erro ao criar a imagem de compartilhamento.");
         }
     };
 
@@ -326,44 +416,13 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                         <p className={`${textClasses} text-sm font-medium uppercase tracking-widest`}>Arranjo Livre & Catálogo no Zap</p>
                     </div>
 
-                    {/* 1. Controles do Sofá no Topo */}
-                    <div className={`p-6 rounded-[2.5rem] border ${cardClasses} grid grid-cols-1 md:grid-cols-2 gap-6`}>
-                        <div>
-                            <label className="text-[10px] font-black uppercase tracking-widest text-fuchsia-500 mb-2 block">Tecido do Sofá</label>
-                            <div className="flex flex-wrap gap-2">
-                                {SOFA_FABRICS.map(f => (
-                                    <button 
-                                        key={f.name} 
-                                        onClick={() => setSelectedSofaFabric(f)}
-                                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all border ${selectedSofaFabric.name === f.name ? 'bg-fuchsia-600 text-white border-fuchsia-500' : 'bg-black/10 text-gray-500 border-transparent'}`}
-                                    >
-                                        {f.name}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-black uppercase tracking-widest text-fuchsia-500 mb-2 block">Cor do Sofá</label>
-                            <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
-                                {PREDEFINED_SOFA_COLORS.map(c => (
-                                    <button 
-                                        key={c.name} 
-                                        onClick={() => setSelectedSofaColor(c)} 
-                                        className={`w-8 h-8 rounded-full border-2 flex-shrink-0 transition-all ${selectedSofaColor.name === c.name ? 'ring-2 ring-fuchsia-500 ring-offset-2 scale-110' : 'border-black/20 opacity-60'}`}
-                                        style={{ backgroundColor: c.hex }}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 2. Botão Adicionar (Topo) */}
+                    {/* 1. Botão Adicionar (Topo) */}
                     <button onClick={() => setIsProductSelectOpen(true)} className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 ${isDark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}>
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth={3}/></svg>
                         Adicionar Almofadas
                     </button>
 
-                    {/* 3. Área do Sofá Virtual */}
+                    {/* 2. Área do Sofá Virtual */}
                     <div className={`relative p-2 rounded-[2.5rem] border ${cardClasses} overflow-hidden shadow-2xl`}>
                         <div 
                             ref={sofaRef}
@@ -442,21 +501,60 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                             {compItems.length === 0 && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40 uppercase tracking-widest font-black text-center p-8">
                                     <svg className="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 6v6m0 0v6m0-6h6m-6 0H6" strokeWidth={2}/></svg>
-                                    Use os botões acima para<br/>montar seu sofá virtual
+                                    Use o botão acima para<br/>adicionar almofadas
                                 </div>
                             )}
                         </div>
 
-                        <div className="p-4 bg-black/5 space-y-3">
-                            <button onClick={handleGenerate} disabled={isGenerating || compItems.length === 0} className="w-full py-4 bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white font-black rounded-2xl shadow-xl uppercase tracking-widest text-xs disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
-                                {isGenerating ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" /> : 'Renderizar Vitrine Realista com IA'}
-                            </button>
+                        {/* Controles e Botões dentro do Card do Sofá */}
+                        <div className="p-4 bg-black/5 space-y-4">
                             
-                            {/* Botão Compartilhar (Inferior) */}
-                            <button onClick={handleShareCurrentDesign} disabled={compItems.length === 0} className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 ${isDark ? 'bg-green-600/20 text-green-400 hover:bg-green-600/40' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                                Compartilhar no Whats
-                            </button>
+                            {/* Seletores de Tecido e Cor */}
+                            <div className="grid grid-cols-2 gap-4">
+                                 <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-fuchsia-500 mb-1 block">Tecido</label>
+                                    <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                                        {SOFA_FABRICS.map(f => (
+                                            <button 
+                                                key={f.name} 
+                                                onClick={() => setSelectedSofaFabric(f)}
+                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all border ${selectedSofaFabric.name === f.name ? 'bg-fuchsia-600 text-white border-fuchsia-500' : 'bg-white text-gray-500 border-gray-200'}`}
+                                            >
+                                                {f.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-fuchsia-500 mb-1 block">Cor</label>
+                                    <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                                        {PREDEFINED_SOFA_COLORS.map(c => (
+                                            <button 
+                                                key={c.name} 
+                                                onClick={() => setSelectedSofaColor(c)} 
+                                                className={`w-6 h-6 rounded-full border-2 flex-shrink-0 transition-all ${selectedSofaColor.name === c.name ? 'ring-2 ring-fuchsia-500 ring-offset-2 scale-110' : 'border-black/10 opacity-60'}`}
+                                                style={{ backgroundColor: c.hex }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <hr className="border-black/5" />
+
+                            {/* Botões de Ação Reposicionados */}
+                            <div className="flex flex-col gap-3">
+                                {/* 1. Botão Compartilhar (Vem Primeiro) */}
+                                <button onClick={handleShareCurrentDesign} disabled={compItems.length === 0} className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 ${isDark ? 'bg-green-600/20 text-green-400 hover:bg-green-600/40' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                                    Compartilhar no Whats
+                                </button>
+
+                                {/* 2. Botão IA (Vem Depois) */}
+                                <button onClick={handleGenerate} disabled={isGenerating || compItems.length === 0} className="w-full py-4 bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white font-black rounded-2xl shadow-xl uppercase tracking-widest text-xs disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
+                                    {isGenerating ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" /> : 'Gerar imagem IA'}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
