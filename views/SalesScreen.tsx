@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useContext, useMemo } from 'react';
 import { SaleRequest, Product, CardFees, ThemeContext, PosCartItem, StoreName, Variation, CartItem, CushionSize } from '../types';
 import { finalizePosSale, deleteSaleRequest } from '../firebase';
 import ConfirmationModal from '../components/ConfirmationModal';
+import ProductSelectModal from '../components/ProductSelectModal';
 
 interface SalesScreenProps {
   saleRequests: SaleRequest[];
@@ -17,6 +18,97 @@ type ScanMode = 'none' | 'camera';
 type Tab = 'pending' | 'preorders' | 'history' | 'pos';
 
 // --- Helper Components ---
+
+const ProductConfigModal: React.FC<{
+    product: Product;
+    onConfirm: (variation: Variation, itemType: 'cover' | 'full', price: number, quantity: number) => void;
+    onCancel: () => void;
+    isDark: boolean;
+}> = ({ product, onConfirm, onCancel, isDark }) => {
+    const [selectedSize, setSelectedSize] = useState<CushionSize>(
+        product.variations.length > 0 ? product.variations[0].size : CushionSize.SQUARE_45
+    );
+    const [itemType, setItemType] = useState<'cover' | 'full'>('cover');
+    const [quantity, setQuantity] = useState(1);
+
+    const variation = product.variations.find(v => v.size === selectedSize) || product.variations[0];
+    const price = variation ? (itemType === 'cover' ? variation.priceCover : variation.priceFull) : 0;
+
+    const modalBg = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
+    const titleColor = isDark ? "text-white" : "text-gray-900";
+    const textColor = isDark ? "text-gray-300" : "text-gray-700";
+    const inputBg = isDark ? "bg-black/20 text-white border-white/10" : "bg-gray-100 text-gray-900 border-gray-300";
+
+    if (!variation) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4" onClick={onCancel}>
+            <div className={`w-full max-w-sm p-6 rounded-3xl shadow-2xl border ${modalBg}`} onClick={e => e.stopPropagation()}>
+                <h3 className={`text-xl font-bold mb-1 ${titleColor}`}>{product.name}</h3>
+                <p className={`text-sm mb-4 ${textColor}`}>{product.category}</p>
+
+                <div className="space-y-4">
+                    <div>
+                        <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${textColor}`}>Tamanho</label>
+                        <div className="flex flex-wrap gap-2">
+                            {product.variations.map(v => (
+                                <button
+                                    key={v.size}
+                                    onClick={() => setSelectedSize(v.size)}
+                                    className={`px-3 py-2 rounded-lg text-sm font-bold border transition-all ${
+                                        selectedSize === v.size 
+                                        ? 'bg-fuchsia-600 text-white border-fuchsia-600' 
+                                        : `${inputBg}`
+                                    }`}
+                                >
+                                    {v.size}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${textColor}`}>Tipo</label>
+                        <div className="flex bg-black/20 rounded-lg p-1">
+                            <button 
+                                onClick={() => setItemType('cover')}
+                                className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${itemType === 'cover' ? 'bg-white text-black shadow' : 'text-gray-400'}`}
+                            >
+                                Capa
+                            </button>
+                            <button 
+                                onClick={() => setItemType('full')}
+                                className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${itemType === 'full' ? 'bg-white text-black shadow' : 'text-gray-400'}`}
+                            >
+                                Cheia
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${textColor}`}>Quantidade</label>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className={`w-10 h-10 rounded-lg font-bold text-lg ${inputBg}`}>-</button>
+                                <span className={`text-xl font-bold ${titleColor}`}>{quantity}</span>
+                                <button onClick={() => setQuantity(quantity + 1)} className={`w-10 h-10 rounded-lg font-bold text-lg ${inputBg}`}>+</button>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${textColor}`}>Total</label>
+                            <span className={`text-2xl font-black ${isDark ? 'text-fuchsia-400' : 'text-purple-600'}`}>R$ {(price * quantity).toFixed(2)}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 mt-6">
+                        <button onClick={onCancel} className={`flex-1 py-3 rounded-xl font-bold ${isDark ? 'bg-white/10 text-white' : 'bg-gray-200 text-gray-800'}`}>Cancelar</button>
+                        <button onClick={() => onConfirm(variation, itemType, price, quantity)} className="flex-1 py-3 rounded-xl font-bold bg-fuchsia-600 text-white shadow-lg hover:bg-fuchsia-700">Adicionar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const StatusBadge = ({ status, type }: { status: string, type: 'sale' | 'preorder' }) => {
     const isPending = status === 'pending';
@@ -95,7 +187,7 @@ const Calculator: React.FC<{ onAdd: (value: number) => void }> = ({ onAdd }) => 
     );
 };
 
-const SaleDetailModal: React.FC<{ request: SaleRequest, onClose: () => void, cardFees: CardFees, isDark: boolean, products: Product[] }> = ({ request, onClose, cardFees, isDark, products }) => {
+const SaleDetailModal: React.FC<{ request: SaleRequest, onClose: () => void, cardFees: CardFees, isDark: boolean, products: Product[], onNavigateToPreorders: () => void }> = ({ request, onClose, cardFees, isDark, products, onNavigateToPreorders }) => {
     const fees = (() => {
         if (request.paymentMethod === 'Débito') return cardFees.debit;
         if (request.paymentMethod === 'Crédito' || request.paymentMethod === 'Cartão (Online)') {
@@ -115,17 +207,27 @@ const SaleDetailModal: React.FC<{ request: SaleRequest, onClose: () => void, car
     }, 0));
     
     const profit = net - cost;
+    const isPreorder = request.type === 'preorder';
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[200] p-4" onClick={onClose}>
             <div className={`w-full max-w-sm rounded-3xl shadow-2xl p-6 flex flex-col max-h-[85vh] ${isDark ? 'bg-[#1A1129] border border-white/10' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-start mb-6">
                     <div>
-                        <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Detalhes da Venda</h3>
+                        <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {isPreorder ? 'Detalhes da Encomenda' : 'Detalhes da Venda'}
+                        </h3>
                         <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{new Date(request.createdAt?.seconds * 1000).toLocaleString()}</p>
                     </div>
                     <button onClick={onClose} className="p-2 bg-gray-100 dark:bg-white/10 rounded-full"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button>
                 </div>
+
+                {isPreorder && (
+                    <div className="mb-4 p-3 bg-orange-100 text-orange-800 rounded-xl flex justify-between items-center border border-orange-200">
+                        <span className="text-xs font-bold uppercase">Esta venda é uma encomenda</span>
+                        <button onClick={onNavigateToPreorders} className="text-xs font-bold underline text-orange-700">Ir para Encomendas</button>
+                    </div>
+                )}
 
                 <div className="flex-grow overflow-y-auto mb-4 space-y-2 pr-2">
                     {request.items.map((item: any, idx) => {
@@ -133,10 +235,11 @@ const SaleDetailModal: React.FC<{ request: SaleRequest, onClose: () => void, car
                         const img = item.baseImageUrl || prod?.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png';
                         return (
                             <div key={idx} className={`flex items-center gap-3 p-2 rounded-lg ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
-                                <img src={img} className="w-10 h-10 rounded-md object-cover" alt="" />
+                                <img src={img} className="w-12 h-12 rounded-md object-cover" alt="" />
                                 <div>
                                     <p className={`text-sm font-bold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{item.name}</p>
                                     <p className="text-xs opacity-60">{item.quantity}x • R$ {item.price.toFixed(2)}</p>
+                                    {item.variationSize && <span className="text-[10px] uppercase bg-gray-200 dark:bg-gray-700 px-1 rounded">{item.variationSize}</span>}
                                 </div>
                             </div>
                         );
@@ -173,101 +276,65 @@ const SaleDetailModal: React.FC<{ request: SaleRequest, onClose: () => void, car
     );
 };
 
-const ProductConfigModal: React.FC<{
-    product: Product,
-    onConfirm: (variation: Variation, itemType: 'cover' | 'full', quantity: number) => void,
-    onCancel: () => void,
-    isDark: boolean
-}> = ({ product, onConfirm, onCancel, isDark }) => {
-    const [selectedVarSize, setSelectedVarSize] = useState<CushionSize | null>(null);
-    const [itemType, setItemType] = useState<'cover' | 'full' | null>(null);
-    const [quantity, setQuantity] = useState(1);
-
-    // Auto-select variation if only one exists
-    useEffect(() => {
-        if (product.variations.length === 1) {
-            setSelectedVarSize(product.variations[0].size);
-        }
-    }, [product]);
-
-    const handleConfirm = () => {
-        if (selectedVarSize && itemType) {
-            const variation = product.variations.find(v => v.size === selectedVarSize);
-            if (variation) {
-                onConfirm(variation, itemType, quantity);
-            }
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200] p-4" onClick={onCancel}>
-            <div className={`w-full max-w-sm rounded-3xl shadow-2xl p-6 flex flex-col gap-4 animate-fade-in-scale ${isDark ? 'bg-[#1A1129] border border-white/10' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
-                <style>{`
-                    @keyframes fade-in-scale { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-                    .animate-fade-in-scale { animation: fade-in-scale 0.2s forwards; }
-                `}</style>
-                <div className="flex items-center gap-4">
-                    <img src={product.baseImageUrl} className="w-16 h-16 rounded-xl object-cover" alt="" />
-                    <div>
-                        <h3 className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{product.name}</h3>
-                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Selecione as opções</p>
-                    </div>
+// Optimized History Item to prevent lag
+const HistoryItem = React.memo<{ 
+    req: SaleRequest, 
+    products: Product[], 
+    isDark: boolean, 
+    onDetail: (req: SaleRequest) => void, 
+    onDelete: (id: string) => void, 
+    titleClasses: string, 
+    subtitleClasses: string, 
+    cardClasses: string 
+}>(({ req, products, isDark, onDetail, onDelete, titleClasses, subtitleClasses, cardClasses }) => (
+    <div onClick={() => onDetail(req)} className={`relative p-4 rounded-2xl border flex items-center gap-4 cursor-pointer hover:scale-[1.01] transition-transform ${cardClasses}`}>
+        {/* Thumbnail Stack */}
+        <div className="flex -space-x-3 overflow-hidden flex-shrink-0">
+            {req.items.slice(0, 3).map((item: any, idx) => {
+                const prod = products.find(p => p.id === item.productId);
+                const img = item.baseImageUrl || prod?.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png';
+                return (
+                    <img key={idx} src={img} alt="" className="w-12 h-12 rounded-full border-2 border-white dark:border-gray-800 object-cover" />
+                );
+            })}
+            {req.items.length > 3 && (
+                <div className="w-12 h-12 rounded-full border-2 border-white dark:border-gray-800 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-500">
+                    +{req.items.length - 3}
                 </div>
+            )}
+        </div>
 
-                {product.variations.length > 1 && (
-                    <div>
-                        <label className={`text-xs font-bold uppercase tracking-wider mb-2 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Tamanho</label>
-                        <div className="flex flex-wrap gap-2">
-                            {product.variations.map(v => (
-                                <button
-                                    key={v.size}
-                                    onClick={() => setSelectedVarSize(v.size)}
-                                    className={`px-3 py-2 rounded-lg text-sm font-bold border-2 transition-all ${selectedVarSize === v.size ? 'border-fuchsia-500 bg-fuchsia-500/20 text-fuchsia-500' : isDark ? 'border-white/10 text-gray-400 hover:bg-white/5' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                >
-                                    {v.size}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                <div>
-                    <label className={`text-xs font-bold uppercase tracking-wider mb-2 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Tipo</label>
-                    <div className="flex gap-3">
-                        <button onClick={() => setItemType('cover')} className={`flex-1 py-3 rounded-xl font-bold border-2 transition-all ${itemType === 'cover' ? 'border-cyan-500 bg-cyan-500/20 text-cyan-500' : isDark ? 'border-white/10 text-gray-400' : 'border-gray-200 text-gray-600'}`}>Só Capa</button>
-                        <button onClick={() => setItemType('full')} className={`flex-1 py-3 rounded-xl font-bold border-2 transition-all ${itemType === 'full' ? 'border-cyan-500 bg-cyan-500/20 text-cyan-500' : isDark ? 'border-white/10 text-gray-400' : 'border-gray-200 text-gray-600'}`}>Cheia</button>
-                    </div>
-                </div>
-
-                <div className="flex justify-between items-center bg-black/5 dark:bg-white/5 p-3 rounded-xl">
-                    <span className={`font-bold text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Quantidade</span>
-                    <div className="flex items-center gap-3">
-                        <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-white/10 font-bold">-</button>
-                        <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{quantity}</span>
-                        <button onClick={() => setQuantity(quantity + 1)} className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-white/10 font-bold">+</button>
-                    </div>
-                </div>
-
-                <div className="flex gap-3 mt-2">
-                    <button onClick={onCancel} className={`flex-1 py-3 rounded-xl font-bold ${isDark ? 'text-gray-400 hover:bg-white/5' : 'text-gray-600 hover:bg-gray-100'}`}>Cancelar</button>
-                    <button 
-                        onClick={handleConfirm} 
-                        disabled={!selectedVarSize || !itemType}
-                        className="flex-1 bg-fuchsia-600 text-white font-bold rounded-xl shadow-lg hover:bg-fuchsia-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        Adicionar
-                    </button>
-                </div>
+        <div className="flex-grow min-w-0">
+            <div className="flex justify-between items-baseline mb-1">
+                <p className={`font-bold truncate ${titleClasses}`}>{req.customerName || 'Venda Balcão'}</p>
+                <span className={`text-xs font-mono ${subtitleClasses}`}>{new Date(req.createdAt?.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <div className="flex justify-between items-center">
+                <p className={`text-xs ${subtitleClasses}`}>{req.paymentMethod} • {req.items.length} itens</p>
+                <p className={`font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>R$ {(req.finalPrice || req.totalPrice).toFixed(2)}</p>
             </div>
         </div>
-    );
-};
+        
+        <button 
+            onClick={(e) => { e.stopPropagation(); onDelete(req.id); }} 
+            className="p-2 text-gray-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        </button>
+    </div>
+));
 
 const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleRequest, products, onMenuClick, error, cardFees }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     
-    const [activeTab, setActiveTab] = useState<Tab>('pending');
+    // Default to 'pos' unless there are pending items
+    const [activeTab, setActiveTab] = useState<Tab>(() => {
+        const hasPending = saleRequests.some(r => r.status === 'pending');
+        return hasPending ? 'pending' : 'pos';
+    });
     
     // POS State
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -276,15 +343,19 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const [scanError, setScanError] = useState('');
     const [scannedItems, setScannedItems] = useState<PosCartItem[]>([]);
     const [scanMode, setScanMode] = useState<ScanMode>('none');
-    const [posSearchQuery, setPosSearchQuery] = useState('');
     const [posPaymentMethod, setPosPaymentMethod] = useState<'PIX' | 'Débito' | 'Crédito' | 'Dinheiro'>('Dinheiro');
     const [posInstallments, setPosInstallments] = useState(1);
     const [posDiscount, setPosDiscount] = useState(0);
     const [isFinishingPos, setIsFinishingPos] = useState(false);
     const [showCalculator, setShowCalculator] = useState(false);
+    const [isProductSelectOpen, setIsProductSelectOpen] = useState(false);
+    const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+    const [sessionAddedCount, setSessionAddedCount] = useState(0);
+    const [isScanSuccess, setIsScanSuccess] = useState(false);
+    const lastScannedRef = useRef<string>('');
+    const scanCooldownRef = useRef<boolean>(false);
     
     // POS Modals & Feedback
-    const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
     const [showAddedFeedback, setShowAddedFeedback] = useState(false);
 
     // Request Management State
@@ -297,19 +368,76 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const [compDiscount, setCompDiscount] = useState(0);
     const [compInstallments, setCompInstallments] = useState(1);
 
+    // Filter Logic:
+    // Pending Tab: ONLY shows pending requests that are NOT preorders.
     const pendingRequests = useMemo(() => saleRequests.filter(r => r.status === 'pending' && r.type !== 'preorder'), [saleRequests]);
+    // Preorders Tab: ONLY shows requests that ARE preorders (regardless of status, but usually filtered by pending in UI, here we keep pending/active ones)
     const preorderRequests = useMemo(() => saleRequests.filter(r => r.status === 'pending' && r.type === 'preorder'), [saleRequests]);
     const historyRequests = useMemo(() => saleRequests.filter(r => r.status === 'completed'), [saleRequests]);
 
-    const posFilteredProducts = useMemo(() => {
-        if (!posSearchQuery) return [];
-        return products.filter(p => p.name.toLowerCase().includes(posSearchQuery.toLowerCase()));
-    }, [products, posSearchQuery]);
+    // History Grouping by Date
+    const groupedHistory = useMemo(() => {
+        const groups: Record<string, SaleRequest[]> = {};
+        historyRequests.forEach(req => {
+            const date = new Date(req.createdAt?.seconds * 1000);
+            const dateStr = date.toLocaleDateString('pt-BR');
+            if (!groups[dateStr]) groups[dateStr] = [];
+            groups[dateStr].push(req);
+        });
+        
+        // Sort keys (dates) descending
+        return Object.entries(groups).sort((a, b) => {
+            const dateA = a[1][0].createdAt?.seconds || 0;
+            const dateB = b[1][0].createdAt?.seconds || 0;
+            return dateB - dateA; // Newest first
+        });
+    }, [historyRequests]);
 
     const posTotal = useMemo(() => scannedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0), [scannedItems]);
     const posFinalTotal = Math.max(0, posTotal - posDiscount);
 
     // --- POS Logic ---
+
+    const handleToggleItemType = (index: number, newType: 'cover' | 'full') => {
+        setScannedItems(prev => {
+            const newArr = [...prev];
+            const item = { ...newArr[index] }; // Shallow copy item
+            
+            if (!item.variation) return prev; // Ignore custom items
+
+            item.itemType = newType;
+            item.price = newType === 'cover' ? item.variation.priceCover : item.variation.priceFull;
+            
+            // Update name to reflect change
+            const baseName = item.product?.name || item.name.split('(')[0].trim();
+            const size = item.variation.size;
+            item.name = `${baseName} (${size} - ${newType === 'cover' ? 'Capa' : 'Cheia'})`;
+
+            newArr[index] = item;
+            return newArr;
+        });
+    };
+
+    const handleChangeItemSize = (index: number, newSize: CushionSize) => {
+        setScannedItems(prev => {
+            const newArr = [...prev];
+            const item = { ...newArr[index] };
+            
+            if (!item.product) return prev;
+
+            const newVariation = item.product.variations.find(v => v.size === newSize);
+            if (newVariation) {
+                item.variation = newVariation;
+                item.price = item.itemType === 'cover' ? newVariation.priceCover : newVariation.priceFull;
+                
+                const baseName = item.product.name;
+                item.name = `${baseName} (${newVariation.size} - ${item.itemType === 'cover' ? 'Capa' : 'Cheia'})`;
+                
+                newArr[index] = item;
+            }
+            return newArr;
+        });
+    };
 
     // Beep sound setup
     const playBeep = () => {
@@ -330,6 +458,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     useEffect(() => {
         if (scanMode === 'camera') {
             startScan();
+            setSessionAddedCount(0); // Reset count on scan start
         } else {
             stopScan();
         }
@@ -344,9 +473,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                 videoRef.current.setAttribute("playsinline", "true");
                 videoRef.current.play();
                 
-                // Attempt to focus on tap if possible (basic implementation)
-                // Note: Standard Web API doesn't support 'focusMode' directly on tracks everywhere yet,
-                // but we can try applying constraints.
+                // Attempt to focus on tap if possible
                 const track = stream.getVideoTracks()[0];
                 if (track && track.getCapabilities && (track.getCapabilities() as any).focusMode) {
                     try {
@@ -365,7 +492,6 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
 
     const handleCameraClick = async () => {
         if (!videoRef.current || !videoRef.current.srcObject) return;
-        // Attempt manual focus trigger if supported (experimental)
         const stream = videoRef.current.srcObject as MediaStream;
         const track = stream.getVideoTracks()[0];
         if (track && (track.getCapabilities() as any).focusMode) {
@@ -400,48 +526,112 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                     const code = (window as any).jsQR ? (window as any).jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" }) : null;
 
-                    if (code) {
+                    if (code && code.data) {
                         handleQrCodeScan(code.data);
-                        return; // Stop tick to handle scan
                     }
                 }
             }
         }
-        animationFrameId.current = requestAnimationFrame(tick);
+        if (scanMode === 'camera') {
+            animationFrameId.current = requestAnimationFrame(tick);
+        }
     };
 
     const handleQrCodeScan = (data: string) => {
+        if (scanCooldownRef.current) return;
+
         try {
-            const { productId } = JSON.parse(data); // We only need Product ID to start configuration
+            const { productId } = JSON.parse(data);
             const product = products.find(p => p.id === productId);
             if (product) {
+                // Cooldown logic to prevent accidental double scans of the same frame
+                scanCooldownRef.current = true;
+                setTimeout(() => { scanCooldownRef.current = false; }, 2000);
+
                 playBeep();
                 if (navigator.vibrate) navigator.vibrate(200);
                 
-                // Pause scanning
-                stopScan();
-                setScanMode('none'); // Close camera UI to show modal
-                setPendingProduct(product);
+                // Keep scanner OPEN (Removed stopScan and setScanMode('none'))
+                
+                // Visual feedback in scanner
+                setIsScanSuccess(true);
+                setTimeout(() => setIsScanSuccess(false), 500);
+                setSessionAddedCount(prev => prev + 1);
+
+                // Automatically add 1 unit (Cover price default)
+                const variation = product.variations[0]; 
+                const itemType = 'cover';
+                const price = variation.priceCover;
+
+                setScannedItems(prev => {
+                    const existing = prev.find(i => 
+                        i.product?.id === product.id && 
+                        i.variation?.size === variation.size && 
+                        i.itemType === itemType
+                    );
+                    if (existing) {
+                        return prev.map(i => i === existing ? { ...i, quantity: i.quantity + 1 } : i);
+                    }
+                    return [...prev, {
+                        id: `${product.id}-${variation.size}-${itemType}-${Date.now()}`,
+                        name: `${product.name} (${variation.size} - Capa)`,
+                        price: price,
+                        quantity: 1,
+                        product: product,
+                        variation,
+                        itemType,
+                        isCustom: false
+                    }];
+                });
+                
+                setShowAddedFeedback(true);
+                setTimeout(() => setShowAddedFeedback(false), 2000);
             }
         } catch (e) {
             console.error("Invalid QR Code", e);
         }
     };
 
-    const handleAddManualProduct = (product: Product) => {
-        setPendingProduct(product);
-        // Do not clear search query immediately to allow adding multiples
+    const handleManualAddProducts = (selectedIds: string[]) => {
+        if (selectedIds.length === 1) {
+            const product = products.find(p => p.id === selectedIds[0]);
+            if (product) {
+                setPendingProduct(product);
+            }
+        } else {
+            selectedIds.forEach(id => {
+                const product = products.find(p => p.id === id);
+                if (product) {
+                    // Default to first variation, cover only
+                    const variation = product.variations[0];
+                    const itemType = 'cover';
+                    const price = variation.priceCover;
+
+                    setScannedItems(prev => {
+                        return [...prev, {
+                            id: `${product.id}-${variation.size}-${itemType}-${Date.now()}`,
+                            name: `${product.name} (${variation.size} - Capa)`,
+                            price: price,
+                            quantity: 1,
+                            product: product,
+                            variation,
+                            itemType,
+                            isCustom: false
+                        }];
+                    });
+                }
+            });
+        }
+        setIsProductSelectOpen(false);
     };
 
-    const handleConfigConfirm = (variation: Variation, itemType: 'cover' | 'full', quantity: number) => {
+    const handleConfigConfirm = (variation: Variation, itemType: 'cover' | 'full', price: number, quantity: number) => {
         if (!pendingProduct) return;
+        const product = pendingProduct;
         
-        const price = itemType === 'cover' ? variation.priceCover : variation.priceFull;
-        const nameSuffix = itemType === 'cover' ? 'Capa' : 'Cheia';
-
         setScannedItems(prev => {
             const existing = prev.find(i => 
-                i.product?.id === pendingProduct.id && 
+                i.product?.id === product.id && 
                 i.variation?.size === variation.size && 
                 i.itemType === itemType
             );
@@ -449,22 +639,17 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                 return prev.map(i => i === existing ? { ...i, quantity: i.quantity + quantity } : i);
             }
             return [...prev, {
-                id: `${pendingProduct.id}-${variation.size}-${itemType}-${Date.now()}`,
-                name: `${pendingProduct.name} (${variation.size} - ${nameSuffix})`,
+                id: `${product.id}-${variation.size}-${itemType}-${Date.now()}`,
+                name: `${product.name} (${variation.size} - ${itemType === 'cover' ? 'Capa' : 'Cheia'})`,
                 price: price,
                 quantity: quantity,
-                product: pendingProduct,
+                product: product,
                 variation,
                 itemType,
                 isCustom: false
             }];
         });
-
         setPendingProduct(null);
-        
-        // Show success feedback
-        setShowAddedFeedback(true);
-        setTimeout(() => setShowAddedFeedback(false), 2000);
     };
 
     const handleAddCustomAmount = (amount: number) => {
@@ -475,7 +660,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
             quantity: 1,
             isCustom: true
         }]);
-        setShowCalculator(false); // Hide calc after adding
+        setShowCalculator(false);
     };
 
     const handlePosCheckout = async () => {
@@ -507,7 +692,8 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
             setScannedItems([]);
             setPosDiscount(0);
             setPosInstallments(1);
-            setActiveTab('history');
+            // Move to pending tab so user can confirm
+            setActiveTab('pending');
         } catch (e: any) {
             alert("Erro ao finalizar venda: " + e.message);
         } finally {
@@ -560,6 +746,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
 
     const handleDeleteRequest = async () => {
         if (!confirmDeleteId) return;
+        // Optimistic UI update could be done here if needed, but let's rely on fast response
         try {
             await deleteSaleRequest(confirmDeleteId);
             setConfirmDeleteId(null);
@@ -588,9 +775,16 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`flex-1 min-w-[90px] py-3 rounded-lg text-xs font-bold uppercase tracking-wide transition-all whitespace-nowrap ${activeTab === tab ? 'bg-fuchsia-600 text-white shadow-lg' : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
+                            className={`relative flex-1 min-w-[90px] py-3 rounded-lg text-xs font-bold uppercase tracking-wide transition-all whitespace-nowrap ${
+                                activeTab === tab 
+                                ? (tab === 'preorders' ? 'bg-orange-600 text-white shadow-lg' : 'bg-fuchsia-600 text-white shadow-lg') 
+                                : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900')
+                            }`}
                         >
-                            {tab === 'pos' ? 'PDV' : tab === 'pending' ? `Pendentes (${pendingRequests.length})` : tab === 'preorders' ? `Encomendas (${preorderRequests.length})` : 'Histórico'}
+                            {tab === 'pos' ? 'PDV' : tab === 'pending' ? `Pendentes (${pendingRequests.length})` : tab === 'preorders' ? `Encomendas` : 'Histórico'}
+                            {tab === 'preorders' && preorderRequests.length > 0 && (
+                                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -601,67 +795,39 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                 {activeTab === 'pos' && (
                     <div className="space-y-6">
                         {showAddedFeedback && (
-                            <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-green-500 text-white px-6 py-2 rounded-full font-bold shadow-xl z-50 animate-bounce">
+                            <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-green-500 text-white px-6 py-2 rounded-full font-bold shadow-xl z-50 animate-bounce pointer-events-none">
                                 + 1 Produto Adicionado
                             </div>
                         )}
 
-                        <div className={`p-4 rounded-2xl border ${cardClasses}`}>
-                            <div className="relative mb-6">
-                                <input 
-                                    type="text" 
-                                    placeholder="Procurar Produtos" 
-                                    value={posSearchQuery}
-                                    onChange={e => setPosSearchQuery(e.target.value)}
-                                    className={`w-full py-4 pl-12 pr-4 rounded-2xl font-semibold focus:outline-none ${isDark ? 'bg-purple-900/30 text-white placeholder-purple-300/50' : 'bg-purple-100/50 text-gray-900 placeholder-purple-800/40'}`}
-                                />
-                                <svg className={`w-6 h-6 absolute left-4 top-1/2 -translate-y-1/2 ${isDark ? 'text-purple-300/50' : 'text-purple-800/40'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                                {posSearchQuery && posFilteredProducts.length > 0 && (
-                                    <div className={`absolute top-full left-0 right-0 mt-2 p-2 rounded-xl shadow-xl z-20 max-h-64 overflow-y-auto ${isDark ? 'bg-[#2D1F49] border border-white/10' : 'bg-white border border-gray-200'}`}>
-                                        {posFilteredProducts.map(p => (
-                                            <button key={p.id} onClick={() => handleAddManualProduct(p)} className={`w-full text-left p-3 rounded-lg text-sm flex items-center gap-3 ${isDark ? 'hover:bg-white/10 text-gray-200' : 'hover:bg-gray-100 text-gray-800'}`}>
-                                                <img src={p.baseImageUrl} className="w-10 h-10 rounded-md object-cover" alt="" />
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold">{p.name}</span>
-                                                    <span className="text-xs opacity-70">{p.category}</span>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                        <div className={`p-4 rounded-2xl border flex flex-col gap-3 ${cardClasses}`}>
+                            <button 
+                                onClick={() => setIsProductSelectOpen(true)}
+                                className={`w-full py-5 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-transform active:scale-95 shadow-md ${isDark ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-white text-purple-700 border-2 border-purple-200 hover:bg-purple-50'}`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                Adicionar Produto
+                            </button>
 
-                            <div className="flex gap-3 mb-4">
-                                <button onClick={() => setShowCalculator(!showCalculator)} className={`flex-1 font-bold py-4 rounded-xl shadow-sm transition-all text-sm uppercase tracking-wide border-2 ${isDark ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                                    {showCalculator ? 'Ocultar Calculadora' : 'Venda Avulsa'}
-                                </button>
-                                
-                                <button onClick={() => scanMode === 'none' ? setScanMode('camera') : setScanMode('none')} className={`w-16 flex-shrink-0 flex items-center justify-center rounded-xl shadow-sm transition-all ${scanMode === 'camera' ? 'bg-red-500 text-white' : (isDark ? 'bg-white/10 text-white' : 'bg-gray-200 text-gray-700')}`}>
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
-                                </button>
-                            </div>
+                            <button onClick={() => setShowCalculator(!showCalculator)} className={`w-full font-bold py-4 rounded-xl shadow-sm transition-all text-sm uppercase tracking-wide border-2 ${isDark ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                                {showCalculator ? 'Ocultar Calculadora' : 'Venda Avulsa'}
+                            </button>
+                            
+                            <button 
+                                onClick={() => setScanMode('camera')} 
+                                className={`w-full px-4 font-bold py-4 rounded-xl shadow-sm transition-all text-sm uppercase tracking-wide flex items-center justify-center gap-2 bg-[#2E1065] text-white hover:bg-purple-900`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                Escanear QR da Almofada
+                            </button>
                             
                             {showCalculator && <Calculator onAdd={handleAddCustomAmount} />}
                             
-                            {scanMode === 'camera' && (
-                                <div onClick={handleCameraClick} className="relative w-full aspect-video bg-black rounded-xl overflow-hidden mb-4 shadow-inner cursor-crosshair">
-                                    <video ref={videoRef} className="w-full h-full object-cover" />
-                                    <canvas ref={canvasRef} className="hidden" />
-                                    <div className="absolute inset-0 border-2 border-white/30 pointer-events-none flex items-center justify-center">
-                                        <div className="w-48 h-48 border-2 border-white/50 rounded-lg relative">
-                                            <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-white"></div>
-                                            <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-white"></div>
-                                            <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-white"></div>
-                                            <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-white"></div>
-                                        </div>
-                                    </div>
-                                    <p className="absolute bottom-2 left-0 right-0 text-center text-white text-xs shadow-black drop-shadow-md">Toque na tela para focar</p>
-                                </div>
-                            )}
-
                             {scanError && <p className="text-red-500 text-center text-sm mb-4">{scanError}</p>}
                         </div>
 
@@ -672,34 +838,84 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                                     <button onClick={() => setScannedItems([])} className="text-red-500 text-xs font-bold">Limpar</button>
                                 </div>
                                 
-                                <div className="space-y-3 mb-6 max-h-60 overflow-y-auto pr-2">
+                                <div className="space-y-4 mb-6 max-h-[500px] overflow-y-auto pr-2">
                                     {scannedItems.map((item, idx) => (
-                                        <div key={idx} className={`flex justify-between items-center p-2 rounded-lg ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
-                                            <div className="flex items-center gap-3">
+                                        <div key={idx} className={`relative flex flex-col p-4 rounded-xl border mb-3 ${isDark ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100 shadow-sm'}`}>
+                                            <div className="flex gap-4 mb-3">
                                                 {item.product?.baseImageUrl && (
-                                                    <img src={item.product.baseImageUrl} alt="" className="w-10 h-10 rounded-md object-cover" />
+                                                    <img src={item.product.baseImageUrl} alt="" className="w-16 h-16 rounded-lg object-cover bg-gray-100 flex-shrink-0" />
                                                 )}
-                                                <div>
-                                                    <p className={`font-bold text-sm ${titleClasses}`}>{item.name}</p>
-                                                    <p className="text-xs opacity-60">R$ {item.price.toFixed(2)}</p>
+                                                <div className="flex-grow min-w-0">
+                                                    <p className={`font-bold text-base leading-snug ${titleClasses}`}>
+                                                        {item.product?.name || item.name}
+                                                    </p>
+                                                    {!item.isCustom && (
+                                                        <p className="text-xs opacity-60 mt-1">Preço Unit.: R$ {item.price.toFixed(2)}</p>
+                                                    )}
                                                 </div>
+                                                <button onClick={() => setScannedItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 p-1 self-start">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                    </svg>
+                                                </button>
                                             </div>
-                                            <div className="flex items-center gap-3">
-                                                <div className={`flex items-center rounded-lg ${isDark ? 'bg-white/10' : 'bg-gray-200'}`}>
-                                                    <button onClick={() => setScannedItems(prev => {
-                                                        const newArr = [...prev];
-                                                        if (newArr[idx].quantity > 1) newArr[idx].quantity--;
-                                                        else newArr.splice(idx, 1);
-                                                        return newArr;
-                                                    })} className="w-8 h-8 font-bold">-</button>
-                                                    <span className={`px-1 font-bold text-sm ${titleClasses}`}>{item.quantity}</span>
-                                                    <button onClick={() => setScannedItems(prev => {
-                                                        const newArr = [...prev];
-                                                        newArr[idx].quantity++;
-                                                        return newArr;
-                                                    })} className="w-8 h-8 font-bold">+</button>
+                                            
+                                            <div className="flex flex-col gap-3">
+                                                {!item.isCustom && item.product && item.variation && (
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        <div className={`flex rounded-lg p-1 ${isDark ? 'bg-white/10' : 'bg-gray-200'}`}>
+                                                            <button 
+                                                                onClick={() => handleToggleItemType(idx, 'cover')}
+                                                                className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${item.itemType === 'cover' ? 'bg-white text-black shadow-sm' : 'text-gray-500'}`}
+                                                            >
+                                                                Capa
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleToggleItemType(idx, 'full')}
+                                                                className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${item.itemType === 'full' ? 'bg-white text-black shadow-sm' : 'text-gray-500'}`}
+                                                            >
+                                                                Cheia
+                                                            </button>
+                                                        </div>
+                                                        
+                                                        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                                                            {item.product.variations.map(v => (
+                                                                <button
+                                                                    key={v.size}
+                                                                    onClick={() => handleChangeItemSize(idx, v.size)}
+                                                                    className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all whitespace-nowrap ${
+                                                                        item.variation?.size === v.size
+                                                                        ? 'bg-fuchsia-600 text-white border-fuchsia-600'
+                                                                        : (isDark ? 'text-gray-400 border-white/20 hover:bg-white/10' : 'text-gray-600 border-gray-300 hover:bg-gray-200')
+                                                                    }`}
+                                                                >
+                                                                    {v.size}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex items-end justify-between mt-1 pt-3 border-t border-dashed border-gray-500/20">
+                                                    <div className="flex items-center gap-3">
+                                                        <button onClick={() => setScannedItems(prev => {
+                                                            const newArr = [...prev];
+                                                            if (newArr[idx].quantity > 1) newArr[idx].quantity--;
+                                                            return newArr;
+                                                        })} className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg transition-colors ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'}`}>-</button>
+                                                        <span className={`w-8 text-center font-bold text-lg ${titleClasses}`}>{item.quantity}</span>
+                                                        <button onClick={() => setScannedItems(prev => {
+                                                            const newArr = [...prev];
+                                                            newArr[idx].quantity++;
+                                                            return newArr;
+                                                        })} className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg transition-colors ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'}`}>+</button>
+                                                    </div>
+                                                    
+                                                    <div className="text-right">
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider opacity-60 block mb-0.5">Total</span>
+                                                        <span className={`text-2xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>R$ {(item.price * item.quantity).toFixed(2)}</span>
+                                                    </div>
                                                 </div>
-                                                <span className={`font-bold w-16 text-right text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>R$ {(item.price * item.quantity).toFixed(2)}</span>
                                             </div>
                                         </div>
                                     ))}
@@ -745,46 +961,59 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                     </div>
                 )}
 
-                {/* --- PENDING REQUESTS TAB --- */}
+                {/* --- PENDING REQUESTS TAB (MIXED) --- */}
                 {activeTab === 'pending' && (
                     <div className="space-y-4">
                         {pendingRequests.length === 0 ? (
                             <p className={`text-center py-10 ${subtitleClasses}`}>Nenhum pedido pendente.</p>
                         ) : (
-                            pendingRequests.map(req => (
-                                <div key={req.id} className={`p-5 rounded-2xl border ${cardClasses}`}>
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div>
-                                            <p className={`font-bold text-lg ${titleClasses}`}>{req.customerName || 'Cliente sem nome'}</p>
-                                            <p className={`text-xs ${subtitleClasses}`}>{new Date(req.createdAt?.seconds * 1000).toLocaleString()}</p>
-                                        </div>
-                                        <div className="flex flex-col items-end gap-1">
-                                            <StatusBadge status={req.status} type={req.type} />
-                                        </div>
-                                    </div>
-                                    <div className={`p-3 rounded-xl mb-3 ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
-                                        {req.items.map((item: any, idx: number) => (
-                                            <div key={idx} className="flex justify-between text-sm mb-1 last:mb-0">
-                                                <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{item.quantity}x {item.name || item.product?.name} ({item.variationSize || item.variation?.size})</span>
-                                                <span className="font-mono opacity-70">R$ {item.price.toFixed(2)}</span>
+                            pendingRequests.map(req => {
+                                const isPreorder = req.type === 'preorder';
+                                return (
+                                    <div key={req.id} className={`p-5 rounded-2xl border relative ${isPreorder ? 'border-orange-500 border-2 bg-orange-500/5' : cardClasses}`}>
+                                        {isPreorder && (
+                                            <div className="absolute -top-3 left-4 bg-orange-500 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider shadow-sm">
+                                                Encomenda
                                             </div>
-                                        ))}
+                                        )}
+                                        <div className="flex justify-between items-start mb-3 pt-2">
+                                            <div>
+                                                <p className={`font-bold text-lg ${titleClasses}`}>{req.customerName || 'Cliente sem nome'}</p>
+                                                <p className={`text-xs ${subtitleClasses}`}>{new Date(req.createdAt?.seconds * 1000).toLocaleString()}</p>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <StatusBadge status={req.status} type={req.type} />
+                                            </div>
+                                        </div>
+                                        <div className={`p-3 rounded-xl mb-3 ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
+                                            {req.items.map((item: any, idx: number) => (
+                                                <div key={idx} className="flex justify-between text-sm mb-1 last:mb-0">
+                                                    <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{item.quantity}x {item.name || item.product?.name} ({item.variationSize || item.variation?.size})</span>
+                                                    <span className="font-mono opacity-70">R$ {item.price.toFixed(2)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <span className={`text-sm ${subtitleClasses}`}>Pagamento: <strong className={titleClasses}>{req.paymentMethod}</strong></span>
+                                            <span className={`text-xl font-black ${isDark ? (isPreorder ? 'text-orange-400' : 'text-green-400') : (isPreorder ? 'text-orange-600' : 'text-green-600')}`}>R$ {req.totalPrice.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <button onClick={() => setConfirmDeleteId(req.id)} className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 ${isDark ? 'border-red-500/50 text-red-400 hover:bg-red-500/10' : 'border-red-200 text-red-600 hover:bg-red-50'}`}>Cancelar</button>
+                                            
+                                            {isPreorder ? (
+                                                <button onClick={() => setActiveTab('preorders')} className="flex-1 py-3 rounded-xl font-bold text-sm bg-orange-600 text-white shadow-lg hover:bg-orange-700">Ir para Encomendas</button>
+                                            ) : (
+                                                <button onClick={() => openCompleteModal(req)} className="flex-1 py-3 rounded-xl font-bold text-sm bg-green-600 text-white shadow-lg hover:bg-green-700">Concluir Venda</button>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="flex justify-between items-center mb-4">
-                                        <span className={`text-sm ${subtitleClasses}`}>Pagamento: <strong className={titleClasses}>{req.paymentMethod}</strong></span>
-                                        <span className={`text-xl font-black ${isDark ? 'text-green-400' : 'text-green-600'}`}>R$ {req.totalPrice.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <button onClick={() => setConfirmDeleteId(req.id)} className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 ${isDark ? 'border-red-500/50 text-red-400 hover:bg-red-500/10' : 'border-red-200 text-red-600 hover:bg-red-50'}`}>Cancelar</button>
-                                        <button onClick={() => openCompleteModal(req)} className="flex-1 py-3 rounded-xl font-bold text-sm bg-green-600 text-white shadow-lg hover:bg-green-700">Concluir Venda</button>
-                                    </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 )}
 
-                {/* --- PREORDERS TAB --- */}
+                {/* --- PREORDERS TAB (SPECIFIC) --- */}
                 {activeTab === 'preorders' && (
                     <div className="space-y-4">
                         {preorderRequests.length === 0 ? (
@@ -832,50 +1061,45 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
 
                 {/* --- HISTORY TAB --- */}
                 {activeTab === 'history' && (
-                    <div className="space-y-3">
-                        {historyRequests.length === 0 ? (
+                    <div className="space-y-6">
+                        {groupedHistory.length === 0 ? (
                             <p className={`text-center py-10 ${subtitleClasses}`}>Nenhuma venda registrada.</p>
                         ) : (
-                            historyRequests.map(req => (
-                                <div key={req.id} onClick={() => setShowDetailModal(req)} className={`relative p-4 rounded-2xl border flex items-center gap-4 cursor-pointer hover:scale-[1.01] transition-transform ${cardClasses}`}>
-                                    {/* Thumbnail Stack */}
-                                    <div className="flex -space-x-3 overflow-hidden flex-shrink-0">
-                                        {req.items.slice(0, 3).map((item: any, idx) => {
-                                            // Try to find image from products list if not saved in item
-                                            const prod = products.find(p => p.id === item.productId);
-                                            const img = item.baseImageUrl || prod?.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png';
-                                            return (
-                                                <img key={idx} src={img} alt="" className="w-12 h-12 rounded-full border-2 border-white dark:border-gray-800 object-cover" />
-                                            );
-                                        })}
-                                        {req.items.length > 3 && (
-                                            <div className="w-12 h-12 rounded-full border-2 border-white dark:border-gray-800 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-500">
-                                                +{req.items.length - 3}
-                                            </div>
-                                        )}
-                                    </div>
+                            groupedHistory.map(([date, requests]) => {
+                                // Determine "Today" or "Yesterday" for better UX
+                                const today = new Date().toLocaleDateString('pt-BR');
+                                const yesterday = new Date();
+                                yesterday.setDate(yesterday.getDate() - 1);
+                                const yesterdayStr = yesterday.toLocaleDateString('pt-BR');
+                                
+                                let displayDate = date;
+                                if (date === today) displayDate = 'Hoje';
+                                else if (date === yesterdayStr) displayDate = 'Ontem';
 
-                                    <div className="flex-grow min-w-0">
-                                        <div className="flex justify-between items-baseline mb-1">
-                                            <p className={`font-bold truncate ${titleClasses}`}>{req.customerName || 'Venda Balcão'}</p>
-                                            <span className={`text-xs font-mono ${subtitleClasses}`}>{new Date(req.createdAt?.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                return (
+                                    <div key={date}>
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <h2 className={`font-bold text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{displayDate}</h2>
+                                            <div className={`flex-grow h-px ${isDark ? 'bg-white/10' : 'bg-gray-200'}`}></div>
                                         </div>
-                                        <div className="flex justify-between items-center">
-                                            <p className={`text-xs ${subtitleClasses}`}>{req.paymentMethod} • {req.items.length} itens</p>
-                                            <p className={`font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>R$ {(req.finalPrice || req.totalPrice).toFixed(2)}</p>
+                                        <div className="space-y-3">
+                                            {requests.map(req => (
+                                                <HistoryItem 
+                                                    key={req.id} 
+                                                    req={req} 
+                                                    products={products} 
+                                                    isDark={isDark} 
+                                                    onDetail={setShowDetailModal} 
+                                                    onDelete={setConfirmDeleteId}
+                                                    titleClasses={titleClasses}
+                                                    subtitleClasses={subtitleClasses}
+                                                    cardClasses={cardClasses}
+                                                />
+                                            ))}
                                         </div>
                                     </div>
-                                    
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(req.id); }} 
-                                        className="p-2 text-gray-400 hover:text-red-500 rounded-full hover:bg-red-500/10 transition-colors"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 )}
@@ -929,6 +1153,21 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                     cardFees={cardFees}
                     isDark={isDark}
                     products={products}
+                    onNavigateToPreorders={() => {
+                        setShowDetailModal(null);
+                        setActiveTab('preorders');
+                    }}
+                />
+            )}
+
+            {/* Product Select Modal for Manual Add */}
+            {isProductSelectOpen && (
+                <ProductSelectModal 
+                    products={products} 
+                    onClose={() => setIsProductSelectOpen(false)} 
+                    onConfirm={handleManualAddProducts}
+                    initialSelectedIds={[]}
+                    maxSelection={10}
                 />
             )}
 
@@ -939,6 +1178,44 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                 title="Excluir Venda" 
                 message="Tem certeza? Se o pedido já foi concluído, o estoque será devolvido." 
             />
+
+            {/* Full Screen Scanner Modal */}
+            {scanMode === 'camera' && (
+                <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center">
+                    <div className="relative w-full h-full">
+                        <video ref={videoRef} className="w-full h-full object-cover" onClick={handleCameraClick} />
+                        <canvas ref={canvasRef} className="hidden" />
+                        
+                        {/* Overlay Container */}
+                        <div className="absolute inset-0 pointer-events-none border-[50px] border-black/50">
+                            <div className={`absolute inset-0 border-4 m-4 flex items-center justify-center transition-colors duration-300 ${isScanSuccess ? 'border-green-500 shadow-[0_0_50px_rgba(34,197,94,0.5)]' : 'border-white/50'}`}>
+                                {!isScanSuccess && (
+                                    <div className="w-64 h-64 border-2 border-fuchsia-500 rounded-2xl relative opacity-50">
+                                        <div className="absolute top-0 left-0 w-full h-1 bg-fuchsia-500 animate-scan"></div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Counter Badge */}
+                        {sessionAddedCount > 0 && (
+                            <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-green-500 text-white px-6 py-2 rounded-full font-bold shadow-2xl z-[210] animate-bounce flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
+                                {sessionAddedCount} produtos lidos
+                            </div>
+                        )}
+
+                        <button 
+                            onClick={() => setScanMode('none')}
+                            className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-white/20 backdrop-blur-md border border-white/30 text-white px-8 py-4 rounded-full font-bold shadow-2xl z-[210] active:scale-95 transition-transform"
+                        >
+                            Concluir Escaneamento
+                        </button>
+                        <p className="absolute bottom-28 left-0 right-0 text-center text-white/80 text-sm font-semibold drop-shadow-md z-[210]">Mantenha o código no centro</p>
+                    </div>
+                    <style>{`@keyframes scan { 0% { top: 0; } 100% { top: 100%; } } .animate-scan { animation: scan 2s linear infinite; }`}</style>
+                </div>
+            )}
         </div>
     );
 };

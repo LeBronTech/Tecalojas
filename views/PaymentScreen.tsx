@@ -1,5 +1,5 @@
 
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useMemo } from 'react';
 import { CartItem, View, ThemeContext } from '../types';
 
 interface PaymentScreenProps {
@@ -74,6 +74,8 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
             </div>
         );
     }
+
+    const hasPreOrderItems = useMemo(() => cart.some(item => item.isPreOrder), [cart]);
 
     const handlePaymentSelection = async (method: 'PIX' | 'Débito' | 'Crédito' | 'Dinheiro') => {
         setIsLoading(true);
@@ -154,7 +156,10 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
                         <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
                             {cart.map(item => (
                                 <div key={`${item.productId}-${item.variationSize}-${item.type}`} className="flex justify-between items-center text-sm">
-                                    <p className={subtitleClasses}>{item.quantity}x {item.name} ({item.variationSize})</p>
+                                    <p className={`${item.isPreOrder ? 'text-amber-500 font-bold' : subtitleClasses}`}>
+                                        {item.quantity}x {item.name} ({item.variationSize})
+                                        {item.isPreOrder && ' (Encomenda)'}
+                                    </p>
                                     <p className={isDark ? 'text-gray-300' : 'text-gray-700'}>
                                         R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}
                                     </p>
@@ -169,6 +174,20 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
                             </p>
                         </div>
                     </div>
+
+                    {hasPreOrderItems && (
+                        <div className="bg-orange-500/10 border border-orange-500/50 p-4 rounded-xl mb-6 flex items-start gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-orange-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <div>
+                                <p className={`text-sm font-bold text-orange-600 dark:text-orange-400 mb-1`}>Você possui itens sob encomenda</p>
+                                <p className={`text-xs ${isDark ? 'text-orange-300' : 'text-orange-700'}`}>
+                                    Ao finalizar o pagamento, os itens de encomenda serão enviados para a aba "Pendentes". Você deve confirmá-los lá para oficializar a solicitação.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     <div>
                         <h3 className={`font-bold text-lg mb-4 ${titleClasses}`}>Escolha a forma de pagamento</h3>
@@ -190,7 +209,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ cart, totalPrice, onPlace
                                 className={`w-full p-6 rounded-xl border-2 text-left transition-colors flex items-center gap-4 ${isDark ? 'border-gray-700 hover:border-green-500' : 'border-gray-300 hover:border-green-500'} disabled:opacity-50`}
                             >
                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01M12 6v-1m0-1V4m0 12v1m0 1v1m0 1v1m0 0h.01M12 21a9 9 0 110-18 9 9 0 010 18z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01M12 6v-1m0-1V4m0 12v1m0 1v1m0 0h.01M12 21a9 9 0 110-18 9 9 0 010 18z" />
                                 </svg>
                                 <div>
                                     <p className={`font-bold ${titleClasses}`}>Dinheiro</p>

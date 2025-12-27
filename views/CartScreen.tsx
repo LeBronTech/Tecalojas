@@ -1,16 +1,19 @@
 
 import React, { useContext, useState, useMemo } from 'react';
-import { CartItem, View, CushionSize, ThemeContext, Product, StoreName } from '../types';
+import { CartItem, View, CushionSize, ThemeContext, Product, StoreName, SaleRequest } from '../types';
 import * as api from '../firebase';
 
-// --- FIX: Defined CartScreenProps interface to resolve the missing type definition error ---
+// --- FIX: Updated props to receive saleRequests for history ---
 interface CartScreenProps {
   cart: CartItem[];
   products: Product[];
   onUpdateQuantity: (productId: string, variationSize: CushionSize, itemType: 'cover' | 'full', newQuantity: number) => void;
   onRemoveItem: (productId: string, variationSize: CushionSize, itemType: 'cover' | 'full') => void;
   onNavigate: (view: View) => void;
+  saleRequests?: SaleRequest[]; // Added for history
 }
+
+type CartTab = 'current' | 'history';
 
 const PreOrderModal: React.FC<{
     isOpen: boolean;
@@ -82,12 +85,25 @@ const PreOrderModal: React.FC<{
     );
 };
 
-const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantity, onRemoveItem, onNavigate }) => {
+const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantity, onRemoveItem, onNavigate, saleRequests }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
+    const [activeTab, setActiveTab] = useState<CartTab>('current');
     const [isPreOrderModalOpen, setIsPreOrderModalOpen] = useState(false);
     const [isSavingPreOrder, setIsSavingPreOrder] = useState(false);
+
+    // Retrieve last used name from local storage if available for history matching
+    const localName = localStorage.getItem('lastCustomerName') || '';
+
+    const customerHistory = useMemo(() => {
+        if (!saleRequests || !localName) return [];
+        return saleRequests.filter(req => 
+            req.status === 'completed' && 
+            req.customerName && 
+            req.customerName.toLowerCase().trim() === localName.toLowerCase().trim()
+        );
+    }, [saleRequests, localName]);
 
     const { physicalItems, preOrderItems, physicalTotal } = useMemo(() => {
         const physical: CartItem[] = [];
@@ -110,6 +126,8 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
         setIsSavingPreOrder(true);
         try {
             const totalPrice = preOrderItems.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+            
+            // This immediately saves to DB with 'pending' status
             await api.addSaleRequest({
                 items: preOrderItems,
                 totalPrice: totalPrice,
@@ -118,12 +136,23 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
                 type: 'preorder'
             });
             
+            // Save name for future history matching
+            localStorage.setItem('lastCustomerName', customerName);
+            
             preOrderItems.forEach(item => {
                 onRemoveItem(item.productId, item.variationSize, item.type);
             });
             
             setIsPreOrderModalOpen(false);
-            alert("Sua encomenda foi solicitada com sucesso! Entraremos em contato.");
+            
+            // NOTE: The request is saved regardless of WhatsApp click.
+            // We give user feedback and the WhatsApp link
+            const whatsappUrl = `https://wa.me/5561991434805?text=${encodeURIComponent(`Olá, fiz a encomenda no nome de ${customerName}. Aguardo confirmação.`)}`;
+            
+            if (confirm("Encomenda registrada! Deseja avisar no WhatsApp agora?")) {
+                window.open(whatsappUrl, '_blank');
+            }
+
         } catch (e: any) {
             console.error("Error creating preorder:", e);
             alert("Erro ao criar encomenda: " + e.message);
@@ -140,100 +169,154 @@ const CartScreen: React.FC<CartScreenProps> = ({ cart, products, onUpdateQuantit
         <div className="h-full w-full flex flex-col relative overflow-hidden">
             <main className="flex-grow overflow-y-auto px-6 pt-24 pb-60 md:pb-60 no-scrollbar z-10">
                 <div className="max-w-2xl mx-auto">
-                    <div className="flex items-center mb-8">
+                    <div className="flex items-center mb-6">
                         <button onClick={() => onNavigate(View.SHOWCASE)} className={`p-2 rounded-full ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                         </button>
-                        <h1 className={`text-2xl font-bold ml-4 ${titleClasses}`}>Carrinho</h1>
+                        <h1 className={`text-2xl font-bold ml-4 ${titleClasses}`}>Seu Carrinho</h1>
                     </div>
 
-                    {physicalItems.length > 0 && (
-                        <div className="mb-8">
-                            <h3 className={`text-lg font-bold mb-4 ${titleClasses}`}>Disponível Agora</h3>
-                            <div className="space-y-4">
-                                {physicalItems.map((item, index) => (
-                                    <div key={`${item.productId}-${item.variationSize}-${item.type}-physical`} className={`p-4 rounded-2xl flex items-center justify-between border ${cardClasses}`}>
-                                        <div className="flex items-center gap-4">
-                                            <img src={item.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={item.name} className="w-16 h-16 rounded-xl object-cover" />
-                                            <div>
-                                                <p className={`font-bold ${titleClasses}`}>{item.name}</p>
-                                                <p className={`text-xs ${subtitleClasses}`}>{item.variationSize} • {item.type === 'cover' ? 'Capa' : 'Cheia'}</p>
-                                                <p className={`text-sm font-bold mt-1 ${isDark ? 'text-fuchsia-400' : 'text-purple-600'}`}>R$ {item.price.toFixed(2)}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col items-end gap-2">
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={() => onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity - 1)} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>-</button>
-                                                <span className={`w-6 text-center font-bold ${titleClasses}`}>{item.quantity}</span>
-                                                <button onClick={() => onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity + 1)} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>+</button>
-                                            </div>
-                                            <button onClick={() => onRemoveItem(item.productId, item.variationSize, item.type)} className="text-xs text-red-500 hover:underline">Remover</button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                    {/* Tabs */}
+                    <div className={`flex p-1 rounded-xl mb-6 ${isDark ? 'bg-black/40' : 'bg-gray-100'}`}>
+                        <button
+                            onClick={() => setActiveTab('current')}
+                            className={`flex-1 py-3 rounded-lg text-sm font-bold uppercase tracking-wide transition-all ${activeTab === 'current' ? 'bg-fuchsia-600 text-white shadow-lg' : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900')}`}
+                        >
+                            Meu Carrinho
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('history')}
+                            className={`flex-1 py-3 rounded-lg text-sm font-bold uppercase tracking-wide transition-all ${activeTab === 'history' ? 'bg-purple-600 text-white shadow-lg' : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900')}`}
+                        >
+                            Histórico
+                        </button>
+                    </div>
 
-                    {preOrderItems.length > 0 && (
-                        <div className="mb-8">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className={`text-lg font-bold ${titleClasses}`}>Encomendas (Sem Estoque)</h3>
-                                <span className="text-xs px-2 py-1 rounded bg-amber-500/20 text-amber-500 font-bold">Solicitação Separada</span>
-                            </div>
-                            <div className="space-y-4">
-                                {preOrderItems.map((item, index) => (
-                                    <div key={`${item.productId}-${item.variationSize}-${item.type}-preorder`} className={`p-4 rounded-2xl flex items-center justify-between border border-amber-500/30 bg-amber-500/5`}>
-                                        <div className="flex items-center gap-4">
-                                            <div className="relative">
-                                                <img src={item.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={item.name} className="w-16 h-16 rounded-xl object-cover grayscale opacity-80" />
-                                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
-                                                    <span className="text-[10px] font-bold text-white bg-black/50 px-1 rounded">Encomenda</span>
+                    {/* Content for Current Cart */}
+                    {activeTab === 'current' && (
+                        <>
+                            {physicalItems.length > 0 && (
+                                <div className="mb-8">
+                                    <h3 className={`text-lg font-bold mb-4 ${titleClasses}`}>Disponível Agora</h3>
+                                    <div className="space-y-4">
+                                        {physicalItems.map((item, index) => (
+                                            <div key={`${item.productId}-${item.variationSize}-${item.type}-physical`} className={`p-4 rounded-2xl flex items-center justify-between border ${cardClasses}`}>
+                                                <div className="flex items-center gap-4">
+                                                    <img src={item.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={item.name} className="w-16 h-16 rounded-xl object-cover" />
+                                                    <div>
+                                                        <p className={`font-bold ${titleClasses}`}>{item.name}</p>
+                                                        <p className={`text-xs ${subtitleClasses}`}>{item.variationSize} • {item.type === 'cover' ? 'Capa' : 'Cheia'}</p>
+                                                        <p className={`text-sm font-bold mt-1 ${isDark ? 'text-fuchsia-400' : 'text-purple-600'}`}>R$ {item.price.toFixed(2)}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <button onClick={() => onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity - 1)} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>-</button>
+                                                        <span className={`w-6 text-center font-bold ${titleClasses}`}>{item.quantity}</span>
+                                                        <button onClick={() => onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity + 1)} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>+</button>
+                                                    </div>
+                                                    <button onClick={() => onRemoveItem(item.productId, item.variationSize, item.type)} className="text-xs text-red-500 hover:underline">Remover</button>
                                                 </div>
                                             </div>
-                                            <div>
-                                                <p className={`font-bold ${titleClasses}`}>{item.name}</p>
-                                                <p className={`text-xs ${subtitleClasses}`}>{item.variationSize} • {item.type === 'cover' ? 'Capa' : 'Cheia'}</p>
-                                                <p className={`text-sm font-bold mt-1 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>R$ {item.price.toFixed(2)}</p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {preOrderItems.length > 0 && (
+                                <div className="mb-8">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className={`text-lg font-bold ${titleClasses}`}>Encomendas (Sem Estoque)</h3>
+                                        <span className="text-xs px-2 py-1 rounded bg-amber-500/20 text-amber-500 font-bold">Solicitação Separada</span>
+                                    </div>
+                                    <div className="space-y-4">
+                                        {preOrderItems.map((item, index) => (
+                                            <div key={`${item.productId}-${item.variationSize}-${item.type}-preorder`} className={`p-4 rounded-2xl flex items-center justify-between border border-amber-500/30 bg-amber-500/5`}>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="relative">
+                                                        <img src={item.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={item.name} className="w-16 h-16 rounded-xl object-cover grayscale opacity-80" />
+                                                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
+                                                            <span className="text-[10px] font-bold text-white bg-black/50 px-1 rounded">Encomenda</span>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <p className={`font-bold ${titleClasses}`}>{item.name}</p>
+                                                        <p className={`text-xs ${subtitleClasses}`}>{item.variationSize} • {item.type === 'cover' ? 'Capa' : 'Cheia'}</p>
+                                                        <p className={`text-sm font-bold mt-1 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>R$ {item.price.toFixed(2)}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <button onClick={() => onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity - 1)} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>-</button>
+                                                        <span className={`w-6 text-center font-bold ${titleClasses}`}>{item.quantity}</span>
+                                                        <button onClick={() => onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity + 1)} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>+</button>
+                                                    </div>
+                                                    <button onClick={() => onRemoveItem(item.productId, item.variationSize, item.type)} className="text-xs text-red-500 hover:underline">Remover</button>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex flex-col items-end gap-2">
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={() => onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity - 1)} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>-</button>
-                                                <span className={`w-6 text-center font-bold ${titleClasses}`}>{item.quantity}</span>
-                                                <button onClick={() => onUpdateQuantity(item.productId, item.variationSize, item.type, item.quantity + 1)} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>+</button>
-                                            </div>
-                                            <button onClick={() => onRemoveItem(item.productId, item.variationSize, item.type)} className="text-xs text-red-500 hover:underline">Remover</button>
+                                        ))}
+                                        <div className="mt-4">
+                                            <button 
+                                                onClick={() => setIsPreOrderModalOpen(true)}
+                                                className="w-full bg-amber-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-amber-700 transition flex items-center justify-center gap-2"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                Confirmar Encomenda
+                                            </button>
                                         </div>
                                     </div>
-                                ))}
-                                <div className="mt-4">
-                                    <button 
-                                        onClick={() => setIsPreOrderModalOpen(true)}
-                                        className="w-full bg-amber-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-amber-700 transition flex items-center justify-center gap-2"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        Confirmar Encomenda
+                                </div>
+                            )}
+
+                            {physicalItems.length === 0 && preOrderItems.length === 0 && (
+                                <div className="text-center py-16">
+                                    <p className={`text-lg font-semibold ${titleClasses}`}>Seu carrinho está vazio</p>
+                                    <button onClick={() => onNavigate(View.SHOWCASE)} className="mt-6 bg-fuchsia-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">
+                                        Voltar para a Vitrine
                                     </button>
                                 </div>
-                            </div>
-                        </div>
+                            )}
+                        </>
                     )}
 
-                    {physicalItems.length === 0 && preOrderItems.length === 0 && (
-                        <div className="text-center py-16">
-                            <p className={`text-lg font-semibold ${titleClasses}`}>Seu carrinho está vazio</p>
-                            <button onClick={() => onNavigate(View.SHOWCASE)} className="mt-6 bg-fuchsia-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">
-                                Voltar para a Vitrine
-                            </button>
+                    {/* Content for History */}
+                    {activeTab === 'history' && (
+                        <div className="space-y-4">
+                            {customerHistory.length === 0 ? (
+                                <div className="text-center py-16">
+                                    <p className={`text-lg font-semibold ${titleClasses}`}>Nenhum histórico encontrado</p>
+                                    <p className={`text-sm mt-2 ${subtitleClasses}`}>Suas compras confirmadas aparecerão aqui.</p>
+                                </div>
+                            ) : (
+                                customerHistory.map(sale => (
+                                    <div key={sale.id} className={`p-4 rounded-xl border ${cardClasses}`}>
+                                        <div className="flex justify-between mb-2">
+                                            <span className={`text-xs ${subtitleClasses}`}>{new Date(sale.createdAt?.seconds * 1000).toLocaleDateString()}</span>
+                                            <span className="text-xs font-bold text-green-500 bg-green-500/10 px-2 py-1 rounded">Confirmado</span>
+                                        </div>
+                                        <p className={`font-bold text-lg ${titleClasses}`}>
+                                            R$ {sale.totalPrice.toFixed(2)}
+                                        </p>
+                                        <div className="mt-3 space-y-2">
+                                            {sale.items.map((i: any, idx: number) => (
+                                                <div key={idx} className="flex justify-between text-sm">
+                                                    <span className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                        {i.quantity}x {i.name}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     )}
                 </div>
             </main>
 
-            {physicalItems.length > 0 && (
+            {physicalItems.length > 0 && activeTab === 'current' && (
                 <div className={`fixed bottom-28 left-4 right-4 p-5 z-40 rounded-3xl border shadow-2xl safe-area-bottom ${isDark ? 'bg-[#2D1F49]/95 backdrop-blur-xl border-white/10' : 'bg-white/95 backdrop-blur-xl border-gray-200'}`}>
                     <div className="max-w-2xl mx-auto">
                         <div className="flex justify-between items-center mb-3">

@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType, CartItem, SaleRequest, CardFees, CategoryItem } from './types';
 import { INITIAL_PRODUCTS, PREDEFINED_COLORS, PREDEFINED_SOFA_COLORS, SOFA_COLORS_STORAGE_KEY } from './constants';
@@ -255,12 +256,10 @@ const HomeIcon = () => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
     </svg>
 );
-// Ícone de composições em formato de pirâmide de 3 almofadas
+// Ícone de composições em formato de layers (camadas)
 const CompositionIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 14a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H7a2 2 0 01-2-2z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M13 14a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
     </svg>
 );
 const InventoryIcon = () => (
@@ -447,6 +446,43 @@ export default function App() {
 
   const isAdmin = useMemo(() => currentUser?.role === 'admin', [currentUser]);
 
+  // -- Missing State/Derived --
+  const isLoggedIn = !!currentUser;
+  const isConfigValid = !!firebaseConfig.apiKey;
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => {
+      const newTheme = prev === 'light' ? 'dark' : 'light';
+      localStorage.setItem(THEME_STORAGE_KEY, newTheme);
+      return newTheme;
+    });
+  }, []);
+
+  const handleMenuClick = () => setIsMenuOpen(true);
+
+  // -- Data Fetching --
+  useEffect(() => {
+      const unsubscribeAuth = api.onAuthStateChanged(user => {
+          setCurrentUser(user);
+          setAuthLoading(false);
+      });
+      const unsubscribeProducts = api.onProductsUpdate(
+          (data) => { setProducts(data); setProductsLoading(false); },
+          (err) => { console.error(err); setHasFetchError(true); setProductsLoading(false); }
+      );
+      const unsubscribeBrands = api.onBrandsUpdate(setBrands, console.error);
+      const unsubscribeCatalogs = api.onCatalogsUpdate(setCatalogs, console.error);
+      const unsubscribeCategories = api.onCategoriesUpdate(setCategories, console.error);
+
+      return () => {
+          unsubscribeAuth();
+          unsubscribeProducts();
+          unsubscribeBrands();
+          unsubscribeCatalogs();
+          unsubscribeCategories();
+      };
+  }, []);
+
   useEffect(() => {
     if (!firebaseConfig.apiKey) return;
     const unsubscribe = api.onSettingsUpdate((settings) => {
@@ -491,6 +527,283 @@ export default function App() {
           console.error("Failed to sync weekly goal to Firestore:", error);
       }
   }, []);
+
+  // -- Product Handlers --
+  const handleSaveProduct = async (productToSave: Product, options?: { closeModal?: boolean }) => {
+      try {
+          // Upload images if they are base64
+          await api.processImageUploadsForProduct(productToSave);
+          
+          if (products.some(p => p.id === productToSave.id)) {
+              await api.updateProductData(productToSave.id, productToSave);
+          } else {
+              const { id, ...data } = productToSave;
+              await api.addProductData(data);
+          }
+          
+          if (options?.closeModal !== false) {
+              setEditingProduct(null);
+          }
+          return productToSave;
+      } catch (error) {
+          console.error("Save product error", error);
+          throw error;
+      }
+  };
+
+  const confirmDeleteProduct = async () => {
+      if (deletingProductId) {
+          await api.deleteProduct(deletingProductId);
+          setDeletingProductId(null);
+          setEditingProduct(null);
+      }
+  };
+
+  const handleUpdateStock = async (productId: string, variationSize: CushionSize, store: StoreName, change: number) => {
+      const product = products.find(p => p.id === productId);
+      if (!product) return;
+      
+      const newVariations = product.variations.map(v => {
+          if (v.size === variationSize) {
+              const newStock = Math.max(0, (v.stock[store] || 0) + change);
+              return { ...v, stock: { ...v.stock, [store]: newStock } };
+          }
+          return v;
+      });
+      
+      await api.updateProductData(productId, { variations: newVariations });
+  };
+
+  const handleCreateColorVariations = async (parentProduct: Product, newColors: {name: string, hex: string}[]) => {
+      const batchPromises = newColors.map(color => {
+          const capitalizedColor = color.name.charAt(0).toUpperCase() + color.name.slice(1);
+          // Remove old color from name if exists
+          let baseName = parentProduct.name;
+          if (parentProduct.colors && parentProduct.colors.length > 0) {
+             const oldColor = parentProduct.colors[0].name;
+             const regex = new RegExp(`\\b${oldColor}\\b|\\(${oldColor}\\)`, 'gi');
+             baseName = baseName.replace(regex, '').trim().replace(/\s\s+/g, ' ');
+             baseName = baseName.replace(/[()]/g, '').trim();
+          }
+          
+          const newName = `${baseName} (${capitalizedColor})`;
+          
+          const newProductData = {
+              ...parentProduct,
+              id: undefined, // remove ID to create new
+              name: newName,
+              colors: [color],
+              baseImageUrl: '', 
+              variations: parentProduct.variations.map(v => ({ ...v, stock: { [StoreName.TECA]: 0, [StoreName.IONE]: 0 } })),
+              unitsSold: 0
+          };
+          delete (newProductData as any).id;
+          return api.addProductData(newProductData);
+      });
+      await Promise.all(batchPromises);
+  };
+
+  const handleCreateProductsFromWizard = async (productsToCreate: Omit<Product, 'id'>[], productToConfigure: Omit<Product, 'id'>) => {
+      await Promise.all(productsToCreate.map(p => api.addProductData(p)));
+      setIsWizardOpen(false);
+  };
+
+  // -- Category Handlers --
+  const mergedCategories = useMemo(() => {
+      const dbCats = categories.filter(c => c.type === 'category').map(c => c.name);
+      const prodCats = Array.from(new Set(products.map(p => p.category))).filter(Boolean);
+      return Array.from(new Set([...dbCats, ...prodCats])).sort();
+  }, [categories, products]);
+
+  const handleAddCategory = async (name: string, type: 'category' | 'subcategory') => {
+      await api.addCategory({ name, type });
+  };
+  const handleDeleteCategory = async (id: string) => {
+      await api.deleteCategory(id);
+  };
+
+  // -- Color Handlers --
+  const handleAddColor = async (color: { name: string; hex: string }) => {
+      const newColors = [...allColors, color];
+      await api.updateGlobalSettings({ colors: newColors });
+  };
+  const handleDeleteColor = async (colorName: string) => {
+      const newColors = allColors.filter(c => c.name !== colorName);
+      await api.updateGlobalSettings({ colors: newColors });
+  };
+  const handleAddSofaColor = async (color: { name: string; hex: string }) => {
+      const newColors = [...sofaColors, color];
+      await api.updateGlobalSettings({ sofaColors: newColors });
+  };
+  const handleDeleteSofaColor = async (colorName: string) => {
+      const newColors = sofaColors.filter(c => c.name !== colorName);
+      await api.updateGlobalSettings({ sofaColors: newColors });
+  };
+
+  // -- Auth Handlers --
+  const handleLogin = async (email: string, pass: string) => {
+      const user = await api.signIn(email, pass);
+      setCurrentUser(user);
+      if (loginRedirect.current) {
+          setView(loginRedirect.current);
+          loginRedirect.current = null;
+      } else {
+          setView(View.STOCK);
+      }
+  };
+  const handleGoogleLogin = async () => {
+      const user = await api.signInWithGoogle();
+      setCurrentUser(user);
+      if (loginRedirect.current) {
+          setView(loginRedirect.current);
+          loginRedirect.current = null;
+      } else {
+          setView(View.STOCK);
+      }
+  };
+  const handleLogout = async () => {
+      await api.signOut();
+      setCurrentUser(null);
+      setView(View.SHOWCASE);
+      setIsMenuOpen(false);
+  };
+  const handleSignUp = async (email: string, pass: string) => {
+      await api.signUp(email, pass);
+      const user = await api.signIn(email, pass);
+      setCurrentUser(user);
+      setIsSignUpModalOpen(false);
+      setView(View.STOCK);
+  };
+
+  // -- Brand/Catalog --
+  const handleAddNewBrand = async (brandName: string, logoFile?: File, logoUrl?: string) => {
+      let finalLogoUrl = logoUrl || '';
+      if (logoFile) {
+          const { promise } = api.uploadFile(`brands/${brandName}_${Date.now()}`, logoFile);
+          finalLogoUrl = await promise;
+      }
+      await api.addBrand({ name: brandName, logoUrl: finalLogoUrl });
+  };
+  const handleUploadCatalog = async (brandName: string, pdfFile: File, onProgress: (p: number) => void) => {
+      const { promise, cancel } = api.uploadFile(`catalogs/${brandName}_${Date.now()}.pdf`, pdfFile, onProgress);
+      const url = await promise;
+      await api.addCatalog({ brandName, fileName: pdfFile.name, pdfUrl: url });
+      return { promise: Promise.resolve(), cancel };
+  };
+
+  // -- Helper --
+  const hasItemsToRestock = useMemo(() => {
+      return products.some(p => p.variations.reduce((acc, v) => acc + (v.stock[StoreName.TECA] || 0) + (v.stock[StoreName.IONE] || 0), 0) <= 1);
+  }, [products]);
+
+  const handlePlaceOrder = async (method: string, successMsg: string, onSuccess?: () => void) => {
+      const physicalItems: CartItem[] = [];
+      const preOrderItems: CartItem[] = [];
+      
+      let physicalTotal = 0;
+      let preOrderTotal = 0;
+
+      cart.forEach(item => {
+          if (item.isPreOrder) {
+              preOrderItems.push(item);
+              preOrderTotal += item.price * item.quantity;
+          } else {
+              physicalItems.push(item);
+              physicalTotal += item.price * item.quantity;
+          }
+      });
+
+      const promises = [];
+
+      // 1. Process Physical Order (Pending Sale) - CHANGED: Now sets to 'pending' instead of 'completed'
+      if (physicalItems.length > 0) {
+          promises.push(api.addSaleRequest({
+              items: physicalItems,
+              totalPrice: physicalTotal,
+              paymentMethod: method === 'WhatsApp (Encomenda)' ? 'Cartão (Online)' : method as any,
+              customerName,
+              type: 'sale' // Explicitly mark as a standard sale
+          }));
+      }
+
+      // 2. Process Pre-order (Pending Request)
+      if (preOrderItems.length > 0) {
+          promises.push(api.addSaleRequest({
+              items: preOrderItems,
+              totalPrice: preOrderTotal,
+              paymentMethod: method === 'WhatsApp (Encomenda)' ? method : `Encomenda (${method})`,
+              customerName,
+              type: 'preorder'
+          }));
+      }
+
+      await Promise.all(promises);
+
+      handleClearCart();
+      
+      // Feedback
+      if (preOrderItems.length > 0 && physicalItems.length > 0) {
+          setToastNotification({ message: 'Pedidos Registrados!', sub: 'Venda de estoque e encomenda enviadas para aprovação.', type: 'success' });
+      } else if (preOrderItems.length > 0) {
+          setToastNotification({ message: 'Encomenda Registrada!', sub: 'Aguarde a confirmação na aba de Encomendas.', type: 'preorder' });
+      } else {
+          setToastNotification({ message: 'Venda Solicitada!', sub: 'Aguardando confirmação do vendedor.', type: 'sale' });
+      }
+
+      setTimeout(() => setToastNotification(null), 6000);
+      if (onSuccess) onSuccess();
+      handleNavigate(View.SHOWCASE);
+  };
+
+  // -- Render View --
+  const renderView = () => {
+      if (!currentUser && [View.STOCK, View.SETTINGS, View.ASSISTANT, View.SALES, View.QR_CODES].includes(view)) {
+          return (
+              <div className="h-full flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-gray-900">
+                  <LoginScreen onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onOpenSignUp={() => setIsSignUpModalOpen(true)} />
+              </div>
+          );
+      }
+
+      switch (view) {
+          case View.SHOWCASE:
+              return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
+          case View.STOCK:
+              return <StockManagementScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={(id) => setDeletingProductId(id)} onAddProduct={() => setIsWizardOpen(true)} onUpdateStock={handleUpdateStock} onMenuClick={handleMenuClick} canManageStock={isAdmin} hasFetchError={hasFetchError} brands={brands} />;
+          case View.ASSISTANT:
+              return <AssistantScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={(id) => setDeletingProductId(id)} canManageStock={isAdmin} onMenuClick={handleMenuClick} />;
+          case View.SETTINGS:
+              return <SettingsScreen onAddNewBrand={handleAddNewBrand} onMenuClick={handleMenuClick} canManageStock={isAdmin} brands={brands} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} cardFees={cardFees} onSaveCardFees={handleUpdateCardFees} sofaColors={sofaColors} onAddSofaColor={handleAddSofaColor} onDeleteSofaColor={handleDeleteSofaColor} categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} />;
+          case View.CATALOG:
+              return <CatalogScreen catalogs={catalogs} onUploadCatalog={handleUploadCatalog} onMenuClick={handleMenuClick} canManageStock={isAdmin} brands={brands} />;
+          case View.COMPOSITION_GENERATOR:
+              return <CompositionGeneratorScreen products={products} onNavigate={handleNavigate} savedCompositions={savedCompositions} onSaveComposition={(c) => { 
+                  const newComp = { ...c, id: Date.now().toString() };
+                  const newComps = [...savedCompositions, newComp];
+                  setSavedCompositions(newComps);
+                  localStorage.setItem(SAVED_COMPOSITIONS_STORAGE_KEY, JSON.stringify(newComps));
+              }} setSavedCompositions={setSavedCompositions} />;
+          case View.COMPOSITIONS:
+              return <CompositionsScreen savedCompositions={savedCompositions} setSavedCompositions={(comps) => { setSavedCompositions(comps); localStorage.setItem(SAVED_COMPOSITIONS_STORAGE_KEY, JSON.stringify(comps)); }} onNavigate={handleNavigate} products={products} onEditProduct={setEditingProduct} onSaveComposition={(c) => { 
+                  const newComp = { ...c, id: Date.now().toString() };
+                  const newComps = [...savedCompositions, newComp];
+                  setSavedCompositions(newComps);
+                  localStorage.setItem(SAVED_COMPOSITIONS_STORAGE_KEY, JSON.stringify(newComps));
+              }} />;
+          case View.DIAGNOSTICS:
+              return <DiagnosticsScreen products={products} saleRequests={saleRequests} cardFees={cardFees} onMenuClick={handleMenuClick} weeklyGoal={weeklyGoal} onUpdateWeeklyGoal={handleUpdateWeeklyGoal} />;
+          case View.CART:
+              return <CartScreen cart={cart} products={products} onUpdateQuantity={handleUpdateCartQuantity} onRemoveItem={handleRemoveFromCart} onNavigate={handleNavigate} saleRequests={saleRequests} />;
+          case View.PAYMENT:
+              return <PaymentScreen cart={cart} totalPrice={cart.reduce((sum, item) => sum + item.quantity * item.price, 0)} onPlaceOrder={handlePlaceOrder} onNavigate={handleNavigate} onPixClick={() => setIsPixModalOpen(true)} customerName={customerName} />;
+          case View.SALES:
+              return <SalesScreen saleRequests={saleRequests} onCompleteSaleRequest={handleCompleteSaleRequest} products={products} onMenuClick={handleMenuClick} error={saleRequestError} cardFees={cardFees} />;
+          case View.QR_CODES:
+              return <QrCodeScreen products={products} />;
+          default:
+              return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
+      }
+  };
 
   useEffect(() => {
     try {
@@ -628,6 +941,10 @@ export default function App() {
 
   const hasNewSaleRequests = useMemo(() => saleRequests.some(r => r.status === 'pending'), [saleRequests]);
   
+  // New specific flags for granular notifications
+  const hasPendingSales = useMemo(() => saleRequests.some(r => r.status === 'pending' && r.type === 'sale'), [saleRequests]);
+  const hasPendingPreorders = useMemo(() => saleRequests.some(r => r.status === 'pending' && r.type === 'preorder'), [saleRequests]);
+
   const handleNavigate = useCallback((newView: View) => {
     if (newView === View.PAYMENT) {
         const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -681,50 +998,77 @@ export default function App() {
         }
   };
 
-  // Admin Notification Logic (New Sales)
+  // Admin Notification Logic (New Sales & Preorders)
   useEffect(() => {
     if (!isAdmin) return;
     
-    const newItems = saleRequests.filter(r => r.status === 'pending' && !notifiedRequestIds.current.has(r.id));
+    // Find completely new pending requests that we haven't notified about yet
+    const newPendingItems = saleRequests.filter(r => r.status === 'pending' && !notifiedRequestIds.current.has(r.id));
     
-    if (newItems.length > 0) {
-        // Play Sound
-        try {
-            const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
-            if (AudioContextClass) {
-              const audioCtx = new AudioContextClass();
-              const osc = audioCtx.createOscillator();
-              const gain = audioCtx.createGain();
-              osc.connect(gain);
-              gain.connect(audioCtx.destination);
-              osc.type = 'sine'; // More pleasant 'ping'
-              osc.frequency.setValueAtTime(500, audioCtx.currentTime);
-              osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.1);
-              gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-              gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-              osc.start();
-              osc.stop(audioCtx.currentTime + 0.5);
-            }
-            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        } catch (e) {
-            console.error("Audio playback blocked", e);
+    if (newPendingItems.length > 0) {
+        // Differentiate types
+        const newSales = newPendingItems.filter(r => r.type === 'sale');
+        const newPreorders = newPendingItems.filter(r => r.type === 'preorder');
+
+        // Helper to trigger feedback
+        const triggerFeedback = (title: string, body: string, type: 'sale' | 'preorder', delay: number) => {
+            setTimeout(() => {
+                // Audio Feedback
+                try {
+                    const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+                    if (AudioContextClass) {
+                        const audioCtx = new AudioContextClass();
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        
+                        if (type === 'preorder') {
+                            // Preorder sound: Lower pitch, longer
+                            osc.type = 'triangle';
+                            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                            osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.4);
+                        } else {
+                            // Sale sound: Higher pitch 'ping'
+                            osc.type = 'sine';
+                            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                            osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.1);
+                        }
+                        
+                        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                        osc.start();
+                        osc.stop(audioCtx.currentTime + 0.5);
+                    }
+                    
+                    // Vibrate Feedback
+                    if (navigator.vibrate) {
+                        navigator.vibrate(type === 'preorder' ? [400, 200, 400] : [150, 100, 150]);
+                    }
+                } catch (e) { console.error("Audio playback blocked", e); }
+
+                // UI & System Notifications
+                setToastNotification({ message: title, sub: body, type: type });
+                sendSystemNotification(title, body);
+                setTimeout(() => setToastNotification(null), 5000);
+
+            }, delay);
+        };
+
+        // Trigger for Sales
+        if (newSales.length > 0) {
+            const sale = newSales[0];
+            triggerFeedback('Nova Venda Pendente!', `Cliente: ${sale.customerName || 'Balcão'} - R$ ${sale.totalPrice.toFixed(2)}`, 'sale', 0);
         }
 
-        const latest = newItems[0];
-        const isPre = latest.type === 'preorder';
-        const title = isPre ? 'Nova Encomenda!' : 'Nova Venda!';
-        const body = `${latest.customerName || 'Cliente'} - R$ ${(latest.totalPrice).toFixed(2)}`;
+        // Trigger for Preorders (with slight delay if both exist to ensure both sounds play)
+        if (newPreorders.length > 0) {
+            const preorder = newPreorders[0];
+            triggerFeedback('Nova Encomenda!', `Cliente: ${preorder.customerName} - R$ ${preorder.totalPrice.toFixed(2)}`, 'preorder', newSales.length > 0 ? 1500 : 0);
+        }
 
-        // Show Custom In-App Notification
-        setToastNotification({ message: title, sub: body, type: latest.type });
-        
-        // Trigger System Notification (Web or Cordova)
-        sendSystemNotification(title, body);
-
-        // Auto-hide in-app notification after 6 seconds
-        setTimeout(() => setToastNotification(null), 6000);
-
-        newItems.forEach(r => notifiedRequestIds.current.add(r.id));
+        // Mark all as notified
+        newPendingItems.forEach(r => notifiedRequestIds.current.add(r.id));
     }
   }, [isAdmin, saleRequests]);
 
@@ -755,429 +1099,20 @@ export default function App() {
       }
   }, [saleRequests, customerName]);
 
-  // Check for pending pre-orders for the user
-  const hasPendingPreOrders = useMemo(() => {
-      // Check saleRequests if user info matches (complex without auth ID on request, using simplistic approach)
-      // Or check local cart state if persistent pre-order flag exists (not fully implemented in cart)
-      // Better: Check pending pre-order requests in the loaded list that might match the user context.
-      // Since we don't have hard User ID linking for guests, we can't be 100% sure for guests.
-      // But we can check if there are *any* pending preorders in the list if the user is viewing.
-      // However, the prompt says "user who realized the sale". 
-      // Let's rely on the saleRequests list loaded. If the user can see them (Admin), they see badges.
-      // If user is non-admin, they usually don't see the full list.
-      // We will simulate this by checking if there's a recent preorder in the current session.
-      return false; // Placeholder as true persistence requires User ID linking on request creation
-  }, [saleRequests]);
-
-
-  useEffect(() => {
-    try {
-      const storedCompositions = localStorage.getItem(SAVED_COMPOSITIONS_STORAGE_KEY);
-      if (storedCompositions) setSavedCompositions(JSON.parse(storedCompositions));
-    } catch (error) {
-      console.error("Failed to load from localStorage:", error);
-    }
-  }, []);
-  
-  useEffect(() => {
-    try {
-        localStorage.setItem(SAVED_COMPOSITIONS_STORAGE_KEY, JSON.stringify(savedCompositions));
-    } catch (error) { console.error("Failed to save compositions", error); }
-  }, [savedCompositions]);
-
-  const handleSaveComposition = useCallback((compositionToSave: Omit<SavedComposition, 'id'>) => {
-    const id = `${compositionToSave.size}-${compositionToSave.products.map(p => p.id).sort().join('-')}`;
-    setSavedCompositions(prev => {
-        const newComposition = { ...compositionToSave, id };
-        const existingIndex = prev.findIndex(c => c.id === id);
-        if (existingIndex > -1) {
-            const updated = [...prev];
-            updated[existingIndex] = newComposition;
-            return updated;
-        } else return [...prev, newComposition];
-    });
-  }, []);
-
-  const handleAddColor = async (color: { name: string; hex: string }) => {
-    // Optimistic update
-    let newColors = [...allColors];
-    if (!newColors.some(c => c.name.toLowerCase() === color.name.toLowerCase())) {
-        newColors.push(color);
-        setAllColors(newColors); // Update UI immediately
-        try {
-            await api.updateGlobalSettings({ colors: newColors });
-        } catch (e) {
-            console.error("Failed to save color to Firestore", e);
-            // Optionally revert state here if needed, but for colors it's usually fine
-        }
-    }
-  };
-
-  const handleDeleteColor = async (colorName: string) => {
-      let newColors = allColors.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
-      setAllColors(newColors); // Update UI immediately
-      try {
-          await api.updateGlobalSettings({ colors: newColors });
-      } catch (e) {
-          console.error("Failed to delete color from Firestore", e);
-      }
-  };
-  
-  const handleAddSofaColor = async (color: { name: string; hex: string }) => {
-    let newColors = [...sofaColors];
-    if (!newColors.some(c => c.name.toLowerCase() === color.name.toLowerCase())) {
-        newColors.push(color);
-        setSofaColors(newColors);
-        try {
-            await api.updateGlobalSettings({ sofaColors: newColors });
-        } catch (e) {
-            console.error("Failed to save sofa color", e);
-        }
-    }
-  };
-
-  const handleDeleteSofaColor = async (colorName: string) => {
-      let newColors = sofaColors.filter(c => c.name.toLowerCase() !== colorName.toLowerCase());
-      setSofaColors(newColors);
-      try {
-          await api.updateGlobalSettings({ sofaColors: newColors });
-      } catch (e) {
-          console.error("Failed to delete sofa color", e);
-      }
-  };
-  
-  const isConfigValid = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_REAL_API_KEY_HERE";
-
-  useEffect(() => {
-    if (!isConfigValid) { setAuthLoading(false); return; };
-    const unsubscribe = api.onAuthStateChanged((user) => {
-      setCurrentUser(user);
-      setAuthLoading(false);
-    });
-    return () => unsubscribe();
-  }, [isConfigValid]);
-
-  useEffect(() => {
-    const onDeviceReady = () => console.log('Dispositivo pronto.');
-    document.addEventListener('devready', onDeviceReady, false);
-    return () => document.removeEventListener('devready', onDeviceReady, false);
-  }, []);
-  
-  useEffect(() => {
-    if (!isConfigValid) {
-        setProducts(INITIAL_PRODUCTS);
-        setProductsLoading(false);
-        setHasFetchError(true);
-        return;
-    };
-    setProductsLoading(true);
-    setHasFetchError(false);
-
-    const unsubProducts = api.onProductsUpdate(
-        (updatedProducts) => { setProducts(updatedProducts); setProductsLoading(false); setHasFetchError(false); },
-        (error) => { setProducts(INITIAL_PRODUCTS); setHasFetchError(true); setProductsLoading(false); }
-    );
-    const unsubBrands = api.onBrandsUpdate((updatedBrands) => setBrands(updatedBrands), (e) => {});
-    const unsubCatalogs = api.onCatalogsUpdate((updatedCatalogs) => setCatalogs(updatedCatalogs), (e) => {});
-    const unsubCategories = api.onCategoriesUpdate((updatedCategories) => setCategories(updatedCategories), (e) => {});
-
-    return () => {
-      unsubProducts();
-      unsubBrands();
-      unsubCatalogs();
-      unsubCategories();
-    };
-  }, [currentUser, isConfigValid]);
-
-  useEffect(() => {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme]);
-
-  const toggleTheme = useCallback(() => {
-    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
-  }, []);
-  
-  const handleLogin = useCallback(async (email: string, pass: string) => {
-      await api.signIn(email, pass);
-      if (loginRedirect.current) {
-          setView(loginRedirect.current);
-          loginRedirect.current = null;
-      } else setView(View.STOCK);
-  }, []);
-  
-  const handleSignUp = useCallback(async (email: string, pass: string) => {
-      await api.signUp(email, pass);
-      setIsSignUpModalOpen(false);
-      if (loginRedirect.current) {
-          setView(loginRedirect.current);
-          loginRedirect.current = null;
-      } else setView(View.STOCK);
-  }, []);
-
-  const handleGoogleLogin = useCallback(async () => {
-      await api.signInWithGoogle();
-      if (loginRedirect.current) {
-          setView(loginRedirect.current);
-          loginRedirect.current = null;
-      } else setView(View.STOCK);
-  }, []);
-
-  const handleLogout = useCallback(() => {
-    api.signOut();
-    setCurrentUser(null);
-    setIsMenuOpen(false);
-    setView(View.SHOWCASE);
-  }, []);
-
-    const handleSaveProduct = useCallback(async (productToSave: Product, options?: { closeModal?: boolean }): Promise<Product> => {
-        try {
-            if (!productToSave.category?.trim() || !productToSave.fabricType?.trim() || !productToSave.colors || productToSave.colors.length === 0 || !productToSave.name?.trim()) {
-                throw new Error("Nome, categoria, tipo de tecido e cor são obrigatórios.");
-            }
-            let productWithGroupId = { ...productToSave };
-            if (!productWithGroupId.variationGroupId) {
-                productWithGroupId.variationGroupId = `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            }
-            let productForBackgroundUpload: Product;
-            if (productWithGroupId.id) {
-                const { id, ...productData } = productWithGroupId;
-                await api.updateProductData(id, productData);
-                productForBackgroundUpload = productWithGroupId;
-            } else {
-                const { id, ...productData } = productWithGroupId;
-                productForBackgroundUpload = await api.addProductData(productData);
-            }
-            
-            // --- NEW: Trigger Meta Feed Update ---
-            // Construct a temporary updated product list including this new/updated product to ensure feed is instant
-            const updatedProductList = products.map(p => p.id === productForBackgroundUpload.id ? productForBackgroundUpload : p);
-            if (!productWithGroupId.id) updatedProductList.push(productForBackgroundUpload); // New product case
-            
-            api.updateMetaCatalogFeed(updatedProductList).catch(err => console.error("Failed to update Meta Feed:", err));
-            // -------------------------------------
-
-            api.processImageUploadsForProduct(productForBackgroundUpload).catch(err => {
-                console.error("Background image processing failed:", err);
-            });
-            if (options?.closeModal !== false) setEditingProduct(null);
-            return productForBackgroundUpload;
-        } catch (error: any) {
-            if (error.code === 'permission-denied') {
-                throw new Error('Permissão negada. Sua conta não tem privilégios de administrador.');
-            }
-            throw error;
-        }
-    }, [products]); // Added dependency on products
-
-    const handleCreateColorVariations = useCallback(async (parentProduct: Product, newColors: {name: string, hex: string}[]) => {
-        try {
-            const productsToCreate = newColors.map(color => {
-                let baseName = parentProduct.name;
-                const parentColorName = parentProduct.colors[0]?.name;
-                if (parentColorName) {
-                    const regex = new RegExp(`\\b${parentColorName}\\b|\\(${parentColorName}\\)`, 'i');
-                    baseName = baseName.replace(regex, '').trim();
-                }
-                baseName = baseName.replace(/\s\s+/g, ' ').trim();
-                const capitalizedColorName = color.name.charAt(0).toUpperCase() + color.name.slice(1);
-                const newName = `${baseName} (${capitalizedColorName})`.trim();
-                const newProductData: Omit<Product, 'id'> = {
-                    ...parentProduct,
-                    name: newName,
-                    colors: [color],
-                    baseImageUrl: '',
-                    unitsSold: 0,
-                    backgroundImages: {},
-                    variationGroupId: parentProduct.variationGroupId,
-                    variations: parentProduct.variations.map(v => ({
-                        ...v,
-                        imageUrl: '',
-                        stock: { [StoreName.TECA]: 0, [StoreName.IONE]: 0 },
-                    }))
-                };
-                const { id, ...rest } = newProductData as any;
-                return rest;
-            });
-            const createdDocs = await Promise.all(productsToCreate.map(p => api.addProductData(p)));
-            
-            // --- NEW: Trigger Meta Feed Update ---
-            const newProductsWithIds = createdDocs;
-            const updatedProductList = [...products, ...newProductsWithIds];
-            api.updateMetaCatalogFeed(updatedProductList).catch(err => console.error("Failed to update Meta Feed after batch creation:", err));
-            // -------------------------------------
-
-        } catch (error: any) {
-            if (error.code === 'permission-denied') throw new Error('Permissão negada.');
-            throw error;
-        }
-    }, [products]);
-
-  const handleCreateProductsFromWizard = useCallback(async (productsToCreate: Omit<Product, 'id'>[], productToConfigure: Omit<Product, 'id'>) => {
-      try {
-          const createdDocs = await Promise.all(productsToCreate.map(p => api.addProductData(p)));
-          
-          // --- NEW: Trigger Meta Feed Update ---
-          const updatedProductList = [...products, ...createdDocs];
-          api.updateMetaCatalogFeed(updatedProductList).catch(err => console.error("Failed to update Meta Feed after wizard:", err));
-          // -------------------------------------
-
-          const configuredProductDoc = createdDocs.find((doc, index) => productsToCreate[index].colors[0]?.name === productToConfigure.colors[0]?.name);
-          if (!configuredProductDoc) throw new Error("Could not find created product.");
-          setIsWizardOpen(false);
-          setEditingProduct({ ...productToConfigure, id: configuredProductDoc.id });
-      } catch (error: any) {
-          if (error.code === 'permission-denied') throw new Error('Permissão negada.');
-          throw error;
-      }
-  }, [products]);
-
-  const handleAddNewBrand = useCallback(async (brandName: string, logoFile?: File, logoUrl?: string) => {
-    try {
-        let finalLogoUrl = logoUrl || '';
-        if (logoFile) finalLogoUrl = await api.uploadFile(`brand_logos/${Date.now()}_${logoFile.name}`, logoFile).promise;
-        if (!finalLogoUrl) throw new Error("É necessário fornecer uma URL ou um arquivo para o logo.");
-        await api.addBrand({ name: brandName.trim(), logoUrl: finalLogoUrl });
-    } catch (error: any) {
-        if (error.code === 'permission-denied') throw new Error('Permissão negada.');
-        throw error;
-    }
-  }, []);
-
-  const handleAddCategory = useCallback(async (name: string, type: 'category' | 'subcategory') => {
-      try {
-          await api.addCategory({ name: name.trim(), type });
-      } catch(error: any) {
-          throw new Error("Erro ao adicionar categoria: " + error.message);
-      }
-  }, []);
-
-  const handleDeleteCategory = useCallback(async (categoryId: string) => {
-      try {
-          await api.deleteCategory(categoryId);
-      } catch(error: any) {
-          throw new Error("Erro ao excluir categoria: " + error.message);
-      }
-  }, []);
-
-  const handleUploadCatalog = useCallback(async (brandName: string, pdfFile: File, onProgress: (progress: number) => void) => {
-      const { promise: uploadPromise, cancel } = api.uploadFile(`catalogs/${brandName}_${Date.now()}_${pdfFile.name}`, pdfFile, onProgress);
-      const overallPromise = uploadPromise.then(async (pdfUrl) => {
-        await api.addCatalog({ brandName, pdfUrl, fileName: pdfFile.name });
-      });
-      return { promise: overallPromise, cancel };
-  }, []);
-
-  const handleUpdateStock = useCallback(async (productId: string, variationSize: CushionSize, store: StoreName, change: number) => {
-    const productToUpdate = products.find(p => p.id === productId);
-    if (!productToUpdate) return;
-    const updatedProduct = JSON.parse(JSON.stringify(productToUpdate));
-    const variationToUpdate = updatedProduct.variations.find((v: Variation) => v.size === variationSize);
-    if (!variationToUpdate) return;
-    variationToUpdate.stock[store] = Math.max(0, variationToUpdate.stock[store] + change);
-    const { id, ...productData } = updatedProduct;
-    try { 
-        await api.updateProductData(id, productData); 
-        
-        // --- NEW: Trigger Meta Feed Update ---
-        const updatedList = products.map(p => p.id === id ? updatedProduct : p);
-        api.updateMetaCatalogFeed(updatedList).catch(e => console.error("Feed update error", e));
-        // -------------------------------------
-
-    } catch (error: any) { alert('Falha ao atualizar o estoque.'); }
-  }, [products]);
-
-  const confirmDeleteProduct = async () => {
-    if (!deletingProductId) return;
-    try {
-      await api.deleteProduct(deletingProductId);
-      
-      // --- NEW: Trigger Meta Feed Update ---
-      const updatedList = products.filter(p => p.id !== deletingProductId);
-      api.updateMetaCatalogFeed(updatedList).catch(e => console.error("Feed update error", e));
-      // -------------------------------------
-
-      if (typeof editingProduct === 'object' && editingProduct?.id === deletingProductId) setEditingProduct(null);
-    } catch (error: any) { alert(`Falha ao excluir o produto.`); }
-    // --- FIX: Fixed typo where setDeletingRequestId was called instead of setDeletingProductId ---
-    finally { setDeletingProductId(null); }
-  };
-
-  const isLoggedIn = !!currentUser;
-  const handleMenuClick = useCallback(() => setIsMenuOpen(true), []);
-
-  const hasItemsToRestock = useMemo(() => {
-    if (!isAdmin) return false;
-    return products.some(p => {
-        const totalStock = p.variations.reduce((sum, v) => sum + (v.stock[StoreName.TECA] || 0) + (v.stock[StoreName.IONE] || 0), 0);
-        return totalStock <= 1 || !p.colors || p.colors.length === 0 || p.colors.some(c => c.name === 'Indefinida') || !p.variations || p.variations.length === 0 || !p.baseImageUrl;
-    });
-  }, [products, isAdmin]);
-
-  const mergedCategories = useMemo(() => {
-      const productCategories = new Set(products.map(p => p.category));
-      const managedCategories = categories.filter(c => c.type === 'category').map(c => c.name);
-      return Array.from(new Set([...productCategories, ...managedCategories])).sort();
-  }, [products, categories]);
-
-  const renderView = () => {
-    if (productsLoading || authLoading) return <div className="flex-grow flex items-center justify-center"><p className={theme === 'dark' ? 'text-white' : 'text-gray-800'}>Carregando...</p></div>;
-    const protectedViews = [View.STOCK, View.SETTINGS, View.CATALOG, View.ASSISTANT, View.DIAGNOSTICS, View.SALES, View.PAYMENT, View.QR_CODES];
-    if (protectedViews.includes(view) && !currentUser) return <div className="flex-grow flex flex-col overflow-hidden"><LoginScreen onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onOpenSignUp={() => setIsSignUpModalOpen(true)} isCheckout={view === View.PAYMENT} /></div>;
-
-    switch (view) {
-      case View.SHOWCASE:
-        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
-      case View.STOCK:
-        return <StockManagementScreen products={products} onEditProduct={setEditingProduct} onAddProduct={() => setIsWizardOpen(true)} onDeleteProduct={(id) => setDeletingProductId(id)} onUpdateStock={handleUpdateStock} canManageStock={isAdmin} hasFetchError={hasFetchError} brands={brands} onMenuClick={handleMenuClick} />;
-       case View.SETTINGS:
-        return <SettingsScreen canManageStock={isAdmin} brands={brands} allColors={allColors} onAddColor={handleAddColor} onDeleteColor={handleDeleteColor} onMenuClick={handleMenuClick} cardFees={cardFees} onSaveCardFees={handleUpdateCardFees} sofaColors={sofaColors} onAddSofaColor={handleAddSofaColor} onDeleteSofaColor={handleDeleteSofaColor} categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} onAddNewBrand={handleAddNewBrand} />;
-       case View.CATALOG:
-        return <CatalogScreen catalogs={catalogs} onUploadCatalog={handleUploadCatalog} onMenuClick={handleMenuClick} canManageStock={isAdmin} brands={brands} />;
-       case View.COMPOSITION_GENERATOR:
-        return <CompositionGeneratorScreen products={products} onNavigate={handleNavigate} savedCompositions={savedCompositions} onSaveComposition={handleSaveComposition} setSavedCompositions={setSavedCompositions} />;
-       case View.COMPOSITIONS:
-        return <CompositionsScreen savedCompositions={savedCompositions} setSavedCompositions={setSavedCompositions} onNavigate={handleNavigate} products={products} onEditProduct={setEditingProduct} onSaveComposition={handleSaveComposition} />;
-       case View.ASSISTANT:
-        return <AssistantScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={(id) => setDeletingProductId(id)} canManageStock={isAdmin} onMenuClick={handleMenuClick} />;
-       case View.DIAGNOSTICS:
-        return <DiagnosticsScreen products={products} saleRequests={saleRequests} cardFees={cardFees} onMenuClick={handleMenuClick} weeklyGoal={weeklyGoal} onUpdateWeeklyGoal={handleUpdateWeeklyGoal} />;
-       case View.CART:
-        return <CartScreen cart={cart} products={products} onUpdateQuantity={handleUpdateCartQuantity} onRemoveItem={handleRemoveFromCart} onNavigate={handleNavigate} />;
-       case View.PAYMENT:
-        return <PaymentScreen cart={cart} totalPrice={cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)} onPlaceOrder={async (method, msg, successCb) => {
-            const saleItems = [...cart];
-            if (saleItems.length === 0) return;
-            try {
-                await api.addSaleRequest({ items: saleItems, totalPrice: saleItems.reduce((acc, i) => acc + (i.price * i.quantity), 0), paymentMethod: method, customerName });
-                if (successCb) successCb();
-                handleClearCart();
-                setInfoModalState({ isOpen: true, title: 'Sucesso!', message: msg, onConfirm: () => handleNavigate(View.SHOWCASE) });
-            } catch (e: any) {
-                alert("Erro: " + e.message);
-            }
-        }} onNavigate={handleNavigate} onPixClick={() => setIsPixModalOpen(true)} customerName={customerName} />;
-       case View.SALES:
-        return <SalesScreen saleRequests={saleRequests} onCompleteSaleRequest={handleCompleteSaleRequest} products={products} onMenuClick={handleMenuClick} error={saleRequestError} cardFees={cardFees} />;
-       case View.QR_CODES:
-        return <QrCodeScreen products={products} />;
-      default:
-        return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
-    }
-  };
-
-  // Logic to identify if there are pending pre-orders that belong to the "current user context"
-  // For a real app, you'd filter by userId. Here we check the loaded requests for type preorder and status pending.
-  const hasPendingPreorders = useMemo(() => {
-      // In this demo, we assume the user can see their requests if they are in the list.
-      // If admin, they see all.
-      return saleRequests.some(r => r.type === 'preorder' && r.status === 'pending');
-  }, [saleRequests]);
-
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
         <div className={`h-screen w-screen overflow-hidden flex flex-col font-sans transition-colors duration-300 ${theme === 'dark' ? 'bg-[#1A1129] text-white' : 'bg-white text-gray-900'}`}>
             {!isConfigValid && <ConfigurationRequiredModal />}
-            <Header onMenuClick={handleMenuClick} cartItemCount={cart.reduce((sum, i) => sum + i.quantity, 0)} onCartClick={() => handleNavigate(View.CART)} activeView={view} onNavigate={handleNavigate} isAdmin={isAdmin} isLoggedIn={isLoggedIn} />
+            <Header 
+                onMenuClick={handleMenuClick} 
+                cartItemCount={cart.reduce((sum, i) => sum + i.quantity, 0)} 
+                onCartClick={() => handleNavigate(View.CART)} 
+                activeView={view} 
+                onNavigate={handleNavigate} 
+                isAdmin={isAdmin} 
+                isLoggedIn={isLoggedIn}
+                hasPendingPreorders={hasPendingPreorders}
+            />
             
             {/* Persistent Pre-order Notification */}
             {hasPendingPreorders && !isAdmin && (
@@ -1193,7 +1128,15 @@ export default function App() {
             )}
 
             {renderView()}
-            <BottomNav activeView={view} onNavigate={handleNavigate} hasItemsToRestock={hasItemsToRestock} isAdmin={isAdmin} hasNewSaleRequests={hasNewSaleRequests} />
+            <BottomNav 
+                activeView={view} 
+                onNavigate={handleNavigate} 
+                hasItemsToRestock={hasItemsToRestock} 
+                isAdmin={isAdmin} 
+                hasNewSaleRequests={hasNewSaleRequests}
+                hasPendingSales={hasPendingSales}
+                hasPendingPreorders={hasPendingPreorders}
+            />
             <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} onLogout={handleLogout} onLoginClick={() => handleNavigate(View.STOCK)} onPixClick={() => setIsPixModalOpen(true)} activeView={view} onNavigate={handleNavigate} isLoggedIn={isLoggedIn} isAdmin={isAdmin} hasItemsToRestock={hasItemsToRestock} hasNewSaleRequests={hasNewSaleRequests} />
             {editingProduct && (
                 <AddEditProductModal 
@@ -1239,9 +1182,17 @@ export default function App() {
                         setToastNotification(null);
                     }}
                 >
-                    <div className={`backdrop-blur-md border-l-4 rounded-2xl shadow-2xl p-4 flex items-center justify-between cursor-pointer hover:scale-105 transition-transform duration-300 ${toastNotification.type === 'success' ? 'bg-green-100/90 border-green-500' : 'bg-white/80 dark:bg-[#2D1F49]/80 border-fuchsia-500'}`}>
+                    <div className={`backdrop-blur-md border-l-4 rounded-2xl shadow-2xl p-4 flex items-center justify-between cursor-pointer hover:scale-105 transition-transform duration-300 ${
+                        toastNotification.type === 'preorder' ? 'bg-orange-100/90 border-orange-500' :
+                        toastNotification.type === 'success' ? 'bg-green-100/90 border-green-500' : 
+                        'bg-white/80 dark:bg-[#2D1F49]/80 border-fuchsia-500'
+                    }`}>
                         <div className="flex items-center gap-4">
-                            <div className={`rounded-full p-2 text-white shadow-lg animate-pulse ${toastNotification.type === 'success' ? 'bg-green-500' : 'bg-fuchsia-500'}`}>
+                            <div className={`rounded-full p-2 text-white shadow-lg animate-pulse ${
+                                toastNotification.type === 'preorder' ? 'bg-orange-500' :
+                                toastNotification.type === 'success' ? 'bg-green-500' : 
+                                'bg-fuchsia-500'
+                            }`}>
                                 {toastNotification.type === 'success' ? (
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                                 ) : (

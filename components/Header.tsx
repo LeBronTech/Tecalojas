@@ -10,6 +10,7 @@ interface HeaderProps {
     onNavigate: (view: View) => void;
     isAdmin: boolean;
     isLoggedIn: boolean;
+    hasPendingPreorders?: boolean;
 }
 
 const QrCodeIcon = () => (
@@ -29,7 +30,7 @@ const UserIcon = () => (
 );
 
 
-const Header: React.FC<HeaderProps> = ({ onMenuClick, cartItemCount, onCartClick, activeView, onNavigate, isAdmin, isLoggedIn }) => {
+const Header: React.FC<HeaderProps> = ({ onMenuClick, cartItemCount, onCartClick, activeView, onNavigate, isAdmin, isLoggedIn, hasPendingPreorders }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const menuColor = isDark ? 'text-white' : 'text-gray-800';
@@ -39,7 +40,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, cartItemCount, onCartClick
     const darkLogoUrl = 'https://i.postimg.cc/qvgmgRpN/Cabe-alho-escuro.png';
 
     const logoUrl = isDark ? darkLogoUrl : lightLogoUrl;
-    const isCartActive = activeView === View.CART;
+    const isCartActive = activeView === View.CART || activeView === View.PAYMENT;
     const showQrIcon = isAdmin && activeView === View.STOCK;
 
     const handleShareCatalog = async () => {
@@ -66,7 +67,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, cartItemCount, onCartClick
             <div className="flex items-center gap-1">
                 <button 
                     onClick={onMenuClick} 
-                    className={`p-2 rounded-full ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition-colors`}
+                    className={`p-2 rounded-full focus:outline-none outline-none ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition-colors`}
                     aria-label="Abrir menu"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${menuColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -76,7 +77,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, cartItemCount, onCartClick
                 <div className="relative">
                     <button 
                         onClick={handleShareCatalog}
-                        className={`p-2 rounded-full ${isDark ? 'hover:bg-white/10 text-white/50 hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-purple-600'} transition-all`}
+                        className={`p-2 rounded-full focus:outline-none outline-none ${isDark ? 'hover:bg-white/10 text-white/50 hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-purple-600'} transition-all`}
                         title="Compartilhar Link da Vitrine"
                     >
                         <ShareIcon />
@@ -98,32 +99,41 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, cartItemCount, onCartClick
             <div className="flex items-center gap-1">
                 <button
                     onClick={() => onNavigate(View.STOCK)}
-                    className={`p-2 rounded-full ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition-colors ${isLoggedIn ? (isDark ? 'text-fuchsia-400' : 'text-purple-600') : menuColor}`}
+                    className={`p-2 rounded-full focus:outline-none outline-none ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition-colors ${isLoggedIn ? (isDark ? 'text-fuchsia-400' : 'text-purple-600') : menuColor}`}
                     aria-label="Acessar Sistema"
                 >
                     <UserIcon />
                 </button>
 
                 <button 
-                    onClick={showQrIcon ? () => onNavigate(View.QR_CODES) : onCartClick} 
-                    className={`relative p-2 rounded-full ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition-colors`}
-                    aria-label={showQrIcon ? "Gerar QR Codes" : "Ver carrinho"}
+                    onClick={showQrIcon ? () => onNavigate(View.QR_CODES) : (isCartActive ? () => onNavigate(View.SHOWCASE) : onCartClick)} 
+                    className={`relative p-2 rounded-full focus:outline-none outline-none ring-0 border-0 ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition-colors`}
+                    aria-label={showQrIcon ? "Gerar QR Codes" : (isCartActive ? "Fechar Carrinho" : "Ver carrinho")}
                 >
                     {showQrIcon ? (
                         <QrCodeIcon />
                     ) : isCartActive ? (
+                        // X Icon (Close)
                          <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${menuColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${menuColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        // Classic Shopping Cart Icon
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-7 w-7 ${isDark ? 'text-fuchsia-400' : 'text-purple-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
                     )}
+                    
+                    {/* Cart Item Counter Badge - Only show when NOT active/open */}
                     {cartItemCount > 0 && !isCartActive && !showQrIcon && (
                         <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-fuchsia-500 text-xs font-bold text-white ring-2 ring-white dark:ring-[#1A1129]">
                             {cartItemCount}
                         </span>
+                    )}
+                    
+                    {/* Pending Pre-order Orange Dot (Only if cart is empty and not active) */}
+                    {!showQrIcon && !isCartActive && hasPendingPreorders && cartItemCount === 0 && (
+                        <span className="absolute top-0 right-0 flex h-3 w-3 items-center justify-center rounded-full bg-orange-500 animate-pulse ring-2 ring-white dark:ring-[#1A1129]"></span>
                     )}
                 </button>
             </div>

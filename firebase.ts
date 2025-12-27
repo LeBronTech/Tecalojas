@@ -378,7 +378,7 @@ export const addProductData = async (productData: Omit<Product, 'id'>): Promise<
     return { id: docRef.id, ...productData } as Product;
 };
 
-export const updateProductData = async (productId: string, productData: Omit<Product, 'id'>): Promise<void> => {
+export const updateProductData = async (productId: string, productData: Partial<Omit<Product, 'id'>>): Promise<void> => {
     const productDoc = doc(db, "products", productId);
     await updateDoc(productDoc, productData as { [key: string]: any });
 };

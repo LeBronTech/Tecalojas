@@ -53,10 +53,10 @@ service cloud.firestore {
     }
 
     // Solicitações de Venda (Pedidos):
-    // Usuário logado pode criar pedido.
+    // Visitantes (unauthenticated) podem criar pedidos.
     // Apenas Admin pode ler a lista de pedidos, editar ou excluir.
     match /saleRequests/{requestId} {
-      allow create: if request.auth != null;
+      allow create: if true;
       allow read, update, delete: if isAdmin();
     }
   }

@@ -10,9 +10,7 @@ const HomeIcon = () => (
 
 const CompositionIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 14a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H7a2 2 0 01-2-2z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M13 14a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
     </svg>
 );
 
@@ -47,6 +45,8 @@ interface BottomNavProps {
   hasItemsToRestock: boolean;
   isAdmin: boolean;
   hasNewSaleRequests: boolean;
+  hasPendingSales?: boolean;
+  hasPendingPreorders?: boolean;
 }
 
 const NavButton: React.FC<{
@@ -92,7 +92,7 @@ const NavButton: React.FC<{
 };
 
 
-const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsToRestock, isAdmin, hasNewSaleRequests }) => {
+const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsToRestock, isAdmin, hasNewSaleRequests, hasPendingSales, hasPendingPreorders }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
 
@@ -102,6 +102,15 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsT
 
   return (
     <div className={`fixed bottom-4 left-4 right-4 h-20 rounded-3xl flex justify-around items-center z-30 ${navClasses}`}>
+      <style>{`
+        @keyframes blink-dual {
+          0%, 100% { background-color: #22c55e; border-color: #22c55e; } /* Green */
+          50% { background-color: #f97316; border-color: #f97316; } /* Orange */
+        }
+        .animate-blink-dual {
+            animation: blink-dual 1.5s infinite ease-in-out;
+        }
+      `}</style>
       <NavButton label="Vitrine" view={View.SHOWCASE} isActive={activeView === View.SHOWCASE} onNavigate={onNavigate}>
         <HomeIcon />
       </NavButton>
@@ -113,7 +122,13 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsT
             <div className="relative">
                 <SalesIcon />
                 {hasNewSaleRequests && (
-                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-[#1A1129] blinking-dot"></span>
+                    <span 
+                        className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-[#1A1129] ${
+                            hasPendingSales && hasPendingPreorders ? 'animate-blink-dual' : 
+                            hasPendingSales ? 'bg-green-500 blinking-dot' : 
+                            hasPendingPreorders ? 'bg-orange-500 blinking-dot' : 'bg-red-500' // Fallback
+                        }`}
+                    ></span>
                 )}
             </div>
         </NavButton>
