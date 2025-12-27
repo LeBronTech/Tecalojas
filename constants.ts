@@ -68,27 +68,32 @@ export const SIZE_SCALES: Record<CushionSize, { w: string; h: string }> = {
     [CushionSize.LUMBAR]: { w: '120px', h: '70px' },
 };
 
-// Realistic CSS Patterns for Sofa Fabrics
+// Realistic CSS Patterns for Sofa Fabrics (Using texture images)
+// Order: Tecido (Fabric), Couro (Leather), then others.
 export const SOFA_FABRICS = [
     { 
-        name: 'Suede', 
-        pattern: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.1) 0%, transparent 2px), radial-gradient(circle at 20% 20%, rgba(0,0,0,0.05) 0%, transparent 3px)' 
-    },
-    { 
-        name: 'Linho', 
-        pattern: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.05) 1px, rgba(0,0,0,0.02) 2px), repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.05) 1px, rgba(0,0,0,0.02) 2px)' 
-    },
-    { 
-        name: 'Veludo', 
-        pattern: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%, rgba(0,0,0,0.1) 100%), radial-gradient(circle at 50% 0, rgba(255,255,255,0.1), transparent 70%)' 
+        name: 'Tecido (Linho)', 
+        pattern: 'url("https://www.transparenttextures.com/patterns/linen.png")' 
     },
     { 
         name: 'Couro', 
-        pattern: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.6\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\' opacity=\'0.05\'/%3E%3C/svg%3E")' 
+        pattern: 'url("https://www.transparenttextures.com/patterns/leather.png")' 
     },
     { 
-        name: 'Jacquard', 
-        pattern: 'repeating-radial-gradient(circle at 0 0, transparent 0, rgba(255,255,255,0.03) 10px), repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.02) 1%, transparent 1%, transparent 20%)' 
+        name: 'Algodão', 
+        pattern: 'url("https://www.transparenttextures.com/patterns/woven-light.png")' 
+    },
+    { 
+        name: 'Fibra de Poliéster', 
+        pattern: 'url("https://www.transparenttextures.com/patterns/diagmonds-light.png")' 
+    },
+    { 
+        name: 'Suede', 
+        pattern: 'url("https://www.transparenttextures.com/patterns/felt.png")' 
+    },
+    { 
+        name: 'Veludo', 
+        pattern: 'url("https://www.transparenttextures.com/patterns/nasty-fabric.png")' 
     }
 ];
 

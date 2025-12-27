@@ -425,17 +425,52 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
 
                     {/* 2. Área do Sofá Virtual */}
                     <div className={`relative p-2 rounded-[2.5rem] border ${cardClasses} overflow-hidden shadow-2xl`}>
+                        {/* Controles no TOPO (Superior) */}
+                        <div className="p-4 bg-black/5 rounded-t-[2rem] border-b border-black/5 mb-[-20px] pb-8 z-10 relative">
+                            <div className="space-y-4">
+                                 <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-fuchsia-500 mb-2 block">Tecido do Sofá</label>
+                                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                                        {SOFA_FABRICS.map(f => (
+                                            <button 
+                                                key={f.name} 
+                                                onClick={() => setSelectedSofaFabric(f)}
+                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all border ${selectedSofaFabric.name === f.name ? 'bg-fuchsia-600 text-white border-fuchsia-500' : 'bg-white text-gray-500 border-gray-200'}`}
+                                            >
+                                                {f.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-fuchsia-500 mb-2 block">Cor do Sofá</label>
+                                    <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                                        {PREDEFINED_SOFA_COLORS.map(c => (
+                                            <button 
+                                                key={c.name} 
+                                                onClick={() => setSelectedSofaColor(c)} 
+                                                className={`w-6 h-6 rounded-full border-2 flex-shrink-0 transition-all ${selectedSofaColor.name === c.name ? 'ring-2 ring-fuchsia-500 ring-offset-2 scale-110' : 'border-black/10 opacity-60'}`}
+                                                style={{ backgroundColor: c.hex }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Sofá Visual (Agora abaixo dos controles) */}
                         <div 
                             ref={sofaRef}
-                            className="relative min-h-[450px] rounded-[2rem] transition-all duration-500 overflow-hidden"
+                            className="relative min-h-[450px] rounded-[2rem] transition-all duration-500 overflow-hidden z-0 mt-2"
                             style={{ 
                                 backgroundColor: selectedSofaColor.hex,
                                 backgroundImage: selectedSofaFabric.pattern,
-                                backgroundBlendMode: 'overlay',
+                                backgroundBlendMode: 'multiply', // Melhor blend para texturas realistas
+                                backgroundSize: '250px', // Escala da textura para parecer real
                                 boxShadow: 'inset 0 20px 60px rgba(0,0,0,0.3)'
                             }}
                         >
-                            <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+                            <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.1), transparent, rgba(0,0,0,0.2))' }}></div>
 
                             {compItems.map((item) => {
                                 const isSelected = selectedId === item.id;
@@ -456,7 +491,8 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                         }}
                                         onClick={(e) => e.stopPropagation()}
                                     >
-                                        <div className="relative w-full h-full shadow-2xl rounded-xl overflow-hidden border-2 border-white/20 group">
+                                        {/* Efeito de "Enchimento de Fibra": Sombra interna e bordas arredondadas */}
+                                        <div className="relative w-full h-full shadow-[inset_0_0_20px_rgba(0,0,0,0.15),0_10px_20px_rgba(0,0,0,0.3)] rounded-xl overflow-hidden border-2 border-white/20 group bg-white">
                                             <img src={item.product.baseImageUrl} alt="" className="w-full h-full object-cover pointer-events-none" />
                                             
                                             {/* Marca d'água de tamanho (Superior Esquerdo) */}
@@ -507,43 +543,8 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                             )}
                         </div>
 
-                        {/* Controles e Botões dentro do Card do Sofá */}
-                        <div className="p-4 bg-black/5 space-y-4">
-                            
-                            {/* Seletores de Tecido e Cor */}
-                            <div className="grid grid-cols-2 gap-4">
-                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-fuchsia-500 mb-1 block">Tecido</label>
-                                    <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                                        {SOFA_FABRICS.map(f => (
-                                            <button 
-                                                key={f.name} 
-                                                onClick={() => setSelectedSofaFabric(f)}
-                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all border ${selectedSofaFabric.name === f.name ? 'bg-fuchsia-600 text-white border-fuchsia-500' : 'bg-white text-gray-500 border-gray-200'}`}
-                                            >
-                                                {f.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-fuchsia-500 mb-1 block">Cor</label>
-                                    <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
-                                        {PREDEFINED_SOFA_COLORS.map(c => (
-                                            <button 
-                                                key={c.name} 
-                                                onClick={() => setSelectedSofaColor(c)} 
-                                                className={`w-6 h-6 rounded-full border-2 flex-shrink-0 transition-all ${selectedSofaColor.name === c.name ? 'ring-2 ring-fuchsia-500 ring-offset-2 scale-110' : 'border-black/10 opacity-60'}`}
-                                                style={{ backgroundColor: c.hex }}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <hr className="border-black/5" />
-
-                            {/* Botões de Ação Reposicionados */}
+                        {/* Botões de Ação na base */}
+                        <div className="p-4 bg-black/5 space-y-4 rounded-b-[2.5rem]">
                             <div className="flex flex-col gap-3">
                                 {/* 1. Botão Compartilhar (Vem Primeiro) */}
                                 <button onClick={handleShareCurrentDesign} disabled={compItems.length === 0} className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 ${isDark ? 'bg-green-600/20 text-green-400 hover:bg-green-600/40' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
