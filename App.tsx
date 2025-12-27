@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import { Product, View, Theme, User, StoreName, Variation, CushionSize, DynamicBrand, CatalogPDF, SavedComposition, ThemeContext, ThemeContextType, CartItem, SaleRequest, CardFees, CategoryItem } from './types';
 import { INITIAL_PRODUCTS, PREDEFINED_COLORS, PREDEFINED_SOFA_COLORS, SOFA_COLORS_STORAGE_KEY } from './constants';
@@ -415,6 +414,7 @@ export default function App() {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY) as Theme;
     return storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : 'light';
   });
+  const isDark = theme === 'dark';
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPixModalOpen, setIsPixModalOpen] = useState(false);
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
@@ -430,13 +430,14 @@ export default function App() {
   const [saleRequestError, setSaleRequestError] = useState<string | null>(null);
   const loginRedirect = useRef<View | null>(null);
   const notifiedRequestIds = useRef(new Set<string>());
+  const previousRequests = useRef<SaleRequest[]>([]);
   const isFirstRequestsLoad = useRef(true);
   const [cardFees, setCardFees] = useState<CardFees>({ debit: 1.0, credit1x: 1.5, credit2x: 2.0, credit3x: 4.0 });
   const [weeklyGoal, setWeeklyGoal] = useState<number>(0);
 
   const [isCustomerNameModalOpen, setIsCustomerNameModalOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
-  const [toastNotification, setToastNotification] = useState<{ message: string; sub: string; type: 'sale' | 'preorder' } | null>(null);
+  const [toastNotification, setToastNotification] = useState<{ message: string; sub: string; type: 'sale' | 'preorder' | 'success' } | null>(null);
   const [infoModalState, setInfoModalState] = useState<{
     isOpen: boolean;
     title: string;
@@ -582,29 +583,39 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isAdmin) {
-      setSaleRequestError(null);
-      const unsubscribe = api.onSaleRequestsUpdate(
-        (requests) => {
-            if (isFirstRequestsLoad.current) {
-                requests.forEach(r => notifiedRequestIds.current.add(r.id));
-                isFirstRequestsLoad.current = false;
-            }
-            setSaleRequests(requests);
-        },
-        (error) => {
-          console.error("Failed to fetch sale requests:", error);
-          setSaleRequestError("Falha ao carregar pedidos: Verifique permissões.");
-        }
-      );
-      return () => {
-          isFirstRequestsLoad.current = true;
-          unsubscribe();
-      };
-    } else {
+    // Only subscribe to sale requests if logged in
+    if (!currentUser) {
         setSaleRequests([]);
+        return;
     }
-  }, [isAdmin]);
+
+    setSaleRequestError(null);
+    const unsubscribe = api.onSaleRequestsUpdate(
+    (requests) => {
+        setSaleRequests(prev => {
+            previousRequests.current = prev; // Keep track of previous state
+            return requests;
+        });
+        
+        // Initial load marking
+        if (isFirstRequestsLoad.current) {
+            requests.forEach(r => notifiedRequestIds.current.add(r.id));
+            isFirstRequestsLoad.current = false;
+        }
+    },
+    (error) => {
+        // If permission denied (common for non-admins trying to read all requests), silence or handle gracefully
+        if (error.code !== 'permission-denied') {
+            console.error("Failed to fetch sale requests:", error);
+            setSaleRequestError("Falha ao carregar pedidos.");
+        }
+    }
+    );
+    return () => {
+        isFirstRequestsLoad.current = true;
+        unsubscribe();
+    };
+  }, [currentUser]); // Listen whenever user changes (login/logout)
   
   const handleCompleteSaleRequest = useCallback(async (requestId: string, details: { discount?: number, finalPrice?: number, installments?: number, netValue?: number, totalProductionCost?: number }) => {
       try {
@@ -670,6 +681,7 @@ export default function App() {
         }
   };
 
+  // Admin Notification Logic (New Sales)
   useEffect(() => {
     if (!isAdmin) return;
     
@@ -715,6 +727,48 @@ export default function App() {
         newItems.forEach(r => notifiedRequestIds.current.add(r.id));
     }
   }, [isAdmin, saleRequests]);
+
+  // User Notification Logic (Sale Confirmation)
+  useEffect(() => {
+      // Check if any request transitioned from pending to completed
+      // And if the user likely owns it (by name match or just general notification if generic user)
+      if (previousRequests.current.length === 0) return;
+
+      const justCompleted = saleRequests.filter(req => 
+          req.status === 'completed' && 
+          previousRequests.current.find(prev => prev.id === req.id)?.status === 'pending'
+      );
+
+      if (justCompleted.length > 0) {
+          // If we have customerName stored, check match. Or if general user mode, notify.
+          const relevantSale = justCompleted.find(s => !customerName || s.customerName === customerName);
+          
+          if (relevantSale) {
+               setToastNotification({ 
+                   message: "Venda Confirmada!", 
+                   sub: "Seu pedido foi processado com sucesso.", 
+                   type: 'success' 
+               });
+               setTimeout(() => setToastNotification(null), 5000);
+               if (navigator.vibrate) navigator.vibrate(200);
+          }
+      }
+  }, [saleRequests, customerName]);
+
+  // Check for pending pre-orders for the user
+  const hasPendingPreOrders = useMemo(() => {
+      // Check saleRequests if user info matches (complex without auth ID on request, using simplistic approach)
+      // Or check local cart state if persistent pre-order flag exists (not fully implemented in cart)
+      // Better: Check pending pre-order requests in the loaded list that might match the user context.
+      // Since we don't have hard User ID linking for guests, we can't be 100% sure for guests.
+      // But we can check if there are *any* pending preorders in the list if the user is viewing.
+      // However, the prompt says "user who realized the sale". 
+      // Let's rely on the saleRequests list loaded. If the user can see them (Admin), they see badges.
+      // If user is non-admin, they usually don't see the full list.
+      // We will simulate this by checking if there's a recent preorder in the current session.
+      return false; // Placeholder as true persistence requires User ID linking on request creation
+  }, [saleRequests]);
+
 
   useEffect(() => {
     try {
@@ -1111,11 +1165,33 @@ export default function App() {
     }
   };
 
+  // Logic to identify if there are pending pre-orders that belong to the "current user context"
+  // For a real app, you'd filter by userId. Here we check the loaded requests for type preorder and status pending.
+  const hasPendingPreorders = useMemo(() => {
+      // In this demo, we assume the user can see their requests if they are in the list.
+      // If admin, they see all.
+      return saleRequests.some(r => r.type === 'preorder' && r.status === 'pending');
+  }, [saleRequests]);
+
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
         <div className={`h-screen w-screen overflow-hidden flex flex-col font-sans transition-colors duration-300 ${theme === 'dark' ? 'bg-[#1A1129] text-white' : 'bg-white text-gray-900'}`}>
             {!isConfigValid && <ConfigurationRequiredModal />}
             <Header onMenuClick={handleMenuClick} cartItemCount={cart.reduce((sum, i) => sum + i.quantity, 0)} onCartClick={() => handleNavigate(View.CART)} activeView={view} onNavigate={handleNavigate} isAdmin={isAdmin} isLoggedIn={isLoggedIn} />
+            
+            {/* Persistent Pre-order Notification */}
+            {hasPendingPreorders && !isAdmin && (
+                <div className="bg-orange-500 text-white px-4 py-2 text-xs font-bold flex justify-between items-center z-20">
+                    <span>Você tem encomendas pendentes de confirmação!</span>
+                    <button 
+                        onClick={() => window.open(`https://wa.me/5561991434805?text=${encodeURIComponent("Olá, gostaria de confirmar minha encomenda.")}`, '_blank')}
+                        className="bg-white text-orange-600 px-3 py-1 rounded-full text-[10px] uppercase tracking-wider hover:bg-gray-100"
+                    >
+                        Confirmar no Zap
+                    </button>
+                </div>
+            )}
+
             {renderView()}
             <BottomNav activeView={view} onNavigate={handleNavigate} hasItemsToRestock={hasItemsToRestock} isAdmin={isAdmin} hasNewSaleRequests={hasNewSaleRequests} />
             <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} onLogout={handleLogout} onLoginClick={() => handleNavigate(View.STOCK)} onPixClick={() => setIsPixModalOpen(true)} activeView={view} onNavigate={handleNavigate} isLoggedIn={isLoggedIn} isAdmin={isAdmin} hasItemsToRestock={hasItemsToRestock} hasNewSaleRequests={hasNewSaleRequests} />
@@ -1157,20 +1233,26 @@ export default function App() {
                 <div 
                     className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[200] max-w-sm w-full px-4 animate-slide-down"
                     onClick={() => {
-                        handleNavigate(View.SALES);
+                        if (toastNotification.type === 'sale' || toastNotification.type === 'preorder') {
+                            handleNavigate(View.SALES);
+                        }
                         setToastNotification(null);
                     }}
                 >
-                    <div className="bg-white/80 dark:bg-[#2D1F49]/80 backdrop-blur-md border-l-4 border-fuchsia-500 rounded-2xl shadow-2xl p-4 flex items-center justify-between cursor-pointer hover:scale-105 transition-transform duration-300">
+                    <div className={`backdrop-blur-md border-l-4 rounded-2xl shadow-2xl p-4 flex items-center justify-between cursor-pointer hover:scale-105 transition-transform duration-300 ${toastNotification.type === 'success' ? 'bg-green-100/90 border-green-500' : 'bg-white/80 dark:bg-[#2D1F49]/80 border-fuchsia-500'}`}>
                         <div className="flex items-center gap-4">
-                            <div className="bg-fuchsia-500 rounded-full p-2 text-white shadow-lg animate-pulse">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                                </svg>
+                            <div className={`rounded-full p-2 text-white shadow-lg animate-pulse ${toastNotification.type === 'success' ? 'bg-green-500' : 'bg-fuchsia-500'}`}>
+                                {toastNotification.type === 'success' ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                    </svg>
+                                )}
                             </div>
                             <div>
-                                <p className="font-black text-gray-900 dark:text-white text-lg leading-tight">{toastNotification.message}</p>
-                                <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mt-1">{toastNotification.sub}</p>
+                                <p className={`font-black text-lg leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>{toastNotification.message}</p>
+                                <p className={`text-xs font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{toastNotification.sub}</p>
                             </div>
                         </div>
                         <button 

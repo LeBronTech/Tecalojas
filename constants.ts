@@ -72,7 +72,7 @@ export const SIZE_SCALES: Record<CushionSize, { w: string; h: string }> = {
 // Order: Tecido (Fabric), Couro (Leather), then others.
 export const SOFA_FABRICS = [
     { 
-        name: 'Tecido (Linho)', 
+        name: 'Linho', 
         pattern: 'url("https://www.transparenttextures.com/patterns/linen.png")' 
     },
     { 
@@ -84,8 +84,8 @@ export const SOFA_FABRICS = [
         pattern: 'url("https://www.transparenttextures.com/patterns/woven-light.png")' 
     },
     { 
-        name: 'Fibra de Poliéster', 
-        pattern: 'url("https://www.transparenttextures.com/patterns/diagmonds-light.png")' 
+        name: 'Jacquard', 
+        pattern: 'url("https://www.transparenttextures.com/patterns/black-scales.png")' 
     },
     { 
         name: 'Suede', 
