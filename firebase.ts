@@ -1,3 +1,4 @@
+
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { 
     getAuth,
@@ -26,7 +27,8 @@ import {
     serverTimestamp,
     query,
     where,
-    orderBy
+    orderBy,
+    limit
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, uploadString } from "firebase/storage";
 
@@ -349,10 +351,18 @@ export const processImageUploadsForProduct = async (product: Product): Promise<v
 // --- FIRESTORE (PRODUCTS) ---
 export const onProductsUpdate = (
   onSuccess: (products: Product[]) => void,
-  onError: (error: FirestoreError) => void
+  onError: (error: FirestoreError) => void,
+  limitCount?: number
 ) => {
+  let q;
+  if (limitCount) {
+      q = query(productsCollection, limit(limitCount));
+  } else {
+      q = productsCollection;
+  }
+
   return onSnapshot(
-    productsCollection,
+    q,
     (snapshot) => {
       const products = snapshot.docs.map(
         (doc) => {

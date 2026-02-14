@@ -58,13 +58,39 @@ const App: React.FC = () => {
 
   const isAdmin = currentUser?.role === 'admin';
 
-  // Load Data (Public)
+  // Load Data
   useEffect(() => {
     const unsubAuth = api.onAuthStateChanged(setCurrentUser);
-    const unsubProducts = api.onProductsUpdate(
-        (data) => { setProducts(data); setProductsLoading(false); },
-        (err) => { console.error(err); setHasFetchError(true); setProductsLoading(false); }
+    
+    // --- Two-Phase Product Loading Strategy ---
+    // Phase 1: Load just 12 products immediately to show something on screen FAST
+    let unsubFullProducts: () => void;
+    
+    const unsubInitialProducts = api.onProductsUpdate(
+        (data) => { 
+            // If we haven't loaded the full list yet, show these 12
+            if (productsLoading) {
+                setProducts(data);
+                setProductsLoading(false);
+                
+                // Phase 2: After a short delay, load EVERYTHING for search/filtering
+                // This prevents the UI from freezing immediately after the first paint
+                setTimeout(() => {
+                    unsubFullProducts = api.onProductsUpdate(
+                        (fullData) => { setProducts(fullData); },
+                        (err) => { console.error(err); }
+                    );
+                }, 1000);
+            }
+        },
+        (err) => { 
+            console.error("Initial load error:", err); 
+            setHasFetchError(true); 
+            setProductsLoading(false); 
+        },
+        12 // Limit to 12 items initially
     );
+
     const unsubBrands = api.onBrandsUpdate(setBrands, console.error);
     const unsubCatalogs = api.onCatalogsUpdate(setCatalogs, console.error);
     const unsubCategories = api.onCategoriesUpdate(setCategories, console.error);
@@ -76,7 +102,10 @@ const App: React.FC = () => {
     if (pid) setInitialProductId(pid);
 
     return () => {
-        unsubAuth(); unsubProducts(); unsubBrands(); unsubCatalogs();
+        unsubAuth(); 
+        unsubInitialProducts();
+        if (unsubFullProducts) unsubFullProducts();
+        unsubBrands(); unsubCatalogs();
         unsubCategories(); unsubSettings();
     };
   }, []);

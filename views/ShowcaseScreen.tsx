@@ -1,5 +1,5 @@
 
-import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useContext, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Product, View, DynamicBrand, SavedComposition, ThemeContext, Variation, CushionSize, CartItem } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
@@ -17,7 +17,7 @@ const FireIcon = ({ className }: { className: string }) => (
 const SkeletonCard = () => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
-    const bgClass = isDark ? 'bg-white/5' : 'bg-gray-100';
+    const bgClass = isDark ? 'bg-white/5' : 'bg-gray-200';
     
     return (
         <div className={`rounded-3xl p-3 shadow-sm border flex flex-col items-center ${isDark ? 'border-white/5' : 'border-gray-100'} animate-pulse`}>
@@ -57,15 +57,19 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
     return `R$${minPrice.toFixed(2).replace('.', ',')} - R$${maxPrice.toFixed(2).replace('.', ',')}`;
   };
 
+  // Optimization: Only animate the first few items to prevent staggered delay on scroll
+  const shouldAnimate = index < 12;
+
   return (
     <button 
         onClick={onClick}
         className={`rounded-3xl p-3 shadow-lg flex flex-col items-center text-center border transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2 ${cardClasses} ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
-        style={{ 
+        style={shouldAnimate ? { 
              animation: 'float-in 0.5s ease-out forwards',
              animationDelay: `${index * 50}ms`,
              opacity: 0 
-         }}>
+         } : {}}
+    >
         <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
              {product.baseImageUrl ? (
                 <img 
@@ -133,12 +137,15 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
     const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
     
     const representativeProduct = group[0];
+    
+    // Optimization: Only animate the first few items
+    const shouldAnimate = index < 12;
 
     return (
         <button 
             onClick={() => onClick(representativeProduct)}
             className={`rounded-3xl p-3 shadow-lg flex flex-col items-center justify-between text-center border transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2 ${cardClasses} ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
-            style={{ animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms`, opacity: 0 }}
+            style={shouldAnimate ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms`, opacity: 0 } : {}}
         >
             <div className="w-full">
                 <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
@@ -178,7 +185,7 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
                 {group.slice(0, 7).map((p, idx) => (
                     <div 
                         key={idx}
-                        className={`w-4 h-4 rounded-full border shadow-sm ${isDark ? 'border-white/30' : 'border-black/20'}`}
+                        className={`w-3 h-3 rounded-full border shadow-sm ${isDark ? 'border-white/20' : 'border-black/10'}`}
                         style={{ backgroundColor: p.colors?.[0]?.hex || '#ccc' }}
                         title={p.colors?.[0]?.name}
                     />
@@ -270,6 +277,10 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
   // New State for Filter Expansion
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
 
+  // --- INFINITE SCROLL STATE ---
+  const [visibleCount, setVisibleCount] = useState(12); // Start with a small batch to match initial fetch
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
   // Deep link handler
   useEffect(() => {
       if (initialProductId && products.length > 0) {
@@ -335,7 +346,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
     return `${p.brand}|${p.category}|${cleanBase}`;
   }, []);
 
-  const displayedProducts = useMemo(() => {
+  const allFilteredProducts = useMemo(() => {
     let filtered = products.filter(p => {
         const categoryMatch = selectedCategory === 'Todas' || p.category === selectedCategory || p.subCategory === selectedCategory;
         const fabricMatch = selectedFabric === 'Todos os Tecidos' || p.fabricType === selectedFabric;
@@ -375,6 +386,35 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
         }
     });
   }, [products, selectedCategory, selectedFabric, sortOrder, getProductFamilyKey]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+      setVisibleCount(12);
+  }, [selectedCategory, selectedFabric, sortOrder, products.length]);
+
+  // Intersection Observer for Infinite Scroll
+  useEffect(() => {
+      const observer = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting) {
+              setVisibleCount(prev => prev + 12);
+          }
+      }, { rootMargin: '100px' }); // Load when within 100px of bottom
+
+      if (loadMoreRef.current) {
+          observer.observe(loadMoreRef.current);
+      }
+
+      return () => {
+          if (loadMoreRef.current) {
+              observer.unobserve(loadMoreRef.current);
+          }
+      };
+  }, [allFilteredProducts.length]);
+
+  const displayedProducts = useMemo(() => {
+      return allFilteredProducts.slice(0, visibleCount);
+  }, [allFilteredProducts, visibleCount]);
+
 
   const handleEdit = (product: Product) => {
     handleProductSelect(null); 
@@ -557,13 +597,23 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {isLoading ? (
-                      Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} />)
+                      Array.from({ length: 12 }).map((_, i) => <SkeletonCard key={i} />)
                   ) : (
-                      displayedProducts.map((item, index) => (
-                          Array.isArray(item)
-                            ? <ProductGroupCard key={`group-${index}`} group={item} index={index} onClick={(p) => handleProductSelect(p)} />
-                            : <ProductCard key={(item as Product).id} product={item as Product} index={index} onClick={() => handleProductSelect(item as Product)} />
-                      ))
+                      <>
+                        {displayedProducts.map((item, index) => (
+                            Array.isArray(item)
+                                ? <ProductGroupCard key={`group-${index}`} group={item} index={index} onClick={(p) => handleProductSelect(p)} />
+                                : <ProductCard key={(item as Product).id} product={item as Product} index={index} onClick={() => handleProductSelect(item as Product)} />
+                        ))}
+                        {visibleCount < allFilteredProducts.length && (
+                            <div ref={loadMoreRef} className="col-span-full py-4 text-center">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                    <SkeletonCard />
+                                    <SkeletonCard />
+                                </div>
+                            </div>
+                        )}
+                      </>
                   )}
               </div>
           </main>
