@@ -760,33 +760,38 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const cardClasses = isDark ? "bg-black/20 border-white/10" : "bg-white border-gray-200 shadow-sm";
     const inputClasses = isDark ? "bg-black/30 border-white/10 text-white" : "bg-gray-100 border-gray-300 text-gray-900";
 
+    const TabButton = ({ tab, label, activeClass }: { tab: Tab, label: string, activeClass: string }) => (
+        <button
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase tracking-wide transition-all whitespace-nowrap ${
+                activeTab === tab 
+                ? activeClass
+                : (isDark ? 'text-gray-400 bg-white/5 hover:bg-white/10' : 'text-gray-500 bg-gray-100 hover:bg-gray-200')
+            }`}
+        >
+            {label}
+            {tab === 'preorders' && preorderRequests.length > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-white animate-pulse shadow-sm"></span>
+            )}
+        </button>
+    );
+
     return (
         <div className="h-full w-full flex flex-col relative overflow-hidden">
             <main className="flex-grow overflow-y-auto px-6 pt-24 pb-52 md:pb-52 no-scrollbar z-10">
                 <div className="flex justify-between items-center mb-6">
                     <h1 className={`text-3xl font-bold ${titleClasses}`}>Central de Vendas</h1>
-                    <button onClick={onMenuClick} className={`p-2 rounded-full ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>
-                        <svg className={`w-6 h-6 ${titleClasses}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-                    </button>
                 </div>
 
-                <div className={`flex p-1 rounded-xl mb-6 overflow-x-auto ${isDark ? 'bg-black/40' : 'bg-gray-100'}`}>
-                    {(['pos', 'pending', 'preorders', 'history'] as Tab[]).map(tab => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`relative flex-1 min-w-[90px] py-3 rounded-lg text-xs font-bold uppercase tracking-wide transition-all whitespace-nowrap ${
-                                activeTab === tab 
-                                ? (tab === 'preorders' ? 'bg-orange-600 text-white shadow-lg' : 'bg-fuchsia-600 text-white shadow-lg') 
-                                : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900')
-                            }`}
-                        >
-                            {tab === 'pos' ? 'PDV' : tab === 'pending' ? `Pendentes (${pendingRequests.length})` : tab === 'preorders' ? `Encomendas` : 'Histórico'}
-                            {tab === 'preorders' && preorderRequests.length > 0 && (
-                                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-white animate-pulse"></span>
-                            )}
-                        </button>
-                    ))}
+                <div className="flex flex-col gap-2 mb-6">
+                    <div className="flex gap-2">
+                        <TabButton tab="pos" label="PDV" activeClass="bg-fuchsia-600 text-white shadow-lg" />
+                        <TabButton tab="history" label="Histórico" activeClass="bg-purple-600 text-white shadow-lg" />
+                    </div>
+                    <div className="flex gap-2">
+                        <TabButton tab="pending" label={`Pendentes (${pendingRequests.length})`} activeClass="bg-fuchsia-600 text-white shadow-lg" />
+                        <TabButton tab="preorders" label="Encomendas" activeClass="bg-orange-600 text-white shadow-lg" />
+                    </div>
                 </div>
 
                 {error && <div className="p-4 mb-4 bg-red-100 border border-red-400 text-red-700 rounded-xl">{error}</div>}
