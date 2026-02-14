@@ -7,13 +7,13 @@ service cloud.firestore {
     // Função auxiliar para verificar se o usuário autenticado é um administrador.
     function isAdmin() {
       return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // --- COLEÇÕES DE LEITURA PÚBLICA (Essenciais para a Vitrine) ---
 
     // Configurações (Cores, Taxas, Metas):
-    // allow read: if true; -> Resolve o erro "permission-denied" no listener de configurações.
     match /settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();

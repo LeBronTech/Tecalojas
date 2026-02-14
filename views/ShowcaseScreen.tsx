@@ -14,6 +14,20 @@ const FireIcon = ({ className }: { className: string }) => (
     </svg>
 );
 
+const SkeletonCard = () => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+    const bgClass = isDark ? 'bg-white/5' : 'bg-gray-100';
+    
+    return (
+        <div className={`rounded-3xl p-3 shadow-sm border flex flex-col items-center ${isDark ? 'border-white/5' : 'border-gray-100'} animate-pulse`}>
+            <div className={`w-full h-32 ${bgClass} rounded-2xl mb-3`}></div>
+            <div className={`h-4 w-3/4 ${bgClass} rounded mb-2`}></div>
+            <div className={`h-3 w-1/2 ${bgClass} rounded mb-4`}></div>
+            <div className={`h-4 w-1/3 ${bgClass} rounded`}></div>
+        </div>
+    );
+};
 
 const ProductCard: React.FC<{ product: Product, index: number, onClick: () => void }> = ({ product, index, onClick }) => {
   const { theme } = useContext(ThemeContext);
@@ -58,6 +72,7 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
                     src={product.baseImageUrl} 
                     alt={product.name} 
                     className="absolute inset-0 w-full h-full object-cover"
+                    loading="lazy"
                 />
              ) : (
                 <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
@@ -134,6 +149,7 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
                                 src={src} 
                                 alt={`${representativeProduct.name} variation`}
                                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${idx === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
+                                loading="lazy"
                             />
                         ))
                     ) : (
@@ -157,7 +173,20 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
                     </span>
                 </div>
             </div>
-            <span className="text-md font-bold text-fuchsia-500 mt-2">{group.length} cores</span>
+            {/* Display color dots instead of text count */}
+            <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 px-2">
+                {group.slice(0, 7).map((p, idx) => (
+                    <div 
+                        key={idx}
+                        className={`w-4 h-4 rounded-full border shadow-sm ${isDark ? 'border-white/30' : 'border-black/20'}`}
+                        style={{ backgroundColor: p.colors?.[0]?.hex || '#ccc' }}
+                        title={p.colors?.[0]?.name}
+                    />
+                ))}
+                {group.length > 7 && (
+                    <span className={`text-[10px] font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+{group.length - 7}</span>
+                )}
+            </div>
         </button>
     );
 };
@@ -226,9 +255,10 @@ interface ShowcaseScreenProps {
   onAddToCart: (product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number, isPreOrder?: boolean) => void;
   sofaColors: { name: string; hex: string }[];
   cart: CartItem[];
+  isLoading?: boolean;
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProductId, hasFetchError, canManageStock, onEditProduct, brands, onNavigate, savedCompositions, onAddToCart, sofaColors, cart }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProductId, hasFetchError, canManageStock, onEditProduct, brands, onNavigate, savedCompositions, onAddToCart, sofaColors, cart, isLoading = false }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedFabric, setSelectedFabric] = useState<string>('Todos os Tecidos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -253,14 +283,18 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
   // Update URL on product selection/deselection
   const handleProductSelect = (product: Product | null) => {
       setSelectedProduct(product);
-      if (product) {
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.set('product_id', product.id);
-          window.history.pushState({}, '', newUrl);
-      } else {
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.delete('product_id');
-          window.history.pushState({}, '', newUrl);
+      try {
+          if (product) {
+              const newUrl = new URL(window.location.href);
+              newUrl.searchParams.set('product_id', product.id);
+              window.history.pushState({}, '', newUrl.toString());
+          } else {
+              const newUrl = new URL(window.location.href);
+              newUrl.searchParams.delete('product_id');
+              window.history.pushState({}, '', newUrl.toString());
+          }
+      } catch (e) {
+          console.warn("Could not update URL history:", e);
       }
   };
 
@@ -522,11 +556,15 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                  {displayedProducts.map((item, index) => (
-                      Array.isArray(item)
-                        ? <ProductGroupCard key={`group-${index}`} group={item} index={index} onClick={(p) => handleProductSelect(p)} />
-                        : <ProductCard key={(item as Product).id} product={item as Product} index={index} onClick={() => handleProductSelect(item as Product)} />
-                  ))}
+                  {isLoading ? (
+                      Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} />)
+                  ) : (
+                      displayedProducts.map((item, index) => (
+                          Array.isArray(item)
+                            ? <ProductGroupCard key={`group-${index}`} group={item} index={index} onClick={(p) => handleProductSelect(p)} />
+                            : <ProductCard key={(item as Product).id} product={item as Product} index={index} onClick={() => handleProductSelect(item as Product)} />
+                      ))
+                  )}
               </div>
           </main>
       </div>

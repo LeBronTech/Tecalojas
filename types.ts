@@ -184,4 +184,21 @@ export const ThemeContext = createContext<ThemeContextType>({
 declare global {
     var QRCode: any;
     var jsQR: any;
+    var Camera: any; // For cordova camera plugin
+    
+    interface Window {
+        completeGoogleSignIn?: (idToken: string | null, errorMsg: string | null) => Promise<void>;
+        handleLoginToken?: (idToken: string) => void;
+        cordova?: any;
+    }
+
+    interface Navigator {
+        camera?: {
+            getPicture: (
+                successCallback: (data: string) => void,
+                errorCallback: (message: string) => void,
+                options?: any
+            ) => void;
+        };
+    }
 }

@@ -1,26 +1,25 @@
+
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
     
     // Função auxiliar para verificar no Firestore se o usuário é um administrador.
-    // O '(default)' é necessário para referenciar o banco de dados padrão.
     function isAdmin() {
       return request.auth != null && 
-             get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // Regra de leitura global:
     // Permite que qualquer pessoa veja as imagens dos produtos, logos, etc.
-    // Essencial para a vitrine funcionar para visitantes.
     match /{allPaths=**} {
       allow read: if true;
     }
 
     // Regras de escrita (Upload/Delete):
     // Apenas administradores podem enviar ou apagar arquivos nas pastas protegidas.
-    // Isso garante que somente admins possam alterar imagens de produtos, logos e catálogos.
-    match /(products|brand_logos|catalogs)/{allPaths=**} {
+    // Atualizado para incluir 'brands' conforme usado no código (SettingsScreen).
+    match /(products|brands|catalogs)/{allPaths=**} {
       allow write: if isAdmin();
     }
   }
