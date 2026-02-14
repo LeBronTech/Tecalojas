@@ -198,6 +198,7 @@ const WhatsAppButton = () => {
 
 interface ShowcaseScreenProps {
   products: Product[];
+  initialProductId?: string; // Deep link support
   hasFetchError: boolean;
   canManageStock: boolean;
   onEditProduct: (product: Product) => void;
@@ -209,7 +210,7 @@ interface ShowcaseScreenProps {
   cart: CartItem[];
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError, canManageStock, onEditProduct, brands, onNavigate, savedCompositions, onAddToCart, sofaColors, cart }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProductId, hasFetchError, canManageStock, onEditProduct, brands, onNavigate, savedCompositions, onAddToCart, sofaColors, cart }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedFabric, setSelectedFabric] = useState<string>('Todos os Tecidos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -217,6 +218,33 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
   const isDark = theme === 'dark';
   const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
   const [compositionToView, setCompositionToView] = useState<{ compositions: SavedComposition[], startIndex: number } | null>(null);
+  
+  // New State for Filter Expansion
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+
+  // Deep link handler
+  useEffect(() => {
+      if (initialProductId && products.length > 0) {
+          const product = products.find(p => p.id === initialProductId);
+          if (product) {
+              setSelectedProduct(product);
+          }
+      }
+  }, [initialProductId, products]);
+
+  // Update URL on product selection/deselection
+  const handleProductSelect = (product: Product | null) => {
+      setSelectedProduct(product);
+      if (product) {
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.set('product_id', product.id);
+          window.history.pushState({}, '', newUrl);
+      } else {
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('product_id');
+          window.history.pushState({}, '', newUrl);
+      }
+  };
 
 
   const categories = useMemo(() => {
@@ -297,17 +325,17 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
   }, [products, selectedCategory, selectedFabric, sortOrder, getProductFamilyKey]);
 
   const handleEdit = (product: Product) => {
-    setSelectedProduct(null); 
+    handleProductSelect(null); 
     onEditProduct(product);
   };
 
   const handleSwitchProduct = (product: Product) => {
-    setSelectedProduct(product);
+    handleProductSelect(product);
   };
 
   const handleViewComposition = (compositions: SavedComposition[], startIndex: number) => {
       setCompositionToView({ compositions, startIndex });
-      setSelectedProduct(null);
+      handleProductSelect(null);
   }
 
   const searchInputClasses = isDark 
@@ -362,7 +390,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
                     </button>
                 </div>
 
-              <div className="relative mb-6 flex items-center gap-4">
+              <div className="relative mb-4 flex items-center gap-4">
                   <div className="relative flex-grow">
                      <input type="text" placeholder="Buscar por almofadas..." className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${searchInputClasses}`}/>
                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -379,78 +407,114 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
                     </select>
               </div>
               
-              <div className="flex flex-wrap gap-3 mb-4 transition-all duration-300">
-                  {isCategorySelected && (
-                      <button
-                          onClick={() => {
-                              setSelectedCategory('Todas');
-                              setSelectedFabric('Todos os Tecidos');
-                          }}
-                          className={`px-4 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 transition-all duration-300 shadow-md transform hover:scale-105 ${isDark ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
-                      >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                          Voltar
-                      </button>
-                  )}
+              {/* --- New Filter Layout --- */}
+              <div className="relative mb-6">
+                  <div className={`transition-all duration-300 ${isFiltersExpanded || isCategorySelected ? `p-4 rounded-3xl border mb-2 ${isDark ? 'bg-black/30 border-white/10' : 'bg-gray-50 border-gray-200'}` : ''}`}>
+                      
+                      <div className="flex justify-between items-center mb-2">
+                          {isCategorySelected ? (
+                               <div className="flex items-center gap-2">
+                                   <button 
+                                      onClick={() => {
+                                          setSelectedCategory('Todas');
+                                          setSelectedFabric('Todos os Tecidos');
+                                      }}
+                                      className={`p-1.5 rounded-full ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                                   >
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                      </svg>
+                                   </button>
+                                   <span className={`text-sm font-bold uppercase tracking-wider ${isDark ? 'text-white' : 'text-gray-900'}`}>{selectedCategory}</span>
+                               </div>
+                          ) : (
+                              <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Filtrar por Categoria</span>
+                          )}
+                          
+                          {!isCategorySelected && (
+                              <button 
+                                onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
+                                className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-200 text-gray-600'}`}
+                                aria-label={isFiltersExpanded ? "Recolher filtros" : "Expandir filtros"}
+                              >
+                                  {isFiltersExpanded ? (
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                          <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                                      </svg>
+                                  ) : (
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                      </svg>
+                                  )}
+                              </button>
+                          )}
+                      </div>
 
-                  {categories.map(category => {
-                      if (isCategorySelected && category !== selectedCategory) return null;
+                      {/* Category Buttons - Only show if NO category is selected */}
+                      {!isCategorySelected && (
+                          <div className={isFiltersExpanded ? "flex flex-wrap gap-2" : "flex gap-2 overflow-x-auto no-scrollbar py-2 pr-4 items-center"}>
+                              {categories.map(category => {
+                                  if (category === 'Todas') return null; // Already handled by Back button logic or implicit "All" state
 
-                      const isActive = selectedCategory === category;
-                      const activeClasses = isDark 
-                          ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30 border-transparent hover:bg-fuchsia-500' 
-                          : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20 border-transparent hover:bg-purple-700';
-                      const inactiveClasses = isDark 
-                          ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
-                          : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400';
+                                  const activeClasses = isDark 
+                                      ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30 border-transparent hover:bg-fuchsia-500' 
+                                      : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20 border-transparent hover:bg-purple-700';
+                                  const inactiveClasses = isDark 
+                                      ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
+                                      : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400 shadow-sm';
 
-                      return (
-                          <button
-                              key={category}
-                              onClick={() => {
-                                setSelectedCategory(category);
-                                setSelectedFabric('Todos os Tecidos');
-                              }}
-                              className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
-                                  isActive ? activeClasses : inactiveClasses
-                              }`}
-                          >
-                              {category}
-                          </button>
-                      );
-                  })}
+                                  return (
+                                      <button
+                                          key={category}
+                                          onClick={() => {
+                                            setSelectedCategory(category);
+                                            setSelectedFabric('Todos os Tecidos');
+                                          }}
+                                          className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 flex-shrink-0 ${inactiveClasses}`}
+                                      >
+                                          {category}
+                                      </button>
+                                  );
+                              })}
+                          </div>
+                      )}
+
+                      {/* Sub-filters (Fabrics) - Visible when a Category is Selected OR Expanded */}
+                      {(isCategorySelected || isFiltersExpanded) && availableFabrics.length > 0 && (
+                        <div className={`mt-2 ${!isCategorySelected && isFiltersExpanded ? `pt-4 border-t border-dashed ${isDark ? 'border-white/10' : 'border-gray-300'}` : ''}`}>
+                            {!isCategorySelected && <span className={`text-xs font-bold uppercase tracking-wider mb-2 block ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Refinar por Tecido</span>}
+                            <div className="flex flex-wrap gap-2">
+                                {availableFabrics.map(fabric => {
+                                  const isActive = selectedFabric === fabric;
+                                  const activeClasses = isDark 
+                                      ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30 border-transparent hover:bg-cyan-500' 
+                                      : 'bg-teal-500 text-white shadow-lg shadow-teal-500/20 border-transparent hover:bg-teal-600';
+                                  const inactiveClasses = isDark 
+                                      ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
+                                      : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400 shadow-sm';
+                                  return (
+                                     <button
+                                          key={fabric}
+                                          onClick={() => setSelectedFabric(fabric)}
+                                          className={`px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
+                                              isActive ? activeClasses : inactiveClasses
+                                          }`}
+                                      >
+                                          {fabric}
+                                      </button>
+                                  )
+                                })}
+                            </div>
+                        </div>
+                      )}
+                  </div>
               </div>
-
-              {availableFabrics.length > 0 && (
-                <div className="flex flex-wrap gap-3 mb-8 transition-all duration-300" style={{ animation: 'float-in 0.3s forwards', opacity: 0 }}>
-                    {availableFabrics.map(fabric => {
-                      const isActive = selectedFabric === fabric;
-                      const activeClasses = isDark 
-                          ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30 border-transparent hover:bg-cyan-500' 
-                          : 'bg-teal-500 text-white shadow-lg shadow-teal-500/20 border-transparent hover:bg-teal-600';
-                      const inactiveClasses = isDark 
-                          ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
-                          : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400';
-                      return (
-                         <button
-                              key={fabric}
-                              onClick={() => setSelectedFabric(fabric)}
-                              className={`px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
-                                  isActive ? activeClasses : inactiveClasses
-                              }`}
-                          >
-                              {fabric}
-                          </button>
-                      )
-                    })}
-                </div>
-              )}
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {displayedProducts.map((item, index) => (
                       Array.isArray(item)
-                        ? <ProductGroupCard key={`group-${index}`} group={item} index={index} onClick={setSelectedProduct} />
-                        : <ProductCard key={(item as Product).id} product={item as Product} index={index} onClick={() => setSelectedProduct(item as Product)} />
+                        ? <ProductGroupCard key={`group-${index}`} group={item} index={index} onClick={(p) => handleProductSelect(p)} />
+                        : <ProductCard key={(item as Product).id} product={item as Product} index={index} onClick={() => handleProductSelect(item as Product)} />
                   ))}
               </div>
           </main>
@@ -460,7 +524,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, hasFetchError
           <ProductDetailModal
               product={selectedProduct}
               products={products}
-              onClose={() => setSelectedProduct(null)}
+              onClose={() => handleProductSelect(null)}
               canManageStock={canManageStock}
               onEditProduct={handleEdit}
               onSwitchProduct={handleSwitchProduct}

@@ -82,6 +82,48 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     const isDark = theme === 'dark';
     const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
+    // --- Dynamic Meta Tags for Sharing ---
+    useEffect(() => {
+        const originalTitle = document.title;
+        const metaTags = [
+            { property: 'og:title', content: `Têca Lojas: ${product.name}` },
+            { property: 'og:image', content: product.baseImageUrl },
+            { property: 'og:description', content: product.description || `Confira ${product.name} em várias cores e tamanhos.` },
+            { property: 'twitter:title', content: `Têca Lojas: ${product.name}` },
+            { property: 'twitter:image', content: product.baseImageUrl }
+        ];
+
+        document.title = `${product.name} | Têca Lojas`;
+
+        const addedElements: HTMLMetaElement[] = [];
+
+        metaTags.forEach(tag => {
+            let element = document.querySelector(`meta[property="${tag.property}"]`) as HTMLMetaElement;
+            if (!element) {
+                element = document.createElement('meta');
+                element.setAttribute('property', tag.property);
+                document.head.appendChild(element);
+                addedElements.push(element);
+            }
+            element.setAttribute('content', tag.content);
+        });
+
+        return () => {
+            document.title = originalTitle;
+            // Revert meta tags to default or remove temporary ones
+            const defaultImage = "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png";
+            const defaultTitle = "Têca Lojas & Decorações";
+            
+            const titleMeta = document.querySelector('meta[property="og:title"]');
+            if (titleMeta) titleMeta.setAttribute('content', defaultTitle);
+            
+            const imageMeta = document.querySelector('meta[property="og:image"]');
+            if (imageMeta) imageMeta.setAttribute('content', defaultImage);
+
+            addedElements.forEach(el => el.remove());
+        };
+    }, [product]);
+
     const cartSnapshot = useMemo(() => {
         const snapshot: Record<string, number> = {};
         product.variations.forEach(v => {
@@ -197,10 +239,15 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     // --- Share Function (Native) ---
     const handleShare = async () => {
         const minPrice = Math.min(...product.variations.map(v => v.priceFull));
+        // Construct deep link URL
+        const shareUrl = new URL(window.location.href);
+        shareUrl.searchParams.set('product_id', product.id);
+        const urlString = shareUrl.toString();
+
         const shareData = {
             title: product.name,
-            text: `Confira ${product.name} na Têca! A partir de R$ ${minPrice.toFixed(2)}.`,
-            url: window.location.href
+            text: `Olha essa almofada ${product.name} na Têca! A partir de R$ ${minPrice.toFixed(2)}.`,
+            url: urlString
         };
 
         if (navigator.share) {
@@ -212,7 +259,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         } else {
             // Fallback
             try {
-                await navigator.clipboard.writeText(window.location.href);
+                await navigator.clipboard.writeText(urlString);
                 setCopyFeedback("Link copiado!");
                 setTimeout(() => setCopyFeedback(null), 3000);
             } catch (e) {

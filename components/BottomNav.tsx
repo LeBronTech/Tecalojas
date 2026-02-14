@@ -114,7 +114,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeView, onNavigate, hasItemsT
       <NavButton label="Vitrine" view={View.SHOWCASE} isActive={activeView === View.SHOWCASE} onNavigate={onNavigate}>
         <HomeIcon />
       </NavButton>
-       <NavButton label="Composições" view={View.COMPOSITIONS} isActive={activeView === View.COMPOSITIONS} onNavigate={onNavigate}>
+       <NavButton label="Combos" view={View.COMPOSITIONS} isActive={activeView === View.COMPOSITIONS} onNavigate={onNavigate}>
         <CompositionIcon />
       </NavButton>
        {isAdmin && (

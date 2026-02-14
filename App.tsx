@@ -362,7 +362,7 @@ const SideMenu: React.FC<SideMenuProps> = ({
                 <div className="flex-grow overflow-y-auto px-4 py-2 space-y-1 no-scrollbar">
                     <div className="pb-3 px-3 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500/80">Navegação</div>
                     <MenuButton icon={<HomeIcon />} label="Vitrine" isActive={activeView === View.SHOWCASE} onClick={() => { onNavigate(View.SHOWCASE); onClose(); }} />
-                    <MenuButton icon={<CompositionIcon />} label="Composições" isActive={activeView === View.COMPOSITIONS} onClick={() => { onNavigate(View.COMPOSITIONS); onClose(); }} />
+                    <MenuButton icon={<CompositionIcon />} label="Combos" isActive={activeView === View.COMPOSITIONS} onClick={() => { onNavigate(View.COMPOSITIONS); onClose(); }} />
                     
                     {isAdmin && (
                         <>
@@ -444,6 +444,8 @@ export default function App() {
     onConfirm?: () => void;
   }>({ isOpen: false, title: '', message: '' });
 
+  const [initialProductId, setInitialProductId] = useState<string | undefined>(undefined);
+
   const isAdmin = useMemo(() => currentUser?.role === 'admin', [currentUser]);
 
   // -- Missing State/Derived --
@@ -459,6 +461,16 @@ export default function App() {
   }, []);
 
   const handleMenuClick = () => setIsMenuOpen(true);
+
+  // -- Deep Linking --
+  useEffect(() => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const productId = urlParams.get('product_id');
+      if (productId) {
+          setInitialProductId(productId);
+          setView(View.SHOWCASE);
+      }
+  }, []);
 
   // -- Data Fetching --
   useEffect(() => {
@@ -767,7 +779,7 @@ export default function App() {
 
       switch (view) {
           case View.SHOWCASE:
-              return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
+              return <ShowcaseScreen products={products} initialProductId={initialProductId} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
           case View.STOCK:
               return <StockManagementScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={(id) => setDeletingProductId(id)} onAddProduct={() => setIsWizardOpen(true)} onUpdateStock={handleUpdateStock} onMenuClick={handleMenuClick} canManageStock={isAdmin} hasFetchError={hasFetchError} brands={brands} />;
           case View.ASSISTANT:
@@ -801,7 +813,7 @@ export default function App() {
           case View.QR_CODES:
               return <QrCodeScreen products={products} />;
           default:
-              return <ShowcaseScreen products={products} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
+              return <ShowcaseScreen products={products} initialProductId={initialProductId} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={sofaColors} cart={cart} />;
       }
   };
 
