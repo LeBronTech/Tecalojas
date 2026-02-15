@@ -58,7 +58,7 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
   };
 
   // Optimization: Only animate the first few items to prevent staggered delay on scroll
-  const shouldAnimate = index < 12;
+  const shouldAnimate = index < 8;
 
   return (
     <button 
@@ -118,18 +118,28 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [activeImageIndex, setActiveImageIndex] = useState(0);
+    const [startSlide, setStartSlide] = useState(false);
 
     const validImages = useMemo(() => group.map(p => p.baseImageUrl).filter(Boolean), [group]);
 
     useEffect(() => {
-        if (validImages.length <= 1) return;
+        // PERF: Delay the start of the carousel to prioritize initial page load (FCP/LCP).
+        // Only load the first image initially. Load the rest for the slide show later.
+        const timer = setTimeout(() => {
+            setStartSlide(true);
+        }, 3000); 
+        return () => clearTimeout(timer);
+    }, []);
+
+    useEffect(() => {
+        if (!startSlide || validImages.length <= 1) return;
 
         const timer = setInterval(() => {
             setActiveImageIndex(prev => (prev + 1) % validImages.length);
         }, 3000);
 
         return () => clearInterval(timer);
-    }, [validImages.length]);
+    }, [validImages.length, startSlide]);
 
     const cardClasses = isDark ? "bg-black/20 backdrop-blur-xl border-white/10" : "bg-white border-gray-200/80 shadow-md";
     const textNameClasses = isDark ? "text-purple-200" : "text-gray-800";
@@ -139,7 +149,7 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
     const representativeProduct = group[0];
     
     // Optimization: Only animate the first few items
-    const shouldAnimate = index < 12;
+    const shouldAnimate = index < 8;
 
     return (
         <button 
@@ -150,15 +160,25 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
             <div className="w-full">
                 <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
                     {validImages.length > 0 ? (
-                        validImages.map((src, idx) => (
-                             <img 
-                                key={idx}
-                                src={src} 
-                                alt={`${representativeProduct.name} variation`}
-                                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${idx === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
+                        <>
+                            {/* Always render the first image immediately */}
+                            <img 
+                                src={validImages[0]} 
+                                alt={`${representativeProduct.name} main`}
+                                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${activeImageIndex === 0 ? 'opacity-100' : 'opacity-0'}`}
                                 loading="lazy"
                             />
-                        ))
+                            {/* Render secondary images ONLY after delay to save bandwidth on load */}
+                            {startSlide && validImages.slice(1).map((src, idx) => (
+                                 <img 
+                                    key={idx + 1}
+                                    src={src} 
+                                    alt={`${representativeProduct.name} variation`}
+                                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${(idx + 1) === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
+                                    loading="lazy"
+                                />
+                            ))}
+                        </>
                     ) : (
                          <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
                             <img 
@@ -278,7 +298,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
 
   // --- INFINITE SCROLL STATE ---
-  const [visibleCount, setVisibleCount] = useState(12); // Start with a small batch to match initial fetch
+  const [visibleCount, setVisibleCount] = useState(8); // Match App.tsx initial limit
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Deep link handler
@@ -389,14 +409,14 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
 
   // Reset pagination when filters change
   useEffect(() => {
-      setVisibleCount(12);
+      setVisibleCount(8);
   }, [selectedCategory, selectedFabric, sortOrder, products.length]);
 
   // Intersection Observer for Infinite Scroll
   useEffect(() => {
       const observer = new IntersectionObserver((entries) => {
           if (entries[0].isIntersecting) {
-              setVisibleCount(prev => prev + 12);
+              setVisibleCount(prev => prev + 8);
           }
       }, { rootMargin: '100px' }); // Load when within 100px of bottom
 
@@ -597,7 +617,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {isLoading ? (
-                      Array.from({ length: 12 }).map((_, i) => <SkeletonCard key={i} />)
+                      Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
                   ) : (
                       <>
                         {displayedProducts.map((item, index) => (

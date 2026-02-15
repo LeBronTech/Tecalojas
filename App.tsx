@@ -63,12 +63,12 @@ const App: React.FC = () => {
     const unsubAuth = api.onAuthStateChanged(setCurrentUser);
     
     // --- Two-Phase Product Loading Strategy ---
-    // Phase 1: Load just 12 products immediately to show something on screen FAST
+    // Phase 1: Load just 8 products immediately to show something on screen FAST
     let unsubFullProducts: () => void;
     
     const unsubInitialProducts = api.onProductsUpdate(
         (data) => { 
-            // If we haven't loaded the full list yet, show these 12
+            // If we haven't loaded the full list yet, show these 8
             if (productsLoading) {
                 setProducts(data);
                 setProductsLoading(false);
@@ -80,7 +80,7 @@ const App: React.FC = () => {
                         (fullData) => { setProducts(fullData); },
                         (err) => { console.error(err); }
                     );
-                }, 1000);
+                }, 2000);
             }
         },
         (err) => { 
@@ -88,7 +88,7 @@ const App: React.FC = () => {
             setHasFetchError(true); 
             setProductsLoading(false); 
         },
-        12 // Limit to 12 items initially
+        8 // Limit to 8 items initially (approx 1-2 screens on mobile)
     );
 
     const unsubBrands = api.onBrandsUpdate(setBrands, console.error);
