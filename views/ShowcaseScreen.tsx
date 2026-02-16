@@ -58,7 +58,7 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
   };
 
   // Optimization: Only animate the first few items to prevent staggered delay on scroll
-  const shouldAnimate = index < 8;
+  const shouldAnimate = index < 4;
 
   return (
     <button 
@@ -77,6 +77,7 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
                     alt={product.name} 
                     className="absolute inset-0 w-full h-full object-cover"
                     loading="lazy"
+                    decoding="async"
                 />
              ) : (
                 <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
@@ -127,7 +128,7 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
         // Only load the first image initially. Load the rest for the slide show later.
         const timer = setTimeout(() => {
             setStartSlide(true);
-        }, 3000); 
+        }, 3500); 
         return () => clearTimeout(timer);
     }, []);
 
@@ -149,7 +150,7 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
     const representativeProduct = group[0];
     
     // Optimization: Only animate the first few items
-    const shouldAnimate = index < 8;
+    const shouldAnimate = index < 4;
 
     return (
         <button 
@@ -167,6 +168,7 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
                                 alt={`${representativeProduct.name} main`}
                                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${activeImageIndex === 0 ? 'opacity-100' : 'opacity-0'}`}
                                 loading="lazy"
+                                decoding="async"
                             />
                             {/* Render secondary images ONLY after delay to save bandwidth on load */}
                             {startSlide && validImages.slice(1).map((src, idx) => (
@@ -176,6 +178,7 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
                                     alt={`${representativeProduct.name} variation`}
                                     className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${(idx + 1) === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
                                     loading="lazy"
+                                    decoding="async"
                                 />
                             ))}
                         </>
@@ -298,7 +301,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
 
   // --- INFINITE SCROLL STATE ---
-  const [visibleCount, setVisibleCount] = useState(8); // Match App.tsx initial limit
+  const [visibleCount, setVisibleCount] = useState(4); // Match App.tsx initial limit
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Deep link handler
@@ -409,14 +412,14 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
 
   // Reset pagination when filters change
   useEffect(() => {
-      setVisibleCount(8);
+      setVisibleCount(4);
   }, [selectedCategory, selectedFabric, sortOrder, products.length]);
 
   // Intersection Observer for Infinite Scroll
   useEffect(() => {
       const observer = new IntersectionObserver((entries) => {
           if (entries[0].isIntersecting) {
-              setVisibleCount(prev => prev + 8);
+              setVisibleCount(prev => prev + 4);
           }
       }, { rootMargin: '100px' }); // Load when within 100px of bottom
 
@@ -617,7 +620,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {isLoading ? (
-                      Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
+                      Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
                   ) : (
                       <>
                         {displayedProducts.map((item, index) => (

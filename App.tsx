@@ -4,6 +4,7 @@ import { View, User, Product, CartItem, SavedComposition, ThemeContext, Theme, C
 import * as api from './firebase';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
+import SideMenu from './components/SideMenu';
 import LoginScreen from './views/LoginScreen';
 import ShowcaseScreen from './views/ShowcaseScreen';
 import StockManagementScreen from './views/StockManagementScreen';
@@ -49,6 +50,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<View>(View.SHOWCASE);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   // Modals & Editing
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -63,24 +65,24 @@ const App: React.FC = () => {
     const unsubAuth = api.onAuthStateChanged(setCurrentUser);
     
     // --- Two-Phase Product Loading Strategy ---
-    // Phase 1: Load just 8 products immediately to show something on screen FAST
+    // Phase 1: Load just 4 products immediately to show something on screen FAST
     let unsubFullProducts: () => void;
     
     const unsubInitialProducts = api.onProductsUpdate(
         (data) => { 
-            // If we haven't loaded the full list yet, show these 8
+            // If we haven't loaded the full list yet, show these 4
             if (productsLoading) {
                 setProducts(data);
                 setProductsLoading(false);
                 
-                // Phase 2: After a short delay, load EVERYTHING for search/filtering
-                // This prevents the UI from freezing immediately after the first paint
+                // Phase 2: After a delay, load EVERYTHING for search/filtering
+                // Increased delay to ensure the UI is fully interactive first
                 setTimeout(() => {
                     unsubFullProducts = api.onProductsUpdate(
                         (fullData) => { setProducts(fullData); },
                         (err) => { console.error(err); }
                     );
-                }, 2000);
+                }, 3000);
             }
         },
         (err) => { 
@@ -88,7 +90,7 @@ const App: React.FC = () => {
             setHasFetchError(true); 
             setProductsLoading(false); 
         },
-        8 // Limit to 8 items initially (approx 1-2 screens on mobile)
+        4 // Limit to 4 items initially (approx 1 screen on mobile)
     );
 
     const unsubBrands = api.onBrandsUpdate(setBrands, console.error);
@@ -126,8 +128,12 @@ const App: React.FC = () => {
   const handleLogin = async (e: string, p: string) => { await api.signIn(e, p); };
   const handleGoogleLogin = async () => { await api.signInWithGoogle(); };
   const handleSignUp = async (e: string, p: string) => { await api.signUp(e, p); setIsSignUpModalOpen(false); };
+  const handleLogout = async () => { await api.signOut(); setIsMenuOpen(false); setCurrentUser(null); };
   
-  const handleNavigate = (v: View) => setView(v);
+  const handleNavigate = (v: View) => {
+      setView(v);
+      setIsMenuOpen(false);
+  };
 
   const handleAddToCart = (product: Product, variation: Variation, quantity: number, type: 'cover' | 'full', price: number, isPreOrder: boolean = false) => {
       setCart(prev => {
@@ -198,9 +204,9 @@ const App: React.FC = () => {
           case View.SHOWCASE:
               return <ShowcaseScreen products={products} isLoading={productsLoading} initialProductId={initialProductId} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={activeSofaColors} cart={cart} />;
           case View.STOCK:
-              return <StockManagementScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={setDeletingProductId} onAddProduct={() => setIsWizardOpen(true)} onUpdateStock={handleUpdateStock} onMenuClick={() => {}} canManageStock={isAdmin} hasFetchError={hasFetchError} brands={brands} />;
+              return <StockManagementScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={setDeletingProductId} onAddProduct={() => setIsWizardOpen(true)} onUpdateStock={handleUpdateStock} onMenuClick={() => setIsMenuOpen(true)} canManageStock={isAdmin} hasFetchError={hasFetchError} brands={brands} />;
           case View.ASSISTANT:
-              return <AssistantScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={setDeletingProductId} canManageStock={isAdmin} onMenuClick={() => {}} />;
+              return <AssistantScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={setDeletingProductId} canManageStock={isAdmin} onMenuClick={() => setIsMenuOpen(true)} />;
           case View.SETTINGS:
               return <SettingsScreen 
                 onAddNewBrand={async (name, file, url) => {
@@ -211,7 +217,7 @@ const App: React.FC = () => {
                     }
                     await api.addBrand({name, logoUrl: finalUrl});
                 }} 
-                onMenuClick={() => {}} 
+                onMenuClick={() => setIsMenuOpen(true)} 
                 canManageStock={isAdmin} 
                 brands={brands}
                 allColors={settings.colors || []}
@@ -236,7 +242,7 @@ const App: React.FC = () => {
                     });
                     return { promise: flowPromise, cancel: upload.cancel };
                 }}
-                onMenuClick={() => {}} 
+                onMenuClick={() => setIsMenuOpen(true)} 
                 canManageStock={isAdmin} 
                 brands={brands} 
               />;
@@ -245,13 +251,13 @@ const App: React.FC = () => {
           case View.COMPOSITIONS:
               return <CompositionsScreen savedCompositions={savedCompositions} setSavedCompositions={setSavedCompositions} onNavigate={handleNavigate} products={products} onEditProduct={setEditingProduct} onSaveComposition={(c) => setSavedCompositions(prev => [...prev, { ...c, id: Date.now().toString() }])} />;
           case View.DIAGNOSTICS:
-              return <DiagnosticsScreen products={products} saleRequests={saleRequests} cardFees={settings.cardFees} onMenuClick={() => {}} weeklyGoal={settings.weeklyGoal} onUpdateWeeklyGoal={(g) => api.updateGlobalSettings({ weeklyGoal: g })} />;
+              return <DiagnosticsScreen products={products} saleRequests={saleRequests} cardFees={settings.cardFees} onMenuClick={() => setIsMenuOpen(true)} weeklyGoal={settings.weeklyGoal} onUpdateWeeklyGoal={(g) => api.updateGlobalSettings({ weeklyGoal: g })} />;
           case View.CART:
               return <CartScreen cart={cart} products={products} onUpdateQuantity={handleUpdateCartQuantity} onRemoveItem={handleRemoveFromCart} onNavigate={handleNavigate} saleRequests={saleRequests} />;
           case View.PAYMENT:
               return <PaymentScreen cart={cart} totalPrice={cart.reduce((a,b)=>a+(b.price*b.quantity),0)} onPlaceOrder={handlePlaceOrder} onNavigate={handleNavigate} onPixClick={() => {}} customerName="" />;
           case View.SALES:
-              return <SalesScreen saleRequests={saleRequests} onCompleteSaleRequest={api.completeSaleRequest} products={products} onMenuClick={() => {}} error={null} cardFees={settings.cardFees} />;
+              return <SalesScreen saleRequests={saleRequests} onCompleteSaleRequest={api.completeSaleRequest} products={products} onMenuClick={() => setIsMenuOpen(true)} error={null} cardFees={settings.cardFees} />;
           case View.QR_CODES:
               return <QrCodeScreen products={products} />;
           default:
@@ -263,7 +269,7 @@ const App: React.FC = () => {
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
       <div className={`h-screen w-full flex flex-col overflow-hidden transition-colors duration-300 ${theme === 'dark' ? 'bg-[#130b1f] text-white' : 'bg-gray-50 text-gray-900'}`}>
         <Header 
-            onMenuClick={() => { /* Toggle menu if needed */ }} 
+            onMenuClick={() => setIsMenuOpen(true)} 
             cartItemCount={cart.reduce((a, b) => a + b.quantity, 0)} 
             onCartClick={() => setView(View.CART)} 
             activeView={view} 
@@ -271,6 +277,15 @@ const App: React.FC = () => {
             isAdmin={isAdmin}
             isLoggedIn={!!currentUser}
             hasPendingPreorders={saleRequests.some(r => r.status === 'pending' && r.type === 'preorder')}
+        />
+        
+        <SideMenu 
+            isOpen={isMenuOpen} 
+            onClose={() => setIsMenuOpen(false)} 
+            onNavigate={handleNavigate} 
+            onLogout={handleLogout}
+            isAdmin={isAdmin}
+            activeView={view}
         />
         
         {renderView()}
