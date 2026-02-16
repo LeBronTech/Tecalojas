@@ -188,11 +188,14 @@ const Calculator: React.FC<{ onAdd: (value: number) => void }> = ({ onAdd }) => 
 };
 
 const SaleDetailModal: React.FC<{ request: SaleRequest, onClose: () => void, cardFees: CardFees, isDark: boolean, products: Product[], onNavigateToPreorders: () => void }> = ({ request, onClose, cardFees, isDark, products, onNavigateToPreorders }) => {
+    // Safety check
+    const safeFees = cardFees || { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 };
+
     const fees = (() => {
-        if (request.paymentMethod === 'Débito') return cardFees.debit;
+        if (request.paymentMethod === 'Débito') return safeFees.debit;
         if (request.paymentMethod === 'Crédito' || request.paymentMethod === 'Cartão (Online)') {
             const inst = request.installments || 1;
-            return inst === 1 ? cardFees.credit1x : (inst === 2 ? cardFees.credit2x : cardFees.credit3x);
+            return inst === 1 ? safeFees.credit1x : (inst === 2 ? safeFees.credit2x : safeFees.credit3x);
         }
         return 0;
     })();
@@ -330,6 +333,9 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     
+    // Safety check for cardFees
+    const safeCardFees = cardFees || { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 };
+
     // Default to 'pos' unless there are pending items
     const [activeTab, setActiveTab] = useState<Tab>(() => {
         const hasPending = saleRequests.some(r => r.status === 'pending');
@@ -668,10 +674,10 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
         setIsFinishingPos(true);
         try {
             let netValue = posFinalTotal;
-            if (posPaymentMethod === 'Débito') netValue -= posFinalTotal * (cardFees.debit / 100);
+            if (posPaymentMethod === 'Débito') netValue -= posFinalTotal * (safeCardFees.debit / 100);
             else if (posPaymentMethod === 'Crédito') {
                 const feeKey = posInstallments === 1 ? 'credit1x' : (posInstallments === 2 ? 'credit2x' : 'credit3x');
-                const fee = (cardFees as any)[feeKey] || 0;
+                const fee = (safeCardFees as any)[feeKey] || 0;
                 netValue -= posFinalTotal * (fee / 100);
             }
 
@@ -716,10 +722,10 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
         const finalPrice = Math.max(0, selectedRequest.totalPrice - compDiscount);
         
         let netValue = finalPrice;
-        if (selectedRequest.paymentMethod === 'Débito') netValue -= finalPrice * (cardFees.debit / 100);
+        if (selectedRequest.paymentMethod === 'Débito') netValue -= finalPrice * (safeCardFees.debit / 100);
         else if (selectedRequest.paymentMethod === 'Crédito' || selectedRequest.paymentMethod === 'Cartão (Online)') {
              const feeKey = compInstallments === 1 ? 'credit1x' : (compInstallments === 2 ? 'credit2x' : 'credit3x');
-             const fee = (cardFees as any)[feeKey] || 0;
+             const fee = (safeCardFees as any)[feeKey] || 0;
              netValue -= finalPrice * (fee / 100);
         }
 
@@ -1155,7 +1161,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                 <SaleDetailModal 
                     request={showDetailModal} 
                     onClose={() => setShowDetailModal(null)} 
-                    cardFees={cardFees}
+                    cardFees={safeCardFees}
                     isDark={isDark}
                     products={products}
                     onNavigateToPreorders={() => {

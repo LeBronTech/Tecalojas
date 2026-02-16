@@ -806,13 +806,20 @@ export const onSettingsUpdate = (
         if (snapshot.exists()) {
             const data = snapshot.data();
             onSuccess({
-                cardFees: data.cardFees,
+                cardFees: data.cardFees || { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 },
                 weeklyGoal: data.weeklyGoal || 0,
-                colors: data.colors,
-                sofaColors: data.sofaColors
+                colors: data.colors || [],
+                sofaColors: data.sofaColors || []
             });
         } else {
             console.log("Configurações globais ainda não existem.");
+            // Send default values to prevent undefined errors in UI
+            onSuccess({
+                cardFees: { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 },
+                weeklyGoal: 0,
+                colors: [],
+                sofaColors: []
+            });
         }
     }, (error) => {
         // Log clear debugging info for permission issues

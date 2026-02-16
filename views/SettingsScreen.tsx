@@ -1,3 +1,4 @@
+
 import React, { useState, useContext, useRef, useMemo, useEffect } from 'react';
 import { ThemeContext, DynamicBrand, Brand, CardFees, CategoryItem, Product } from '../types';
 import { BRANDS, BRAND_LOGOS } from '../constants';
@@ -61,6 +62,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   
+  // Safety check for cardFees
+  const safeCardFees = cardFees || { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 };
+
   const [newBrandName, setNewBrandName] = useState('');
   const [newBrandLogoUrl, setNewBrandLogoUrl] = useState('');
   const [newBrandLogoFile, setNewBrandLogoFile] = useState<File | null>(null);
@@ -71,7 +75,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [productColorNameError, setProductColorNameError] = useState<string|null>(null);
   const [newSofaColor, setNewSofaColor] = useState({ name: '', hex: '#ffffff' });
   const [sofaColorNameError, setSofaColorNameError] = useState<string|null>(null);
-  const [fees, setFees] = useState(cardFees);
+  const [fees, setFees] = useState(safeCardFees);
   const [feesSaved, setFeesSaved] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState('Notification' in window ? Notification.permission : 'denied');
   
@@ -84,23 +88,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
-     setFees(cardFees);
+     setFees(safeCardFees);
   }, [cardFees]);
 
   // Generate the fixed Feed URL on component mount (it's predictable based on storage bucket)
   useEffect(() => {
-      // In a real scenario, we might want to fetch this to be 100% sure, but constructing it is faster.
-      // Or we can just trigger a dummy update to get the URL if we don't know the bucket easily.
-      // But actually, updateMetaCatalogFeed returns the URL. 
-      // Let's create a helper to get it without re-uploading if possible, but for now, 
-      // we'll just show the bucket URL structure or trigger a lightweight check.
-      // Simpler: Just display the text "https://firebasestorage.googleapis.com/..." 
-      // if we know the path. 
-      // Since we use `updateMetaCatalogFeed` which returns the URL, let's just use that logic 
-      // but maybe store the URL in Firestore settings?
-      // For now, let's trigger a fetch of all products to generate the link initially if needed,
-      // or just assume a standard path.
-      
       // Standard Firebase Storage URL pattern:
       // https://firebasestorage.googleapis.com/v0/b/[BUCKET]/o/[PATH]?alt=media
       const bucket = "teca-54f58.appspot.com"; 
@@ -213,8 +205,6 @@ const handleAddCategorySubmit = async () => {
 
 const handleForceUpdateFeed = async () => {
     setIsUpdatingFeed(true);
-    // This requires fetching all products locally to regenerate. 
-    // We attach a one-time listener to get products and then update.
     const unsubscribe = api.onProductsUpdate((products: Product[]) => {
         api.updateMetaCatalogFeed(products).then((url) => {
             setFeedUrl(url);
