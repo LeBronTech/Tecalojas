@@ -301,7 +301,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                              <h3 className={`font-bold mb-2 ${titleClasses}`}>{envDisplayNames[activeEnvKey] || 'Veja em Ambientes'}</h3>
                             <div className="relative w-full aspect-square rounded-2xl overflow-hidden mb-2">
                                 <img src={currentImageUrl} alt={activeEnvKey} className="w-full h-full object-cover" />
-                                <div className="absolute top-2 left-2 flex items-center gap-2">
+                                <div className="absolute top-2 left-2 flex flex-col gap-2">
                                 {(activeEnvKey === 'sala' && showSalaColorButton) && (
                                     <button 
                                         onClick={() => setIsColorPopoverOpen(true)} 
@@ -319,6 +319,11 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6c0 1.887.817 3.556 2.093 4.63.26.173.41.46.41.77v3.27a.75.75 0 001.5 0V14a.75.75 0 00-.03-.223A5.98 5.98 0 0016 8a6 6 0 00-6-6zM3.654 9.324A4.5 4.5 0 0110 3.5a4.5 4.5 0 015.42 7.237.75.75 0 00.58.263h.001c.414 0 .75.336.75.75v.5c0 .414-.336.75-.75.75h-2.14a.75.75 0 00-.737.649A3.5 3.5 0 0110 14.5a3.5 3.5 0 01-3.354-2.851.75.75 0 00-.737-.649H3.75a.75.75 0 01-.75-.75v-.5a.75.75 0 01.654-.726z" /></svg>
                                         Cor da Cama
                                     </button>
+                                )}
+                                {product.fabricType === 'Macramê' && (
+                                    <div className="bg-fuchsia-600/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-sm self-start">
+                                        Limitado
+                                    </div>
                                 )}
                                 </div>
                             </div>

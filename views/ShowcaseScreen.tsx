@@ -93,6 +93,11 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
                     {waterResistanceDetails.showcaseIndicator}
                 </div>
              )}
+             {product.fabricType === 'Macramê' && (
+                <div className="absolute top-2 left-2 bg-fuchsia-600/90 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-full z-10 shadow-sm">
+                    Limitado
+                </div>
+             )}
         </div>
         <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{product.name}</h3>
         <div className={`flex items-center justify-center flex-wrap gap-x-3 gap-y-2 text-xs mt-2`}>

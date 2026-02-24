@@ -309,11 +309,34 @@ const App: React.FC = () => {
                 onClose={() => setEditingProduct(null)} 
                 onSave={async (p) => { await api.updateProductData(p.id, p); setEditingProduct(null); return p; }} 
                 onCreateVariations={async (parent, colors) => { 
-                    // Create logic for batch creating variations
+                    let groupId = parent.variationGroupId;
+                    if (!groupId) {
+                        groupId = parent.id;
+                        await api.updateProductData(parent.id, { variationGroupId: groupId });
+                    }
+                    
                     for (const color of colors) {
-                        // Logic to duplicate product with new color would go here
-                        // For brevity in this fix, we assume it's handled or simplified
-                        console.log("Creating variation for", color.name);
+                        const newProductData: Omit<Product, 'id'> = {
+                            name: parent.name,
+                            baseImageUrl: parent.baseImageUrl,
+                            unitsSold: 0,
+                            category: parent.category,
+                            subCategory: parent.subCategory,
+                            fabricType: parent.fabricType,
+                            description: parent.description,
+                            waterResistance: parent.waterResistance,
+                            brand: parent.brand,
+                            isMultiColor: parent.isMultiColor,
+                            colors: [color],
+                            variationGroupId: groupId,
+                            originalId: parent.id,
+                            variations: parent.variations.map(v => ({
+                                ...v,
+                                stock: {}
+                            })),
+                            backgroundImages: {}
+                        };
+                        await api.addProductData(newProductData);
                     }
                 }}
                 onSwitchProduct={setEditingProduct}
