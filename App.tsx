@@ -315,6 +315,7 @@ const App: React.FC = () => {
                         await api.updateProductData(parent.id, { variationGroupId: groupId });
                     }
                     
+                    const createdProducts: Product[] = [];
                     for (const color of colors) {
                         const newProductData: Omit<Product, 'id'> = {
                             name: parent.name,
@@ -336,8 +337,10 @@ const App: React.FC = () => {
                             })),
                             backgroundImages: {}
                         };
-                        await api.addProductData(newProductData);
+                        const newProduct = await api.addProductData(newProductData);
+                        createdProducts.push(newProduct);
                     }
+                    return createdProducts;
                 }}
                 onSwitchProduct={setEditingProduct}
                 onRequestDelete={async (id) => { await api.deleteProduct(id); setEditingProduct(null); }}

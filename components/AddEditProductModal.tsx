@@ -236,7 +236,7 @@ interface AddEditProductModalProps {
   products: Product[];
   onClose: () => void;
   onSave: (product: Product, options?: { closeModal?: boolean }) => Promise<Product>;
-  onCreateVariations: (parentProduct: Product, newColors: {name: string, hex: string}[]) => Promise<void>;
+  onCreateVariations: (parentProduct: Product, newColors: {name: string, hex: string}[]) => Promise<Product[]>;
   onSwitchProduct: (product: Product) => void;
   onRequestDelete: (productId: string) => void;
   categories: string[];
@@ -382,6 +382,11 @@ const standardizeProductName = (name: string, productColors: {name: string, hex:
 
 const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, allColors, onAddColor, onDeleteColor, brands, sofaColors }) => {
   const [formData, setFormData] = useState<Product>(() => ({ ...initialFormState, ...product }));
+  
+  useEffect(() => {
+    setFormData({ ...initialFormState, ...product });
+  }, [product.id]);
+
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [aiGenerating, setAiGenerating] = useState<Record<string, boolean>>({});
@@ -1074,11 +1079,15 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         const savedParentProduct = await onSave(formData, { closeModal: false });
         
         // Step 2: Call the dedicated function to create only the new variations.
-        await onCreateVariations(savedParentProduct, selectedNewColors);
+        const newProducts = await onCreateVariations(savedParentProduct, selectedNewColors);
 
         // Update the form with the potentially updated parent product (e.g., with a new variationGroupId)
         if (isMounted.current) {
-            setFormData(savedParentProduct); 
+            if (newProducts.length > 0) {
+                onSwitchProduct(newProducts[0]);
+            } else {
+                setFormData(savedParentProduct); 
+            }
             setSelectedNewColors([]);
             setIsBatchColorMode(false);
         }
