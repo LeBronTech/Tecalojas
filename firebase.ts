@@ -384,13 +384,25 @@ export const onProductsUpdate = (
 };
 
 export const addProductData = async (productData: Omit<Product, 'id'>): Promise<Product> => {
-    const docRef = await addDoc(productsCollection, productData as { [key: string]: any });
+    const cleanData = { ...productData } as any;
+    Object.keys(cleanData).forEach(key => {
+        if (cleanData[key] === undefined) {
+            delete cleanData[key];
+        }
+    });
+    const docRef = await addDoc(productsCollection, cleanData);
     return { id: docRef.id, ...productData } as Product;
 };
 
 export const updateProductData = async (productId: string, productData: Partial<Omit<Product, 'id'>>): Promise<void> => {
     const productDoc = doc(db, "products", productId);
-    await updateDoc(productDoc, productData as { [key: string]: any });
+    const cleanData = { ...productData } as any;
+    Object.keys(cleanData).forEach(key => {
+        if (cleanData[key] === undefined) {
+            delete cleanData[key];
+        }
+    });
+    await updateDoc(productDoc, cleanData);
 };
 
 export const deleteProduct = (productId: string): Promise<void> => {

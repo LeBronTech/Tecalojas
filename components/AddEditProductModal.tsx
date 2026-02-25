@@ -1121,11 +1121,14 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
           const duplicatedData: Omit<Product, 'id'> = {
               ...formData,
               name: `${formData.name} (Cópia)`,
-              variations: formData.variations.map(v => ({
-                  ...v,
-                  stock: { [StoreName.TECA]: 0, [StoreName.IONE]: 0 }, // Reset stock for duplicate
-                  qrCodeUrl: undefined // Don't copy QR code
-              }))
+              variations: formData.variations.map(v => {
+                  const newVar = {
+                      ...v,
+                      stock: { [StoreName.TECA]: 0, [StoreName.IONE]: 0 } // Reset stock for duplicate
+                  };
+                  delete newVar.qrCodeUrl; // Don't copy QR code
+                  return newVar;
+              })
           };
           
           // Remove id to ensure it's treated as a new product
@@ -1133,11 +1136,19 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
               delete (duplicatedData as any).id;
           }
 
+          // Remove any undefined fields that might cause Firestore to throw an error
+          Object.keys(duplicatedData).forEach(key => {
+              if ((duplicatedData as any)[key] === undefined) {
+                  delete (duplicatedData as any)[key];
+              }
+          });
+
           const newProduct = await onDuplicate(duplicatedData);
           if (isMounted.current) {
               onSwitchProduct(newProduct);
           }
       } catch (err: any) {
+          console.error("Duplicate error:", err);
           if (isMounted.current) setSaveError(err.message || 'Falha ao duplicar produto.');
       } finally {
           if (isMounted.current) setIsSaving(false);

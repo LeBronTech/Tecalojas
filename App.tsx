@@ -321,7 +321,13 @@ const App: React.FC = () => {
                 product={editingProduct} 
                 products={products}
                 onClose={() => setEditingProduct(null)} 
-                onSave={async (p) => { await api.updateProductData(p.id, p); setEditingProduct(null); return p; }} 
+                onSave={async (p, options) => { 
+                    await api.updateProductData(p.id, p); 
+                    if (options?.closeModal !== false) {
+                        setEditingProduct(null); 
+                    }
+                    return p; 
+                }} 
                 onCreateVariations={async (parent, colors) => { 
                     let groupId = parent.variationGroupId;
                     if (!groupId) {
