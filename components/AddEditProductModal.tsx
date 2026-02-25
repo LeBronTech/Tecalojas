@@ -239,6 +239,7 @@ interface AddEditProductModalProps {
   onCreateVariations: (parentProduct: Product, newColors: {name: string, hex: string}[]) => Promise<Product[]>;
   onSwitchProduct: (product: Product) => void;
   onRequestDelete: (productId: string) => void;
+  onDuplicate: (product: Omit<Product, 'id'>) => Promise<Product>;
   categories: string[];
   allColors: { name: string; hex: string }[];
   onAddColor: (color: { name: string; hex: string }) => void;
@@ -1098,6 +1099,40 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     } finally {
         if (isMounted.current) setIsCreatingVariations(false);
     }
+  };
+
+  const handleDuplicate = async () => {
+      setIsSaving(true);
+      setSaveError(null);
+      try {
+          // Save current product first
+          await onSave(formData, { closeModal: false });
+          
+          // Create duplicated data
+          const duplicatedData: Omit<Product, 'id'> = {
+              ...formData,
+              name: `${formData.name} (Cópia)`,
+              variations: formData.variations.map(v => ({
+                  ...v,
+                  stock: { [StoreName.TECA]: 0, [StoreName.IONE]: 0 }, // Reset stock for duplicate
+                  qrCodeUrl: undefined // Don't copy QR code
+              }))
+          };
+          
+          // Remove id to ensure it's treated as a new product
+          if ('id' in duplicatedData) {
+              delete (duplicatedData as any).id;
+          }
+
+          const newProduct = await onDuplicate(duplicatedData);
+          if (isMounted.current) {
+              onSwitchProduct(newProduct);
+          }
+      } catch (err: any) {
+          if (isMounted.current) setSaveError(err.message || 'Falha ao duplicar produto.');
+      } finally {
+          if (isMounted.current) setIsSaving(false);
+      }
   };
   
   const handleSwitch = (productToSwitchTo: Product) => {
