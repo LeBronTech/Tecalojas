@@ -80,6 +80,7 @@ export interface Product {
   isMultiColor?: boolean;
   colors: { name: string; hex: string }[];
   productionCost?: number;
+  isLimited?: boolean;
 }
 
 export interface CompositionItem {
@@ -162,6 +163,7 @@ export enum View {
   PAYMENT,
   SALES,
   QR_CODES,
+  GENERATE_KEYS,
 }
 
 export type Theme = 'light' | 'dark';
@@ -190,6 +192,10 @@ declare global {
         completeGoogleSignIn?: (idToken: string | null, errorMsg: string | null) => Promise<void>;
         handleLoginToken?: (idToken: string) => void;
         cordova?: any;
+        aistudio?: {
+            hasSelectedApiKey: () => Promise<boolean>;
+            openSelectKey: () => Promise<void>;
+        };
     }
 
     interface Navigator {

@@ -363,7 +363,7 @@ export const onProductsUpdate = (
 
   return onSnapshot(
     q,
-    (snapshot) => {
+    (snapshot: any) => {
       const products = snapshot.docs.map(
         (doc) => {
           const data = doc.data();

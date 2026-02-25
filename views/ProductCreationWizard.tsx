@@ -158,6 +158,7 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
             colors: [color],
             isMultiColor: false,
             variationGroupId,
+            isLimited: false,
         };
     });
 

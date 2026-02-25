@@ -18,6 +18,7 @@ import CartScreen from './views/CartScreen';
 import PaymentScreen from './views/PaymentScreen';
 import SalesScreen from './views/SalesScreen';
 import QrCodeScreen from './views/QrCodeScreen';
+import GenerateKeysScreen from './views/GenerateKeysScreen';
 import SignUpModal from './SignUpModal';
 import AddEditProductModal from './components/AddEditProductModal';
 import ConfirmationModal from './components/ConfirmationModal';
@@ -260,6 +261,8 @@ const App: React.FC = () => {
               return <SalesScreen saleRequests={saleRequests} onCompleteSaleRequest={api.completeSaleRequest} products={products} onMenuClick={() => setIsMenuOpen(true)} error={null} cardFees={settings.cardFees} />;
           case View.QR_CODES:
               return <QrCodeScreen products={products} />;
+          case View.GENERATE_KEYS:
+              return <GenerateKeysScreen onMenuClick={() => setIsMenuOpen(true)} />;
           default:
               return <ShowcaseScreen products={products} isLoading={productsLoading} initialProductId={initialProductId} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={activeSofaColors} cart={cart} />;
       }

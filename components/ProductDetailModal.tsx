@@ -320,7 +320,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                         Cor da Cama
                                     </button>
                                 )}
-                                {product.fabricType === 'Macramê' && (
+                                {(product.isLimited || product.fabricType === 'Macramê') && (
                                     <div className="bg-fuchsia-600/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-sm self-start">
                                         Limitado
                                     </div>

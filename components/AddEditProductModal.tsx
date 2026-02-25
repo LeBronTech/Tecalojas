@@ -265,6 +265,7 @@ const initialFormState: Omit<Product, 'id'> = {
   isMultiColor: false,
   variationGroupId: undefined,
   productionCost: 0,
+  isLimited: false,
 };
 
 const ButtonSpinner = () => (
@@ -1534,6 +1535,11 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                     </option>
                                 ))}
                             </select>
+                        </div>
+
+                        <div className="flex items-center mt-6">
+                            <label htmlFor="isLimited" className={`text-sm font-semibold mr-3 ${labelClasses}`}>Produto Limitado?</label>
+                            <input type="checkbox" id="isLimited" name="isLimited" checked={formData.isLimited || false} onChange={handleChange} className="h-5 w-5 rounded text-fuchsia-600 focus:ring-fuchsia-500" />
                         </div>
 
                         <div className="flex items-center mt-6">

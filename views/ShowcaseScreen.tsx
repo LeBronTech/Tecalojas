@@ -93,7 +93,7 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
                     {waterResistanceDetails.showcaseIndicator}
                 </div>
              )}
-             {product.fabricType === 'Macramê' && (
+             {(product.isLimited || product.fabricType === 'Macramê') && (
                 <div className="absolute top-2 left-2 bg-fuchsia-600/90 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-full z-10 shadow-sm">
                     Limitado
                 </div>
