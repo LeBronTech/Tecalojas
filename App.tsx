@@ -371,6 +371,13 @@ const App: React.FC = () => {
                 onDeleteColor={(n) => api.updateGlobalSettings({ colors: (settings.colors || []).filter(c => c.name !== n) })}
                 brands={brands}
                 sofaColors={activeSofaColors}
+                productFamilies={settings.productFamilies || []}
+                onAddProductFamily={(name) => {
+                    const newFamily = { id: `fam_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, name };
+                    api.updateGlobalSettings({ productFamilies: [...(settings.productFamilies || []), newFamily] });
+                    return newFamily;
+                }}
+                onUpdateProduct={(id, data) => api.updateProductData(id, data)}
             />
         )}
 

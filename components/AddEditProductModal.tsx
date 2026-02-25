@@ -246,6 +246,9 @@ interface AddEditProductModalProps {
   onDeleteColor: (colorName: string) => void;
   brands: DynamicBrand[];
   sofaColors: { name: string; hex: string }[];
+  productFamilies: {id: string, name: string}[];
+  onAddProductFamily: (name: string) => {id: string, name: string};
+  onUpdateProduct: (id: string, data: Partial<Product>) => Promise<void>;
 }
 
 const defaultFabricInfo = BRAND_FABRIC_MAP[Brand.MARCA_PROPRIA];
@@ -382,7 +385,7 @@ const standardizeProductName = (name: string, productColors: {name: string, hex:
     return baseName;
 };
 
-const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, categories, allColors, onAddColor, onDeleteColor, brands, sofaColors }) => {
+const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, products, onClose, onSave, onCreateVariations, onSwitchProduct, onRequestDelete, onDuplicate, categories, allColors, onAddColor, onDeleteColor, brands, sofaColors, productFamilies, onAddProductFamily, onUpdateProduct }) => {
   const [formData, setFormData] = useState<Product>(() => ({ ...initialFormState, ...product }));
   
   useEffect(() => {
@@ -411,6 +414,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [generationProgress, setGenerationProgress] = useState('');
   const [generatingColor, setGeneratingColor] = useState<Partial<Record<'sala' | 'quarto', string | null>>>({});
   const [deleteConfirmation, setDeleteConfirmation] = useState<'sala' | 'quarto' | null>(null);
+  const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
+  const [familySearchTerm, setFamilySearchTerm] = useState('');
+  const [newFamilyName, setNewFamilyName] = useState('');
+  const [selectedProductsForNewFamily, setSelectedProductsForNewFamily] = useState<string[]>([]);
   
   const isMounted = useRef(true);
 
@@ -1609,7 +1616,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                 onChange={(e) => {
                                     if(e.target.value) handleManualGroup(e.target.value);
                                 }}
-                                className={`w-full text-sm p-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}
+                                className={`w-full text-sm p-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition mb-4 ${inputClasses}`}
                                 defaultValue=""
                             >
                                 <option value="" disabled>Escolher família para unir...</option>
@@ -1619,6 +1626,15 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                     </option>
                                 ))}
                             </select>
+                            
+                            <button
+                                type="button"
+                                onClick={() => setIsFamilyModalOpen(true)}
+                                className="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                Atribuir Família de Almofadas
+                            </button>
                         </div>
 
                         <div className="flex items-center mt-6">
@@ -1710,6 +1726,137 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                 onClose={() => setIsCameraOpen(false)} 
                 onCapture={handleImageSelect} 
             />
+        )}
+        {isFamilyModalOpen && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+                <div className={`w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] ${isDark ? 'bg-gray-900 border border-white/10' : 'bg-white'}`}>
+                    <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-white/10">
+                        <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Atribuir Famílias</h2>
+                        <button onClick={() => setIsFamilyModalOpen(false)} className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                    <div className="p-6 overflow-y-auto flex-grow space-y-6">
+                        <div>
+                            <h3 className={`text-lg font-semibold mb-3 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>Famílias Existentes</h3>
+                            <div className="flex flex-wrap gap-2">
+                                {productFamilies.map(family => {
+                                    const isMember = (formData.familyIds || []).includes(family.id);
+                                    return (
+                                        <button
+                                            key={family.id}
+                                            onClick={() => {
+                                                setFormData(prev => {
+                                                    const currentFamilies = prev.familyIds || [];
+                                                    if (currentFamilies.includes(family.id)) {
+                                                        return { ...prev, familyIds: currentFamilies.filter(id => id !== family.id) };
+                                                    } else {
+                                                        return { ...prev, familyIds: [...currentFamilies, family.id] };
+                                                    }
+                                                });
+                                            }}
+                                            className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${isMember ? 'bg-indigo-600 text-white shadow-md' : (isDark ? 'bg-black/30 text-gray-300 hover:bg-black/50 border border-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}`}
+                                        >
+                                            {isMember && <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                                            {family.name}
+                                        </button>
+                                    );
+                                })}
+                                {productFamilies.length === 0 && (
+                                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Nenhuma família criada ainda.</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className={`pt-6 border-t ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
+                            <h3 className={`text-lg font-semibold mb-3 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>Criar Nova Família</h3>
+                            <div className="flex items-end gap-3 mb-4">
+                                <div className="flex-grow">
+                                    <label className={`text-sm font-semibold mb-1 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Nome da nova família</label>
+                                    <input 
+                                        type="text"
+                                        value={newFamilyName} 
+                                        onChange={e => setNewFamilyName(e.target.value)} 
+                                        placeholder="Ex: Família Floral"
+                                        className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-50 text-gray-900 border-gray-200'}`}
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="mb-4">
+                                <label className={`text-sm font-semibold mb-2 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Selecione outras almofadas para adicionar a esta nova família:</label>
+                                <input 
+                                    type="text"
+                                    value={familySearchTerm} 
+                                    onChange={e => setFamilySearchTerm(e.target.value)} 
+                                    placeholder="Buscar almofadas..."
+                                    className={`w-full border-2 rounded-lg px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-50 text-gray-900 border-gray-200'}`}
+                                />
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-60 overflow-y-auto p-1 scrollbar-thin">
+                                    {products.filter(p => p.id !== formData.id && p.name.toLowerCase().includes(familySearchTerm.toLowerCase())).map(product => {
+                                        const isSelected = selectedProductsForNewFamily.includes(product.id);
+                                        return (
+                                            <div 
+                                                key={product.id} 
+                                                onClick={() => {
+                                                    setSelectedProductsForNewFamily(prev => 
+                                                        prev.includes(product.id) ? prev.filter(id => id !== product.id) : [...prev, product.id]
+                                                    );
+                                                }}
+                                                className={`relative cursor-pointer rounded-xl overflow-hidden border-2 transition-all ${isSelected ? 'border-indigo-500 shadow-md shadow-indigo-500/20' : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'}`}
+                                            >
+                                                <img src={product.baseImageUrl} alt={product.name} className="w-full aspect-square object-cover" />
+                                                <div className="absolute inset-x-0 bottom-0 bg-black/60 p-2 backdrop-blur-sm">
+                                                    <p className="text-white text-xs font-semibold truncate text-center">{product.name}</p>
+                                                </div>
+                                                {isSelected && (
+                                                    <div className="absolute top-2 right-2 bg-indigo-500 text-white rounded-full p-1 shadow-md">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            
+                            <button 
+                                onClick={async () => {
+                                    if (!newFamilyName.trim()) return;
+                                    const newFamily = onAddProductFamily(newFamilyName.trim());
+                                    
+                                    // Add current product to the new family
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        familyIds: [...(prev.familyIds || []), newFamily.id]
+                                    }));
+                                    
+                                    // Add selected products to the new family
+                                    if (selectedProductsForNewFamily.length > 0) {
+                                        for (const productId of selectedProductsForNewFamily) {
+                                            const prod = products.find(p => p.id === productId);
+                                            if (prod) {
+                                                const currentFamilies = prod.familyIds || [];
+                                                if (!currentFamilies.includes(newFamily.id)) {
+                                                    await onUpdateProduct(productId, { familyIds: [...currentFamilies, newFamily.id] });
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    setNewFamilyName('');
+                                    setSelectedProductsForNewFamily([]);
+                                    alert(`Família "${newFamily.name}" criada e atribuída a este produto${selectedProductsForNewFamily.length > 0 ? ` e mais ${selectedProductsForNewFamily.length} almofada(s)` : ''}!`);
+                                }} 
+                                disabled={!newFamilyName.trim()}
+                                className="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-indigo-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                                Salvar Nova Família e Atribuir
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         )}
       </>
   );
