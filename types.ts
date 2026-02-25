@@ -60,7 +60,8 @@ export interface Variation {
 export interface Product {
   id: string;
   originalId?: string;
-  variationGroupId?: string;
+  variationGroupId?: string; // Legacy, keep for backward compatibility
+  familyIds?: string[]; // New: support multiple families
   name: string;
   baseImageUrl: string;
   backImageUrl?: string;

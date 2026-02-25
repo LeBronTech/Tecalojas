@@ -99,21 +99,25 @@ const ColorSelector: React.FC<ColorSelectorProps> = ({
         ? selectedColors.some(c => c.name.toLowerCase() === color.name.toLowerCase())
         : selectedColor?.name.toLowerCase() === color.name.toLowerCase();
     
+    const handleColorClick = () => {
+        if (isDisabled && !isSelected) {
+            const confirm = window.confirm(`Já existe almofada com a cor "${color.name}". Deseja ainda sim selecionar essa cor?`);
+            if (!confirm) return;
+        }
+        if (multiSelect && onToggleColor) onToggleColor(color);
+        else if (!multiSelect && onSelectColor) onSelectColor(color);
+    };
+
     return (
         <div key={color.name} className="flex flex-col items-center group relative flex-shrink-0">
             <button 
                 type="button" 
-                onClick={() => {
-                    if (isDisabled) return;
-                    if (multiSelect && onToggleColor) onToggleColor(color);
-                    else if (!multiSelect && onSelectColor) onSelectColor(color);
-                }}
+                onClick={handleColorClick}
                 style={{ backgroundColor: color.hex }} 
-                className={`w-10 h-10 rounded-full border-2 transition-transform transform hover:scale-110 ${isDark ? 'border-gray-600' : 'border-gray-300'} focus:outline-none relative ${isSelected ? 'ring-4 ring-offset-2 ring-fuchsia-500' : ''} ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`} 
+                className={`w-10 h-10 rounded-full border-2 transition-transform transform hover:scale-110 ${isDark ? 'border-gray-600' : 'border-gray-300'} focus:outline-none relative ${isSelected ? 'ring-4 ring-offset-2 ring-fuchsia-500' : ''} ${isDisabled && !isSelected ? 'opacity-50' : ''}`} 
                 title={isDisabled ? `Cor "${color.name}" já em uso nesta família.` : color.name}
-                disabled={isDisabled}
             >
-                {isDisabled && (
+                {isDisabled && !isSelected && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

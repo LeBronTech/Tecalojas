@@ -1661,7 +1661,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             </button>
                             </>
                         )}
-                         <button type="button" onClick={onClose} className={`flex-1 sm:flex-none font-bold py-3 px-6 rounded-lg transition text-center ${cancelBtnClasses}`}>Cancelar</button>
                     </div>
                      <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
                          {saveError && <p className="text-sm text-red-500 font-semibold text-center">{saveError}</p>}

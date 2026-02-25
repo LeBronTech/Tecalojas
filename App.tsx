@@ -42,9 +42,10 @@ const App: React.FC = () => {
   const [catalogs, setCatalogs] = useState<CatalogPDF[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [saleRequests, setSaleRequests] = useState<SaleRequest[]>([]);
-  const [settings, setSettings] = useState<{ cardFees: CardFees, weeklyGoal: number, colors?: {name:string, hex:string}[], sofaColors?: {name:string, hex:string}[] }>({
+  const [settings, setSettings] = useState<{ cardFees: CardFees, weeklyGoal: number, colors?: {name:string, hex:string}[], sofaColors?: {name:string, hex:string}[], productFamilies?: {id: string, name: string}[] }>({
       cardFees: { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 },
-      weeklyGoal: 0
+      weeklyGoal: 0,
+      productFamilies: []
   });
 
   // App State
