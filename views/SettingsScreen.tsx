@@ -20,6 +20,11 @@ interface SettingsScreenProps {
   categories: CategoryItem[];
   onAddCategory: (name: string, type: 'category' | 'subcategory') => Promise<void>;
   onDeleteCategory: (id: string) => Promise<void>;
+  productFamilies: {id: string, name: string}[];
+  onAddProductFamily: (name: string) => void;
+  onDeleteProductFamily: (id: string) => void;
+  products: Product[];
+  onUpdateProduct: (id: string, data: Partial<Product>) => Promise<void>;
 }
 
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
@@ -57,7 +62,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     allColors, onAddColor, onDeleteColor, 
     cardFees, onSaveCardFees,
     sofaColors, onAddSofaColor, onDeleteSofaColor,
-    categories, onAddCategory, onDeleteCategory
+    categories, onAddCategory, onDeleteCategory,
+    productFamilies, onAddProductFamily, onDeleteProductFamily,
+    products, onUpdateProduct
 }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -86,6 +93,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [isUpdatingFeed, setIsUpdatingFeed] = useState(false);
   const [feedUrl, setFeedUrl] = useState<string>("Carregando link...");
   const [copySuccess, setCopySuccess] = useState(false);
+
+  // Families state
+  const [newFamilyName, setNewFamilyName] = useState('');
+  const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
+  const [familySearchTerm, setFamilySearchTerm] = useState('');
 
   useEffect(() => {
      setFees(safeCardFees);
@@ -228,6 +240,36 @@ const copyFeedUrl = () => {
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2000);
 }
+
+const handleAddFamily = () => {
+    if (!newFamilyName.trim()) return;
+    onAddProductFamily(newFamilyName.trim());
+    setNewFamilyName('');
+};
+
+const handleToggleProductFamily = async (product: Product, familyId: string) => {
+    const currentFamilies = product.familyIds || [];
+    const isMember = currentFamilies.includes(familyId);
+
+    if (isMember) {
+        // Remove from family
+        await onUpdateProduct(product.id, { familyIds: currentFamilies.filter(id => id !== familyId) });
+    } else {
+        // Add to family
+        if (currentFamilies.length > 0) {
+            const confirm = window.confirm(`O produto "${product.name}" já pertence a outra(s) família(s). Deseja mudar a família (OK) ou adicionar a uma segunda família (Cancelar)?`);
+            if (confirm) {
+                // Change family (replace)
+                await onUpdateProduct(product.id, { familyIds: [familyId] });
+            } else {
+                // Add to second family
+                await onUpdateProduct(product.id, { familyIds: [...currentFamilies, familyId] });
+            }
+        } else {
+            await onUpdateProduct(product.id, { familyIds: [familyId] });
+        }
+    }
+};
 
  const subtitleClasses = isDark ? 'text-gray-400' : 'text-gray-600';
  
@@ -419,6 +461,81 @@ const copyFeedUrl = () => {
                      </div>
                      <button onClick={handleAddSofaColor} className="bg-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar</button>
                  </div>
+             </Card>
+
+             <Card>
+                 <SectionTitle>Gerenciar Famílias</SectionTitle>
+                 <div className="flex items-end gap-3 mb-6">
+                     <div className="flex-grow">
+                         <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Nome da nova família</label>
+                         <Input value={newFamilyName} onChange={e => setNewFamilyName(e.target.value)} placeholder="Ex: Família Floral" />
+                     </div>
+                     <button onClick={handleAddFamily} className="bg-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar</button>
+                 </div>
+
+                 {productFamilies && productFamilies.length > 0 && (
+                     <div className="mb-6">
+                         <label className={`text-sm font-semibold mb-2 block ${subtitleClasses}`}>Selecione uma família para gerenciar</label>
+                         <div className="flex flex-wrap gap-2">
+                             {productFamilies.map(family => (
+                                 <div key={family.id} className="flex items-center gap-1">
+                                     <button
+                                         onClick={() => setSelectedFamilyId(family.id === selectedFamilyId ? null : family.id)}
+                                         className={`px-4 py-2 rounded-lg font-semibold transition-colors ${selectedFamilyId === family.id ? 'bg-fuchsia-600 text-white' : (isDark ? 'bg-black/30 text-gray-300 hover:bg-black/50' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}`}
+                                     >
+                                         {family.name}
+                                     </button>
+                                     <button onClick={() => {
+                                         if(window.confirm(`Tem certeza que deseja excluir a família "${family.name}"?`)) {
+                                             onDeleteProductFamily(family.id);
+                                             if (selectedFamilyId === family.id) setSelectedFamilyId(null);
+                                         }
+                                     }} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition">
+                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                     </button>
+                                 </div>
+                             ))}
+                         </div>
+                     </div>
+                 )}
+
+                 {selectedFamilyId && (
+                     <div className={`p-4 rounded-xl border ${isDark ? 'bg-black/30 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+                         <div className="flex justify-between items-center mb-4">
+                             <h3 className={`font-bold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                 Produtos na família: {productFamilies.find(f => f.id === selectedFamilyId)?.name}
+                             </h3>
+                             <Input 
+                                 placeholder="Buscar produtos..." 
+                                 value={familySearchTerm} 
+                                 onChange={e => setFamilySearchTerm(e.target.value)} 
+                                 className="max-w-xs"
+                             />
+                         </div>
+                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-96 overflow-y-auto p-2 scrollbar-thin">
+                             {products.filter(p => p.name.toLowerCase().includes(familySearchTerm.toLowerCase())).map(product => {
+                                 const isMember = (product.familyIds || []).includes(selectedFamilyId);
+                                 return (
+                                     <div 
+                                         key={product.id} 
+                                         onClick={() => handleToggleProductFamily(product, selectedFamilyId)}
+                                         className={`relative cursor-pointer rounded-xl overflow-hidden border-2 transition-all ${isMember ? 'border-fuchsia-500 shadow-md shadow-fuchsia-500/20' : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'}`}
+                                     >
+                                         <img src={product.baseImageUrl} alt={product.name} className="w-full aspect-square object-cover" />
+                                         <div className="absolute inset-x-0 bottom-0 bg-black/60 p-2 backdrop-blur-sm">
+                                             <p className="text-white text-xs font-semibold truncate text-center">{product.name}</p>
+                                         </div>
+                                         {isMember && (
+                                             <div className="absolute top-2 right-2 bg-fuchsia-500 text-white rounded-full p-1">
+                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                                             </div>
+                                         )}
+                                     </div>
+                                 );
+                             })}
+                         </div>
+                     </div>
+                 )}
              </Card>
 
               <Card>

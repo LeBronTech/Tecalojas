@@ -233,6 +233,16 @@ const App: React.FC = () => {
                 categories={categories}
                 onAddCategory={(name, type) => api.addCategory({name, type})}
                 onDeleteCategory={(id) => api.deleteCategory(id)}
+                productFamilies={settings.productFamilies || []}
+                onAddProductFamily={(name) => {
+                    const newFamily = { id: `fam_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, name };
+                    api.updateGlobalSettings({ productFamilies: [...(settings.productFamilies || []), newFamily] });
+                }}
+                onDeleteProductFamily={(id) => {
+                    api.updateGlobalSettings({ productFamilies: (settings.productFamilies || []).filter(f => f.id !== id) });
+                }}
+                products={products}
+                onUpdateProduct={(id, data) => api.updateProductData(id, data)}
               />;
           case View.CATALOG:
               return <CatalogScreen 
