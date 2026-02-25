@@ -63,6 +63,7 @@ export interface Product {
   variationGroupId?: string;
   name: string;
   baseImageUrl: string;
+  backImageUrl?: string;
   unitsSold: number;
   category: string;
   subCategory?: string;

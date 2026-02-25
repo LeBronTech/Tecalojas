@@ -347,6 +347,7 @@ const App: React.FC = () => {
                 }}
                 onSwitchProduct={setEditingProduct}
                 onRequestDelete={async (id) => { await api.deleteProduct(id); setEditingProduct(null); }}
+                onDuplicate={async (p) => { const newProduct = await api.addProductData(p); return newProduct; }}
                 categories={categories.map(c => c.name)}
                 allColors={settings.colors || []}
                 onAddColor={(c) => api.updateGlobalSettings({ colors: [...(settings.colors || []), c] })}

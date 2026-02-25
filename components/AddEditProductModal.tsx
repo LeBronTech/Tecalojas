@@ -398,6 +398,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [saveError, setSaveError] = useState<string | null>(null);
   const [bgGenerating, setBgGenerating] = useState<Record<string, boolean>>({});
   const [isBatchColorMode, setIsBatchColorMode] = useState(false);
+  const [activeImageTarget, setActiveImageTarget] = useState<'front' | 'back'>('front');
   const [selectedNewColors, setSelectedNewColors] = useState<{name: string, hex: string}[]>([]);
   const [isCreatingVariations, setIsCreatingVariations] = useState(false);
   const [isNameAiLoading, setIsNameAiLoading] = useState(false);
@@ -553,7 +554,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setFormData(prev => ({ ...prev, variations: updatedVariations }));
   };
 
-  const handleOpenImagePicker = () => {
+  const handleOpenImagePicker = (target: 'front' | 'back' = 'front') => {
+    setActiveImageTarget(target);
     setIsImagePickerOpen(true);
   };
 
@@ -563,7 +565,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         try { finalImageUrl = await resizeImage(imageUrl); } 
         catch (error) { console.error("Failed to resize image:", error); }
     }
-    setFormData(prev => ({ ...prev, baseImageUrl: finalImageUrl }));
+    setFormData(prev => ({ 
+        ...prev, 
+        [activeImageTarget === 'front' ? 'baseImageUrl' : 'backImageUrl']: finalImageUrl 
+    }));
     setIsImagePickerOpen(false);
     setIsCameraOpen(false);
   };
@@ -678,7 +683,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   };
 
   const generateShowcaseImage = async () => {
-    if (!formData.baseImageUrl) { 
+    const targetImage = activeImageTarget === 'front' ? formData.baseImageUrl : formData.backImageUrl;
+    if (!targetImage) { 
         setSaveError("Adicione uma imagem antes de gerar uma vitrine."); 
         return; 
     }
@@ -686,7 +692,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setIsGeneratingShowcase(true);
     setSaveError(null);
     try {
-        const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
+        const { base64Data, mimeType } = await getBase64FromImageUrl(targetImage);
         // FIX: Always use process.env.API_KEY for initialization.
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const imagePart = { inlineData: { data: base64Data, mimeType } };
@@ -711,7 +717,10 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         const resizedImageUrl = await resizeImage(newImageUrl);
         setFormData(prev => {
             if (!isMounted.current) return prev;
-            return { ...prev, baseImageUrl: resizedImageUrl };
+            return { 
+                ...prev, 
+                [activeImageTarget === 'front' ? 'baseImageUrl' : 'backImageUrl']: resizedImageUrl 
+            };
         });
     } catch (e: any) { 
         console.error("AI showcase image generation failed:", e); 
@@ -1225,37 +1234,66 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
                 <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar pr-2 -mr-2 space-y-6 pb-24">
                     {/* Main Image Section */}
-                    <div className="flex items-start gap-4">
-                        <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>
-                            {formData.baseImageUrl ? (
-                                <img src={formData.baseImageUrl} alt="Preview" className="w-full h-full object-cover transition-transform duration-300" style={{ transform: `rotate(${imageRotation}deg)` }} /> 
-                            ) : (
-                                <div className={`w-full h-full flex items-center justify-center relative ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
-                                    <img 
-                                        src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
-                                        alt="Sem Imagem" 
-                                        className="w-1/2 h-1/2 object-contain opacity-20" 
-                                    />
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-start gap-4 justify-center">
+                            {/* Front Image */}
+                            <div className="flex flex-col items-center gap-2">
+                                <label className={`text-sm font-semibold ${labelClasses}`}>Frente</label>
+                                <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${activeImageTarget === 'front' ? 'border-fuchsia-500 shadow-lg shadow-fuchsia-500/30' : (isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100')} cursor-pointer transition-all`} onClick={() => setActiveImageTarget('front')}>
+                                    {formData.baseImageUrl ? (
+                                        <img src={formData.baseImageUrl} alt="Preview Frente" className="w-full h-full object-cover transition-transform duration-300" style={{ transform: `rotate(${imageRotation}deg)` }} /> 
+                                    ) : (
+                                        <div className={`w-full h-full flex items-center justify-center relative ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+                                            <img 
+                                                src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
+                                                alt="Sem Imagem" 
+                                                className="w-1/2 h-1/2 object-contain opacity-20" 
+                                            />
+                                        </div>
+                                    )}
+                                    {formData.baseImageUrl && activeImageTarget === 'front' && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); handleRotateImage(); }}
+                                            className="absolute bottom-1 right-1 w-8 h-8 rounded-full z-10 bg-black/40 hover:bg-black/60 flex items-center justify-center transition-colors"
+                                            aria-label="Girar imagem"
+                                        >
+                                            <img src="https://i.postimg.cc/C1qXzX3z/20251019-214841-0000.png" alt="Girar Imagem" className="w-6 h-6" />
+                                        </button>
+                                    )}
                                 </div>
-                            )}
-                            {formData.baseImageUrl && (
-                                <button
-                                    type="button"
-                                    onClick={handleRotateImage}
-                                    className="absolute bottom-1 right-1 w-8 h-8 rounded-full z-10 bg-black/20 hover:bg-black/40 flex items-center justify-center transition-colors"
-                                    aria-label="Girar imagem"
-                                >
-                                    <img src="https://i.postimg.cc/C1qXzX3z/20251019-214841-0000.png" alt="Girar Imagem" className="w-6 h-6" />
-                                </button>
-                            )}
+                            </div>
+
+                            {/* Back Image */}
+                            <div className="flex flex-col items-center gap-2">
+                                <label className={`text-sm font-semibold ${labelClasses}`}>Verso (Opcional)</label>
+                                <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${activeImageTarget === 'back' ? 'border-fuchsia-500 shadow-lg shadow-fuchsia-500/30' : (isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100')} cursor-pointer transition-all`} onClick={() => setActiveImageTarget('back')}>
+                                    {formData.backImageUrl ? (
+                                        <img src={formData.backImageUrl} alt="Preview Verso" className="w-full h-full object-cover transition-transform duration-300" /> 
+                                    ) : (
+                                        <div className={`w-full h-full flex flex-col items-center justify-center relative ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+                                            <svg className="w-8 h-8 text-gray-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                            </svg>
+                                            <span className="text-xs text-gray-500 font-semibold">Adicionar</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex-grow">
-                             <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Imagem Principal</label>
-                            <button type="button" onClick={handleOpenImagePicker} className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>Alterar Imagem</button>
-                            <button type="button" onClick={generateShowcaseImage} disabled={isGeneratingShowcase || !formData.baseImageUrl} title="Gerar imagem de vitrine com IA" className={`w-full text-center font-bold py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
-                                {isGeneratingShowcase ? <ButtonSpinner /> : 'Gerar Vitrine com IA'}
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2 mt-2">
+                            <button type="button" onClick={() => handleOpenImagePicker(activeImageTarget)} className={`flex-1 text-center font-bold py-3 px-4 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
+                                Escolher Imagem
+                            </button>
+                            <button type="button" onClick={generateShowcaseImage} disabled={isGeneratingShowcase || (activeImageTarget === 'front' ? !formData.baseImageUrl : !formData.backImageUrl)} title="Gerar imagem de vitrine com IA" className={`flex-1 text-center font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
+                                {isGeneratingShowcase ? <ButtonSpinner /> : 'Gerar IA'}
                             </button>
                         </div>
+                        <p className={`text-xs text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Selecione a imagem (Frente ou Verso) clicando nela, depois use os botões abaixo para alterar.
+                        </p>
                     </div>
 
                     <div className="w-full">
@@ -1609,19 +1647,25 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     </div>
 
                 </div>
-                 <div className="flex justify-between items-center pt-6 border-t border-gray-200 dark:border-white/10 mt-auto">
-                    <div className="flex items-center gap-4">
+                 <div className="flex flex-col sm:flex-row justify-between items-center pt-6 border-t border-gray-200 dark:border-white/10 mt-auto gap-4">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
                         {product && (
-                            <button type="button" onClick={() => onRequestDelete(formData.id)} className="text-red-500 font-bold py-3 px-4 rounded-lg transition hover:bg-red-500/10 flex items-center gap-2">
+                            <>
+                            <button type="button" onClick={() => onRequestDelete(formData.id)} className="flex-1 sm:flex-none text-red-500 font-bold py-3 px-4 rounded-lg transition hover:bg-red-500/10 flex items-center justify-center gap-2">
                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 Excluir
                             </button>
+                            <button type="button" onClick={handleDuplicate} className="flex-1 sm:flex-none text-blue-500 font-bold py-3 px-4 rounded-lg transition hover:bg-blue-500/10 flex items-center justify-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                                Duplicar
+                            </button>
+                            </>
                         )}
-                         <button type="button" onClick={onClose} className={`font-bold py-3 px-6 rounded-lg transition ${cancelBtnClasses}`}>Cancelar</button>
+                         <button type="button" onClick={onClose} className={`flex-1 sm:flex-none font-bold py-3 px-6 rounded-lg transition text-center ${cancelBtnClasses}`}>Cancelar</button>
                     </div>
-                     <div className="flex items-center gap-4">
-                         {saveError && <p className="text-sm text-red-500 font-semibold">{saveError}</p>}
-                         <button type="submit" disabled={isSaving} className="bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100">{isSaving ? 'Salvando...' : 'Salvar'}</button>
+                     <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                         {saveError && <p className="text-sm text-red-500 font-semibold text-center">{saveError}</p>}
+                         <button type="submit" disabled={isSaving} className="w-full sm:w-auto bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100">{isSaving ? 'Salvando...' : 'Salvar'}</button>
                     </div>
                 </div>
             </form>
