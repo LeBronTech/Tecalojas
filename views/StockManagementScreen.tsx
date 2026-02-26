@@ -71,6 +71,17 @@ interface StockItemProps {
 const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete, onUpdateStock, canManageStock, selectedVariation, onSelectVariation }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
+    const [showBack, setShowBack] = useState(false);
+
+    useEffect(() => {
+        if (!product.backImageUrl) return;
+        
+        const interval = setInterval(() => {
+            setShowBack(prev => !prev);
+        }, 3000);
+        
+        return () => clearInterval(interval);
+    }, [product.backImageUrl]);
 
     const currentVariation = product.variations.find(v => v.size === selectedVariation);
 
@@ -105,9 +116,22 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
             }}
         >
             <div className="flex items-start space-x-4">
-                <div className={`w-20 h-20 ${imageBgClasses} rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden shadow-md`}>
+                <div className={`w-20 h-20 ${imageBgClasses} rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden shadow-md relative`}>
                     {product.baseImageUrl ? (
-                        <img src={product.baseImageUrl} alt={product.name} className="w-full h-full object-cover" />
+                        <>
+                            <img 
+                                src={product.baseImageUrl} 
+                                alt={product.name} 
+                                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${product.backImageUrl && showBack ? 'opacity-0' : 'opacity-100'}`} 
+                            />
+                            {product.backImageUrl && (
+                                <img 
+                                    src={product.backImageUrl} 
+                                    alt={`${product.name} verso`} 
+                                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${showBack ? 'opacity-100' : 'opacity-0'}`} 
+                                />
+                            )}
+                        </>
                     ) : (
                         <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
                             <img 

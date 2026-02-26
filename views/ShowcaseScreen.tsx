@@ -40,6 +40,17 @@ const SkeletonCard = () => {
 const ProductCard: React.FC<{ product: Product, index: number, onClick: () => void }> = ({ product, index, onClick }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
+  const [showBack, setShowBack] = useState(false);
+
+  useEffect(() => {
+    if (!product.backImageUrl) return;
+    
+    const interval = setInterval(() => {
+      setShowBack(prev => !prev);
+    }, 3000);
+    
+    return () => clearInterval(interval);
+  }, [product.backImageUrl]);
 
   const cardClasses = isDark 
     ? "bg-black/20 backdrop-blur-xl border-white/10" 
@@ -80,13 +91,24 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
     >
         <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
              {product.baseImageUrl ? (
-                <img 
-                    src={product.baseImageUrl} 
-                    alt={product.name} 
-                    className="absolute inset-0 w-full h-full object-cover"
-                    loading="lazy"
-                    decoding="async"
-                />
+                <>
+                    <img 
+                        src={product.baseImageUrl} 
+                        alt={product.name} 
+                        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${product.backImageUrl && showBack ? 'opacity-0' : 'opacity-100'}`}
+                        loading="lazy"
+                        decoding="async"
+                    />
+                    {product.backImageUrl && (
+                        <img 
+                            src={product.backImageUrl} 
+                            alt={`${product.name} verso`} 
+                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${showBack ? 'opacity-100' : 'opacity-0'}`}
+                            loading="lazy"
+                            decoding="async"
+                        />
+                    )}
+                </>
              ) : (
                 <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
                     <img 
