@@ -83,6 +83,7 @@ export interface Product {
   colors: { name: string; hex: string }[];
   productionCost?: number;
   isLimited?: boolean;
+  updatedAt?: number;
 }
 
 export interface CompositionItem {

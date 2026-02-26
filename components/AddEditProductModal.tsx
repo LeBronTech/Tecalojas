@@ -1501,16 +1501,15 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         </div>
                     </div>
 
-                    <div>
-                        <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Custo de Produção (Estimado)</label>
-                        <input
-                            type="number"
-                            name="productionCost"
-                            value={formData.productionCost || ''}
-                            onChange={handleChange}
-                            onFocus={handleInputFocus}
-                            placeholder="0.00"
-                            className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}
+                    <div className="mt-4">
+                        <FormInput 
+                            label="Custo de Produção (Estimado)" 
+                            type="number" 
+                            name="productionCost" 
+                            value={formData.productionCost === 0 ? '' : formData.productionCost} 
+                            onChange={handleChange} 
+                            onFocus={handleInputFocus} 
+                            placeholder="0.00" 
                         />
                         <p className={`text-xs mt-1 ${subtitleClasses}`}>Este valor será usado para calcular o lucro estimado no painel de diagnóstico.</p>
                     </div>
@@ -1538,8 +1537,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                         </button>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label><input type="number" value={v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} onFocus={handleInputFocus} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>
-                                        <div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label><input type="number" value={v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} onFocus={handleInputFocus} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>
+                                        <div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label><input type="number" value={v.priceCover === 0 ? '' : v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} onFocus={handleInputFocus} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>
+                                        <div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label><input type="number" value={v.priceFull === 0 ? '' : v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} onFocus={handleInputFocus} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>
                                         {STORE_NAMES.map(storeName => (
                                             <div key={storeName}>
                                                 <label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Estoque ({storeName})</label>

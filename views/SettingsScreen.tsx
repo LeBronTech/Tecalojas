@@ -150,7 +150,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
        setIsSavingBrand(false);
      }
    };
- 
+  
  const handleAddProductColor = () => {
      if (!newProductColor.name.trim()) {
          setProductColorNameError("O nome da cor é obrigatório.");
@@ -480,17 +480,35 @@ const handleToggleProductFamily = async (product: Product, familyId: string) => 
                              {productFamilies.map(family => (
                                  <div key={family.id} className="flex items-center gap-1">
                                      <button
+                                         type="button"
                                          onClick={() => setSelectedFamilyId(family.id === selectedFamilyId ? null : family.id)}
                                          className={`px-4 py-2 rounded-lg font-semibold transition-colors ${selectedFamilyId === family.id ? 'bg-fuchsia-600 text-white' : (isDark ? 'bg-black/30 text-gray-300 hover:bg-black/50' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}`}
                                      >
                                          {family.name}
                                      </button>
-                                     <button onClick={() => {
-                                         if(window.confirm(`Tem certeza que deseja excluir a família "${family.name}"?`)) {
-                                             onDeleteProductFamily(family.id);
-                                             if (selectedFamilyId === family.id) setSelectedFamilyId(null);
-                                         }
-                                     }} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition">
+                                     <button 
+                                        type="button"
+                                        title="Excluir Família"
+                                        style={{ minWidth: '44px', minHeight: '44px', zIndex: 50 }}
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          console.log("CLICK DETECTED on trash icon for family:", family.id);
+                                          
+                                          if (!onDeleteProductFamily) {
+                                              console.error("onDeleteProductFamily is UNDEFINED");
+                                              return;
+                                          }
+
+                                          const confirmed = window.confirm(`Deseja realmente EXCLUIR a família "${family.name}"?`);
+                                          if(confirmed) {
+                                              console.log("User confirmed deletion of:", family.id);
+                                              onDeleteProductFamily(family.id);
+                                              if (selectedFamilyId === family.id) setSelectedFamilyId(null);
+                                          } else {
+                                              console.log("User cancelled deletion.");
+                                          }
+                                      }} className="flex-shrink-0 flex items-center justify-center p-2 text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-all active:scale-90">
                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                      </button>
                                  </div>

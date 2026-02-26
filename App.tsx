@@ -238,8 +238,15 @@ const App: React.FC = () => {
                     const newFamily = { id: `fam_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, name };
                     api.updateGlobalSettings({ productFamilies: [...(settings.productFamilies || []), newFamily] });
                 }}
-                onDeleteProductFamily={(id) => {
-                    api.updateGlobalSettings({ productFamilies: (settings.productFamilies || []).filter(f => f.id !== id) });
+                onDeleteProductFamily={async (id) => {
+                    const currentFamilies = settings.productFamilies || [];
+                    const newFamilies = currentFamilies.filter(f => f.id !== id);
+                    try {
+                        await api.updateGlobalSettings({ productFamilies: newFamilies });
+                    } catch (error) {
+                        console.error("Erro ao excluir família:", error);
+                        alert("Não foi possível excluir a família. Tente novamente.");
+                    }
                 }}
                 products={products}
                 onUpdateProduct={(id, data) => api.updateProductData(id, data)}

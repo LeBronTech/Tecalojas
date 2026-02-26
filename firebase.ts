@@ -44,8 +44,8 @@ setPersistence(auth, browserLocalPersistence)
     console.error("Firebase: Error setting auth persistence", error);
   });
 
-const db = getFirestore(app);
-const storage = getStorage(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
 
 
 const productsCollection = collection(db, "products");
@@ -384,7 +384,7 @@ export const onProductsUpdate = (
 };
 
 export const addProductData = async (productData: Omit<Product, 'id'>): Promise<Product> => {
-    const cleanData = { ...productData } as any;
+    const cleanData = { ...productData, updatedAt: Date.now() } as any;
     Object.keys(cleanData).forEach(key => {
         if (cleanData[key] === undefined) {
             delete cleanData[key];
@@ -396,7 +396,7 @@ export const addProductData = async (productData: Omit<Product, 'id'>): Promise<
 
 export const updateProductData = async (productId: string, productData: Partial<Omit<Product, 'id'>>): Promise<void> => {
     const productDoc = doc(db, "products", productId);
-    const cleanData = { ...productData } as any;
+    const cleanData = { ...productData, updatedAt: Date.now() } as any;
     Object.keys(cleanData).forEach(key => {
         if (cleanData[key] === undefined) {
             delete cleanData[key];

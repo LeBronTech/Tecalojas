@@ -454,9 +454,12 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
             const nameB = String(itemB?.name || '');
             return nameA.localeCompare(nameB);
         } else { 
-            const timeA = parseInt(itemA.id.split('-')[0], 10) || 0;
-            const timeB = parseInt(itemB.id.split('-')[0], 10) || 0;
-            return timeB - timeA;
+            const getTime = (p: Product) => {
+                if (p.updatedAt) return p.updatedAt;
+                const idTime = parseInt(p.id.split('-')[0], 10);
+                return isNaN(idTime) ? 0 : idTime;
+            };
+            return getTime(itemB) - getTime(itemA);
         }
     });
   }, [products, selectedCategory, selectedFabric, sortOrder, getProductFamilyKey]);
@@ -549,19 +552,25 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                      </svg>
                   </div>
-                   <button
+                    <button
                         onClick={() => setSortOrder(prev => prev === 'recent' ? 'alpha' : 'recent')}
                         className={`flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full border shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${isDark ? 'bg-black/30 border-white/10 text-white hover:bg-white/10' : 'bg-white border-gray-300/80 text-gray-700 hover:bg-gray-50'}`}
                         title={sortOrder === 'recent' ? "Mudar para Ordem Alfabética" : "Mudar para Mais Recentes"}
                     >
                         {sortOrder === 'recent' ? (
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                            </svg>
+                            <div className="relative flex flex-col items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v12m0 0l-3-3m3 3l3-3" />
+                                </svg>
+                                <div className="absolute -right-1 bottom-0 flex flex-col leading-[0.5] text-[8px] font-black">
+                                    <span>A</span>
+                                    <span>Z</span>
+                                </div>
+                            </div>
                         )}
                     </button>
               </div>

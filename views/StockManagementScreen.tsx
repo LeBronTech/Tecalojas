@@ -292,9 +292,12 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
             if (sortOrder === 'alpha') {
                 return a.name.localeCompare(b.name);
             } else { 
-                const timeA = parseInt(a.id.split('-')[0], 10) || 0;
-                const timeB = parseInt(b.id.split('-')[0], 10) || 0;
-                return timeB - timeA;
+                const getTime = (p: Product) => {
+                    if (p.updatedAt) return p.updatedAt;
+                    const idTime = parseInt(p.id.split('-')[0], 10);
+                    return isNaN(idTime) ? 0 : idTime;
+                };
+                return getTime(b) - getTime(a);
             }
         });
     }, [products, searchQuery, selectedCategory, sortOrder]);
@@ -352,14 +355,27 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
                         </div>
-                        <select
-                            value={sortOrder}
-                            onChange={e => setSortOrder(e.target.value as 'recent' | 'alpha')}
-                            className={`border rounded-full py-3 px-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow appearance-none ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white' : 'bg-white border-gray-300/80 text-gray-900 shadow-sm'}`}
+                        <button
+                            onClick={() => setSortOrder(prev => prev === 'recent' ? 'alpha' : 'recent')}
+                            className={`flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full border shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${isDark ? 'bg-black/30 border-white/10 text-white hover:bg-white/10' : 'bg-white border-gray-300/80 text-gray-700 hover:bg-gray-50'}`}
+                            title={sortOrder === 'recent' ? "Mudar para Ordem Alfabética" : "Mudar para Mais Recentes"}
                         >
-                            <option value="recent">Mais Recentes</option>
-                            <option value="alpha">Ordem Alfabética</option>
-                        </select>
+                            {sortOrder === 'recent' ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            ) : (
+                                <div className="relative flex flex-col items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v12m0 0l-3-3m3 3l3-3" />
+                                    </svg>
+                                    <div className="absolute -right-1 bottom-0 flex flex-col leading-[0.5] text-[8px] font-black">
+                                        <span>A</span>
+                                        <span>Z</span>
+                                    </div>
+                                </div>
+                            )}
+                        </button>
                     </div>
                     
                     <div className="px-4 flex flex-wrap gap-2 mt-4">
