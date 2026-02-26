@@ -5,7 +5,15 @@ import ProductDetailModal from '../components/ProductDetailModal';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
 import CompositionViewerModal from '../components/CompositionViewerModal';
 
-type ProductGroup = Product[];
+type ShowcaseItem = {
+    type: 'single';
+    product: Product;
+} | {
+    type: 'group';
+    products: Product[];
+    familyId?: string;
+    familyName?: string;
+};
 
 const FireIcon = ({ className }: { className: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
@@ -120,13 +128,30 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
   );
 };
 
-const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: (product: Product) => void }> = ({ group, index, onClick }) => {
+const ProductGroupCard: React.FC<{ 
+    item: ShowcaseItem & { type: 'group' }, 
+    index: number, 
+    onClick: (product: Product) => void, 
+    productFamilies: {id: string, name: string}[] 
+}> = ({ item, index, onClick, productFamilies }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [activeImageIndex, setActiveImageIndex] = useState(0);
     const [startSlide, setStartSlide] = useState(false);
 
+    const { products: group, familyId, familyName: explicitName } = item;
     const validImages = useMemo(() => group.map(p => p.baseImageUrl).filter(Boolean), [group]);
+    
+    const representativeProduct = group[0];
+    
+    const familyName = useMemo(() => {
+        if (explicitName) return explicitName;
+        if (familyId) {
+            const family = productFamilies.find(f => f.id === familyId);
+            if (family) return family.name;
+        }
+        return representativeProduct.category;
+    }, [representativeProduct, productFamilies, familyId, explicitName]);
 
     useEffect(() => {
         // PERF: Delay the start of the carousel to prioritize initial page load (FCP/LCP).
@@ -151,8 +176,6 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
     const textNameClasses = isDark ? "text-purple-200" : "text-gray-800";
     const textMetaClasses = isDark ? "text-purple-300" : "text-gray-500";
     const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
-    
-    const representativeProduct = group[0];
     
     // Optimization: Only animate the first few items
     const shouldAnimate = index < 4;
@@ -197,7 +220,7 @@ const ProductGroupCard: React.FC<{ group: ProductGroup, index: number, onClick: 
                         </div>
                     )}
                 </div>
-                <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{representativeProduct.category}</h3>
+                <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{familyName}</h3>
                 <div className={`flex items-center justify-center flex-wrap gap-x-3 gap-y-2 text-xs mt-2`}>
                      <div className={`flex items-center gap-1 ${textMetaClasses}`}>
                         <img src={BRAND_LOGOS[representativeProduct.brand]} alt={representativeProduct.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
@@ -291,9 +314,10 @@ interface ShowcaseScreenProps {
   sofaColors: { name: string; hex: string }[];
   cart: CartItem[];
   isLoading?: boolean;
+  productFamilies: {id: string, name: string}[];
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProductId, hasFetchError, canManageStock, onEditProduct, brands, onNavigate, savedCompositions, onAddToCart, sofaColors, cart, isLoading = false }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProductId, hasFetchError, canManageStock, onEditProduct, brands, onNavigate, savedCompositions, onAddToCart, sofaColors, cart, isLoading = false, productFamilies }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedFabric, setSelectedFabric] = useState<string>('Todos os Tecidos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -381,27 +405,49 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
         return categoryMatch && fabricMatch;
     });
 
-    const grouped: (Product | ProductGroup)[] = [];
+    const grouped: ShowcaseItem[] = [];
 
     if (selectedFabric !== 'Todos os Tecidos') {
-         grouped.push(...filtered);
+         grouped.push(...filtered.map(p => ({ type: 'single' as const, product: p })));
     } else {
-        const familyMap = new Map<string, ProductGroup>();
+        const familyMap = new Map<string, Product[]>();
+        const processedExplicitProducts = new Set<string>();
+
         filtered.forEach(p => {
-            const familyKey = getProductFamilyKey(p);
-            if (!familyMap.has(familyKey)) familyMap.set(familyKey, []);
-            familyMap.get(familyKey)!.push(p);
+            if (p.familyIds && p.familyIds.length > 0) {
+                p.familyIds.forEach(fid => {
+                    const key = `explicit_${fid}`;
+                    if (!familyMap.has(key)) familyMap.set(key, []);
+                    familyMap.get(key)!.push(p);
+                });
+                processedExplicitProducts.add(p.id);
+            }
         });
 
-        familyMap.forEach(group => {
-            if (group.length > 1) grouped.push(group);
-            else grouped.push(group[0]);
+        // Process products without explicit families
+        filtered.forEach(p => {
+            if (!processedExplicitProducts.has(p.id)) {
+                const key = `guessed_${getProductFamilyKey(p)}`;
+                if (!familyMap.has(key)) familyMap.set(key, []);
+                familyMap.get(key)!.push(p);
+            }
+        });
+
+        familyMap.forEach((group, key) => {
+            if (key.startsWith('explicit_')) {
+                const familyId = key.replace('explicit_', '');
+                grouped.push({ type: 'group', products: group, familyId });
+            } else if (group.length > 1) {
+                grouped.push({ type: 'group', products: group });
+            } else {
+                grouped.push({ type: 'single', product: group[0] });
+            }
         });
     }
 
     return grouped.sort((a, b) => {
-        const itemA = Array.isArray(a) ? a[0] : a;
-        const itemB = Array.isArray(b) ? b[0] : b;
+        const itemA = a.type === 'single' ? a.product : a.products[0];
+        const itemB = b.type === 'single' ? b.product : b.products[0];
 
         if (sortOrder === 'alpha') {
             const nameA = String(itemA?.name || '');
@@ -629,9 +675,9 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
                   ) : (
                       <>
                         {displayedProducts.map((item, index) => (
-                            Array.isArray(item)
-                                ? <ProductGroupCard key={`group-${index}`} group={item} index={index} onClick={(p) => handleProductSelect(p)} />
-                                : <ProductCard key={(item as Product).id} product={item as Product} index={index} onClick={() => handleProductSelect(item as Product)} />
+                            item.type === 'group'
+                                ? <ProductGroupCard key={`group-${index}`} item={item} index={index} onClick={(p) => handleProductSelect(p)} productFamilies={productFamilies} />
+                                : <ProductCard key={item.product.id} product={item.product} index={index} onClick={() => handleProductSelect(item.product)} />
                         ))}
                         {visibleCount < allFilteredProducts.length && (
                             <div ref={loadMoreRef} className="col-span-full py-4 text-center">

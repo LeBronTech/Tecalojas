@@ -809,7 +809,8 @@ export const onSettingsUpdate = (
         cardFees: CardFees, 
         weeklyGoal: number,
         colors?: { name: string; hex: string }[],
-        sofaColors?: { name: string; hex: string }[]
+        sofaColors?: { name: string; hex: string }[],
+        productFamilies?: { id: string; name: string }[]
     }) => void,
     onError?: (error: FirestoreError) => void
 ) => {
@@ -821,7 +822,8 @@ export const onSettingsUpdate = (
                 cardFees: data.cardFees || { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 },
                 weeklyGoal: data.weeklyGoal || 0,
                 colors: data.colors || [],
-                sofaColors: data.sofaColors || []
+                sofaColors: data.sofaColors || [],
+                productFamilies: data.productFamilies || []
             });
         } else {
             console.log("Configurações globais ainda não existem.");
@@ -830,7 +832,8 @@ export const onSettingsUpdate = (
                 cardFees: { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 },
                 weeklyGoal: 0,
                 colors: [],
-                sofaColors: []
+                sofaColors: [],
+                productFamilies: []
             });
         }
     }, (error) => {
@@ -845,6 +848,7 @@ export const updateGlobalSettings = async (data: Partial<{
     weeklyGoal: number;
     colors: { name: string; hex: string }[];
     sofaColors: { name: string; hex: string }[];
+    productFamilies: { id: string; name: string }[];
 }>): Promise<void> => {
     const settingsDoc = doc(db, "settings", "global_settings");
     await setDoc(settingsDoc, data, { merge: true });

@@ -287,12 +287,20 @@ const FormInput = ({ label, children, ...props }: { label: string, children?: Re
         ? "bg-black/20 text-white border-white/10" 
         : "bg-gray-100 text-gray-900 border-gray-300";
 
+    const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+        if (window.innerWidth < 768) {
+            e.target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        if (props.onFocus) props.onFocus(e);
+    };
+
     return (
         <div>
             <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>{label}</label>
             <div className="relative">
                 <input 
                     {...props}
+                    onFocus={handleFocus}
                     className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses} ${children ? 'pr-28' : ''}`} 
                 />
                 {children}
@@ -407,9 +415,33 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [isNameAiLoading, setIsNameAiLoading] = useState(false);
   const [imageRotation, setImageRotation] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [isVariationsVisible, setIsVariationsVisible] = useState(true);
-  const [isBackgroundsVisible, setIsBackgroundsVisible] = useState(true);
-  const [isCategorySectionVisible, setIsCategorySectionVisible] = useState(true);
+  const [isVariationsVisible, setIsVariationsVisible] = useState(() => {
+    if (!product.id) return true;
+    if (product.variations && product.variations.length > 0) return false;
+    return true;
+  });
+  const [isBackgroundsVisible, setIsBackgroundsVisible] = useState(() => {
+    if (!product.id) return true;
+    if (product.backgroundImages && Object.keys(product.backgroundImages).length > 0) return false;
+    return true;
+  });
+  const [isCategorySectionVisible, setIsCategorySectionVisible] = useState(() => {
+    if (!product.id) return true;
+    if (product.category) return false;
+    return true;
+  });
+  const [isColorsVisible, setIsColorsVisible] = useState(() => {
+    if (!product.id) return true;
+    if (product.colors && product.colors.length > 0 && !(product.colors.length === 1 && product.colors[0].name === 'Branco')) return false;
+    return true;
+  });
+  const [isFabricsVisible, setIsFabricsVisible] = useState(() => {
+    if (!product.id) return true;
+    const defaultFabricInfo = BRAND_FABRIC_MAP[Brand.MARCA_PROPRIA];
+    const defaultFabricType = Object.keys(defaultFabricInfo)[0];
+    if (product.fabricType && product.fabricType !== defaultFabricType) return false;
+    return true;
+  });
   const [isGeneratingColors, setIsGeneratingColors] = useState(false);
   const [generationProgress, setGenerationProgress] = useState('');
   const [generatingColor, setGeneratingColor] = useState<Partial<Record<'sala' | 'quarto', string | null>>>({});
@@ -555,7 +587,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
       (variation as any)[field] = parseFloat(value) || 0;
     } else if (field.startsWith('stock-')) {
       const store = field.split('-')[1] as StoreName;
-      variation.stock = { ...variation.stock, [store]: parseInt(value) || 0 };
+      variation.stock = { ...variation.stock, [store]: value === '' ? 0 : (parseInt(value) || 0) };
     }
     updatedVariations[index] = variation;
     setFormData(prev => ({ ...prev, variations: updatedVariations }));
@@ -927,16 +959,16 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     const handleColorToggle = (color: { name: string; hex: string }) => {
         setFormData(prev => {
             const currentColors = prev.colors || [];
-            const isSelected = currentColors.some(c => c.name === color.name);
+            const isSelected = currentColors.some(c => c.name.toLowerCase() === color.name.toLowerCase());
 
             if (isSelected) {
-                const newColors = currentColors.filter(c => c.name !== color.name);
+                const newColors = currentColors.filter(c => c.name.toLowerCase() !== color.name.toLowerCase());
                 return { ...prev, colors: newColors };
             } else {
                 if (currentColors.length < 3) {
                     return { ...prev, colors: [...currentColors, color] };
                 }
-                return prev; // Limit reached
+                return prev;
             }
         });
     };
@@ -1238,6 +1270,12 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
       return products.filter(p => p.id !== formData.id).sort((a, b) => a.name.localeCompare(b.name));
   }, [products, formData.id]);
 
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (window.innerWidth < 768) {
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
       <>
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 transition-opacity duration-300" onClick={onClose}>
@@ -1352,7 +1390,15 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                             </button>
                                         ))}
                                     </div>
-                                    <input list="categories-list" name="category" value={formData.category} onChange={handleChange} required className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
+                                     <input 
+                                        list="categories-list" 
+                                        name="category" 
+                                        value={formData.category} 
+                                        onChange={handleChange} 
+                                        onFocus={handleInputFocus}
+                                        required 
+                                        className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} 
+                                    />
                                     <datalist id="categories-list">{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
                                 </div>
                                 <div>
@@ -1369,32 +1415,92 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                             </button>
                                         ))}
                                     </div>
-                                    <input type="text" name="subCategory" value={formData.subCategory} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} />
+                                    <input 
+                                        type="text" 
+                                        name="subCategory" 
+                                        value={formData.subCategory} 
+                                        onChange={handleChange} 
+                                        onFocus={handleInputFocus}
+                                        className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`} 
+                                    />
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         <div>
-                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
-                            <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(brandName => <option key={brandName} value={brandName}>{brandName}</option>)}</select>
+
+
+                    {/* Collapsible Colors Section */}
+                    <div>
+                        <div className="flex justify-between items-center mb-2 cursor-pointer" onClick={() => setIsColorsVisible(!isColorsVisible)}>
+                            <h3 className={`text-lg font-bold ${titleClasses}`}>Cor do Produto</h3>
+                             <button type="button" className="p-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isColorsVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
                         </div>
-                        <div>
-                            <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
-                            <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
+                        <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isColorsVisible ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <div className="pt-2">
+                                <div className="flex items-center mb-3">
+                                    <input 
+                                        type="checkbox" 
+                                        id="isMultiColor"
+                                        name="isMultiColor" 
+                                        checked={!!formData.isMultiColor}
+                                        onChange={handleChange}
+                                        className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300 rounded"
+                                    />
+                                    <label htmlFor="isMultiColor" className={`ml-2 text-sm font-medium ${labelClasses}`}>
+                                        É multi cor (até 3 cores)
+                                    </label>
+                                </div>
+                                <ColorSelector
+                                    allColors={allColors}
+                                    multiSelect={!!formData.isMultiColor}
+                                    selectedColors={formData.colors || []}
+                                    onToggleColor={handleColorToggle}
+                                    selectedColor={!formData.isMultiColor ? formData.colors?.[0] : undefined}
+                                    onSelectColor={handleColorSelect}
+                                    disabledColors={formData.isMultiColor ? [] : usedColorNamesInFamily}
+                                    onAddCustomColor={onAddColor}
+                                    onDeleteColor={onDeleteColor}
+                                />
+                            </div>
                         </div>
                     </div>
-                     <div>
-                        <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Proteção contra líquidos</label>
-                        <div className="space-y-2">
-                             <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.NONE} checked={formData.waterResistance === WaterResistanceLevel.NONE} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>Nenhum</span></label>
-                            <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.SEMI} checked={formData.waterResistance === WaterResistanceLevel.SEMI} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.SEMI]?.label}</span></label>
-                            <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.FULL} checked={formData.waterResistance === WaterResistanceLevel.FULL} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.FULL]?.label}</span></label>
+
+                    {/* Collapsible Fabrics Section */}
+                    <div>
+                        <div className="flex justify-between items-center mb-2 cursor-pointer" onClick={() => setIsFabricsVisible(!isFabricsVisible)}>
+                            <h3 className={`text-lg font-bold ${titleClasses}`}>Marca & Tecido</h3>
+                             <button type="button" className="p-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isFabricsVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                        </div>
+                        <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isFabricsVisible ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <div className="space-y-4 pt-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Marca</label>
+                                        <select name="brand" value={formData.brand} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{allBrandNames.map(brandName => <option key={brandName} value={brandName}>{brandName}</option>)}</select>
+                                    </div>
+                                    <div>
+                                        <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Tipo de Tecido</label>
+                                        <select name="fabricType" value={formData.fabricType} onChange={handleChange} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}>{availableFabricTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className={`text-sm font-semibold mb-2 block ${labelClasses}`}>Proteção contra líquidos</label>
+                                    <div className="space-y-2">
+                                        <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.NONE} checked={formData.waterResistance === WaterResistanceLevel.NONE} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>Nenhum</span></label>
+                                        <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.SEMI} checked={formData.waterResistance === WaterResistanceLevel.SEMI} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.SEMI]?.label}</span></label>
+                                        <label className="flex items-center cursor-pointer"><input type="radio" name="waterResistance" value={WaterResistanceLevel.FULL} checked={formData.waterResistance === WaterResistanceLevel.FULL} onChange={handleChange} className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300" /><span className={`ml-3 text-sm font-medium ${labelClasses}`}>{WATER_RESISTANCE_INFO[WaterResistanceLevel.FULL]?.label}</span></label>
+                                    </div>
+                                </div>
+                                <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label><textarea name="description" value={formData.description} onChange={handleChange} onFocus={handleInputFocus} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}></textarea></div>
+                            </div>
                         </div>
                     </div>
-                    <div><label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Descrição do Tecido</label><textarea name="description" value={formData.description} onChange={handleChange} rows={2} className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}></textarea></div>
-                    
+
                     <div>
                         <label className={`text-sm font-semibold mb-1 block ${labelClasses}`}>Custo de Produção (Estimado)</label>
                         <input
@@ -1402,38 +1508,16 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             name="productionCost"
                             value={formData.productionCost || ''}
                             onChange={handleChange}
+                            onFocus={handleInputFocus}
                             placeholder="0.00"
                             className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}
                         />
                         <p className={`text-xs mt-1 ${subtitleClasses}`}>Este valor será usado para calcular o lucro estimado no painel de diagnóstico.</p>
                     </div>
 
-                    <div>
-                        <h3 className={`text-lg font-bold mb-2 ${titleClasses}`}>Cor do Produto</h3>
-                         <div className="flex items-center mb-3">
-                            <input 
-                                type="checkbox" 
-                                id="isMultiColor"
-                                name="isMultiColor" 
-                                checked={!!formData.isMultiColor}
-                                onChange={handleChange}
-                                className="h-4 w-4 text-fuchsia-600 focus:ring-fuchsia-500 border-gray-300 rounded"
-                            />
-                            <label htmlFor="isMultiColor" className={`ml-2 text-sm font-medium ${labelClasses}`}>
-                                É multi cor (até 3 cores)
-                            </label>
-                        </div>
-                        <ColorSelector
-                            allColors={allColors}
-                            multiSelect={!!formData.isMultiColor}
-                            selectedColors={formData.colors || []}
-                            onToggleColor={handleColorToggle}
-                            selectedColor={!formData.isMultiColor ? formData.colors?.[0] : undefined}
-                            onSelectColor={handleColorSelect}
-                            disabledColors={usedColorNamesInFamily}
-                            onAddCustomColor={onAddColor}
-                            onDeleteColor={onDeleteColor}
-                        />
+                    <div className="flex items-center mt-2 mb-4">
+                        <label htmlFor="isLimited" className={`text-sm font-semibold mr-3 ${labelClasses}`}>Produto Limitado?</label>
+                        <input type="checkbox" id="isLimited" name="isLimited" checked={formData.isLimited || false} onChange={handleChange} className="h-5 w-5 rounded text-fuchsia-600 focus:ring-fuchsia-500" />
                     </div>
                     
                     {/* Collapsible Size Variations */}
@@ -1454,9 +1538,24 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                         </button>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label><input type="number" value={v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>
-                                        <div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label><input type="number" value={v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>
-                                        {STORE_NAMES.map(storeName => (<div key={storeName}><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Estoque ({storeName})</label><input type="number" value={v.stock[storeName]} onChange={e => handleVariationChange(i, `stock-${storeName}`, e.target.value)} className={`w-full text-sm p-2 rounded ${inputClasses}`} /></div>))}
+                                        <div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label><input type="number" value={v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} onFocus={handleInputFocus} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>
+                                        <div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label><input type="number" value={v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} onFocus={handleInputFocus} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>
+                                        {STORE_NAMES.map(storeName => (
+                                            <div key={storeName}>
+                                                <label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Estoque ({storeName})</label>
+                                                <input 
+                                                    type="number" 
+                                                    value={v.stock[storeName] === 0 ? '' : v.stock[storeName]} 
+                                                    onChange={e => handleVariationChange(i, `stock-${storeName}`, e.target.value)} 
+                                                    onFocus={(e) => {
+                                                        if (window.innerWidth < 768) {
+                                                            e.target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                        }
+                                                    }}
+                                                    className={`w-full text-sm p-2 rounded ${inputClasses}`} 
+                                                />
+                                            </div>
+                                        ))}
                                     </div>
                                     <div className="mt-3 flex items-center gap-4">
                                         <div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>{v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}</div>
@@ -1638,11 +1737,6 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         </div>
 
                         <div className="flex items-center mt-6">
-                            <label htmlFor="isLimited" className={`text-sm font-semibold mr-3 ${labelClasses}`}>Produto Limitado?</label>
-                            <input type="checkbox" id="isLimited" name="isLimited" checked={formData.isLimited || false} onChange={handleChange} className="h-5 w-5 rounded text-fuchsia-600 focus:ring-fuchsia-500" />
-                        </div>
-
-                        <div className="flex items-center mt-6">
                             <label htmlFor="isBatchColorMode" className={`text-sm font-semibold mr-3 ${labelClasses} ${!canCreateVariations ? 'opacity-50' : ''}`} title={!canCreateVariations ? 'Preencha o nome e a categoria para criar variações.' : ''}>Criar produtos para novas cores?</label>
                             <input type="checkbox" id="isBatchColorMode" checked={isBatchColorMode} onChange={(e) => setIsBatchColorMode(e.target.checked)} className="h-5 w-5 rounded text-fuchsia-600 focus:ring-fuchsia-500 disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canCreateVariations} />
                         </div>
@@ -1674,25 +1768,41 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     </div>
 
                 </div>
-                 <div className="flex flex-col sm:flex-row justify-between items-center pt-6 border-t border-gray-200 dark:border-white/10 mt-auto gap-4">
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
-                        {product && (
-                            <>
-                            <button type="button" onClick={() => onRequestDelete(formData.id)} className="flex-1 sm:flex-none text-red-500 font-bold py-3 px-4 rounded-lg transition hover:bg-red-500/10 flex items-center justify-center gap-2">
-                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                Excluir
-                            </button>
-                            <button type="button" onClick={handleDuplicate} className="flex-1 sm:flex-none text-blue-500 font-bold py-3 px-4 rounded-lg transition hover:bg-blue-500/10 flex items-center justify-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
-                                Duplicar
-                            </button>
-                            </>
-                        )}
+                 <div className="flex items-center pt-6 border-t border-gray-200 dark:border-white/10 mt-auto gap-3">
+                    {product && (
+                        <>
+                        <button 
+                            type="button" 
+                            onClick={() => onRequestDelete(formData.id)} 
+                            title="Excluir Produto"
+                            className="p-3 rounded-xl transition bg-red-500/10 text-red-500 hover:bg-red-500/20 flex items-center justify-center"
+                        >
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                        </>
+                    )}
+                    
+                    <div className="flex-grow flex flex-col items-center">
+                        {saveError && <p className="text-[10px] text-red-500 font-semibold mb-1 text-center line-clamp-1">{saveError}</p>}
+                        <button 
+                            type="submit" 
+                            disabled={isSaving} 
+                            className="w-full bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100"
+                        >
+                            {isSaving ? 'Salvando...' : 'Salvar'}
+                        </button>
                     </div>
-                     <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-                         {saveError && <p className="text-sm text-red-500 font-semibold text-center">{saveError}</p>}
-                         <button type="submit" disabled={isSaving} className="w-full sm:w-auto bg-fuchsia-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:bg-gray-400 disabled:shadow-none disabled:scale-100">{isSaving ? 'Salvando...' : 'Salvar'}</button>
-                    </div>
+
+                    {product && (
+                        <button 
+                            type="button" 
+                            onClick={handleDuplicate} 
+                            title="Duplicar Produto"
+                            className="p-3 rounded-xl transition bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 flex items-center justify-center"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                        </button>
+                    )}
                 </div>
             </form>
         </div>
@@ -1773,10 +1883,11 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                             <div className="flex items-end gap-3 mb-4">
                                 <div className="flex-grow">
                                     <label className={`text-sm font-semibold mb-1 block ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Nome da nova família</label>
-                                    <input 
+                                     <input 
                                         type="text"
                                         value={newFamilyName} 
                                         onChange={e => setNewFamilyName(e.target.value)} 
+                                        onFocus={handleInputFocus}
                                         placeholder="Ex: Família Floral"
                                         className={`w-full border-2 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-50 text-gray-900 border-gray-200'}`}
                                     />
@@ -1789,6 +1900,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                     type="text"
                                     value={familySearchTerm} 
                                     onChange={e => setFamilySearchTerm(e.target.value)} 
+                                    onFocus={handleInputFocus}
                                     placeholder="Buscar almofadas..."
                                     className={`w-full border-2 rounded-lg px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition ${isDark ? 'bg-black/20 text-white border-white/10' : 'bg-gray-50 text-gray-900 border-gray-200'}`}
                                 />

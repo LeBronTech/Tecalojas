@@ -151,6 +151,16 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     }, []);
 
     const familyProducts = useMemo(() => {
+        // Check for explicit families first
+        if (product.familyIds && product.familyIds.length > 0) {
+            return products.filter(p => 
+                p.id !== product.id && 
+                p.familyIds && 
+                p.familyIds.some(id => product.familyIds!.includes(id))
+            );
+        }
+        
+        // Fallback to guessed family
         const currentKey = getProductFamilyKey(product);
         return products.filter(p => p.id !== product.id && getProductFamilyKey(p) === currentKey);
     }, [products, product, getProductFamilyKey]);
@@ -212,16 +222,25 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         return () => { isMounted.current = false; };
     }, []);
 
-    const envKeys = useMemo(() => Object.keys(product.backgroundImages || {}).filter(key => {
-        const value = product.backgroundImages![key as keyof typeof product.backgroundImages];
-        return typeof value === 'string' || (typeof value === 'object' && value !== null && Object.keys(value).length > 0);
-    }), [product.backgroundImages]);
+    const viewKeys = useMemo(() => {
+        const keys: string[] = ['front'];
+        if (product.backImageUrl) keys.push('back');
+        
+        const envs = Object.keys(product.backgroundImages || {}).filter(key => {
+            const value = product.backgroundImages![key as keyof typeof product.backgroundImages];
+            return typeof value === 'string' || (typeof value === 'object' && value !== null && Object.keys(value).length > 0);
+        });
+        
+        return [...keys, ...envs];
+    }, [product.backgroundImages, product.backImageUrl]);
 
-    const activeEnvKey = envKeys[activeEnvIndex] as 'sala' | 'quarto' | 'varanda' | 'piscina' | undefined;
+    const activeEnvKey = viewKeys[activeEnvIndex] as 'front' | 'back' | 'sala' | 'quarto' | 'varanda' | 'piscina' | undefined;
 
     const currentImageUrl = useMemo(() => {
-        if (!activeEnvKey) return product.baseImageUrl;
-        const bgData = product.backgroundImages?.[activeEnvKey];
+        if (!activeEnvKey || activeEnvKey === 'front') return product.baseImageUrl;
+        if (activeEnvKey === 'back') return product.backImageUrl || product.baseImageUrl;
+        
+        const bgData = product.backgroundImages?.[activeEnvKey as 'sala' | 'quarto' | 'varanda' | 'piscina'];
         if (typeof bgData === 'string') return bgData;
         if (typeof bgData === 'object' && bgData !== null) {
             const color = activeEnvKey === 'sala' ? activeSofaColor : activeBedColor;
@@ -230,7 +249,14 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         return product.baseImageUrl;
     }, [activeEnvKey, activeSofaColor, activeBedColor, product]);
     
-    const envDisplayNames: Record<string, string> = { sala: 'Sala', quarto: 'Quarto', varanda: 'Varanda', piscina: 'Piscina' };
+    const envDisplayNames: Record<string, string> = { 
+        front: 'Frente',
+        back: 'Verso',
+        sala: 'Sala', 
+        quarto: 'Quarto', 
+        varanda: 'Varanda', 
+        piscina: 'Piscina' 
+    };
     const availableSalaColors = product.backgroundImages?.sala;
     const availableQuartoColors = product.backgroundImages?.quarto;
     const showSalaColorButton = typeof availableSalaColors === 'object' && availableSalaColors !== null && Object.keys(availableSalaColors).length > 1;
@@ -296,9 +322,8 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                 )}
 
                 <div className="flex-grow overflow-y-auto no-scrollbar pt-6">
-                     {envKeys.length > 0 && activeEnvKey && (
                         <div className="px-6 mb-4">
-                             <h3 className={`font-bold mb-2 ${titleClasses}`}>{envDisplayNames[activeEnvKey] || 'Veja em Ambientes'}</h3>
+                             <h3 className={`font-bold mb-2 ${titleClasses}`}>{envDisplayNames[activeEnvKey || 'front'] || 'Veja em Ambientes'}</h3>
                             <div className="relative w-full aspect-square rounded-2xl overflow-hidden mb-2">
                                 <img src={currentImageUrl} alt={activeEnvKey} className="w-full h-full object-cover" />
                                 <div className="absolute top-2 left-2 flex flex-col gap-2">
@@ -328,9 +353,15 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                 </div>
                             </div>
                              <div className="flex items-center justify-center gap-2">
-                                {envKeys.map((key, index) => {
-                                    const bgData = product.backgroundImages?.[key as keyof typeof product.backgroundImages];
-                                    const thumbUrl = typeof bgData === 'string' ? bgData : (bgData?.['Bege'] || Object.values(bgData || {})[0]);
+                                {viewKeys.map((key, index) => {
+                                    let thumbUrl = '';
+                                    if (key === 'front') thumbUrl = product.baseImageUrl;
+                                    else if (key === 'back') thumbUrl = product.backImageUrl || product.baseImageUrl;
+                                    else {
+                                        const bgData = product.backgroundImages?.[key as keyof typeof product.backgroundImages];
+                                        thumbUrl = typeof bgData === 'string' ? bgData : (bgData?.['Bege'] || Object.values(bgData || {})[0]);
+                                    }
+                                    
                                     if (!thumbUrl) return null;
                                     return (
                                     <button key={key} onClick={() => setActiveEnvIndex(index)} className={`w-12 h-12 rounded-lg overflow-hidden border-2 ${activeEnvIndex === index ? 'border-fuchsia-500' : 'border-transparent'}`}>
@@ -340,7 +371,6 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                 })}
                             </div>
                         </div>
-                    )}
                 
                     <div className="px-6 mt-4">
                         <span className={`text-sm font-bold uppercase tracking-wider ${isDark ? 'text-fuchsia-400' : 'text-purple-600'}`}>{product.category}</span>

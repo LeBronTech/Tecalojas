@@ -204,7 +204,7 @@ const App: React.FC = () => {
 
       switch (view) {
           case View.SHOWCASE:
-              return <ShowcaseScreen products={products} isLoading={productsLoading} initialProductId={initialProductId} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={activeSofaColors} cart={cart} />;
+              return <ShowcaseScreen products={products} isLoading={productsLoading} initialProductId={initialProductId} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={activeSofaColors} cart={cart} productFamilies={settings.productFamilies || []} />;
           case View.STOCK:
               return <StockManagementScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={setDeletingProductId} onAddProduct={() => setIsWizardOpen(true)} onUpdateStock={handleUpdateStock} onMenuClick={() => setIsMenuOpen(true)} canManageStock={isAdmin} hasFetchError={hasFetchError} brands={brands} />;
           case View.ASSISTANT:

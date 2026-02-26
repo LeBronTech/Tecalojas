@@ -101,8 +101,9 @@ const ColorSelector: React.FC<ColorSelectorProps> = ({
     
     const handleColorClick = () => {
         if (isDisabled && !isSelected) {
-            const confirm = window.confirm(`Já existe almofada com a cor "${color.name}". Deseja ainda sim selecionar essa cor?`);
-            if (!confirm) return;
+            if (!window.confirm(`Já existe almofada com essa cor, deseja adicionar essa cor mesmo assim?`)) {
+                return;
+            }
         }
         if (multiSelect && onToggleColor) onToggleColor(color);
         else if (!multiSelect && onSelectColor) onSelectColor(color);
