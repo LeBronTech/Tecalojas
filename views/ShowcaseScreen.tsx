@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Product, View, DynamicBrand, SavedComposition, ThemeContext, Variation, CushionSize, CartItem } from '../types';
+import { Product, View, DynamicBrand, SavedComposition, ThemeContext, Variation, CushionSize, CartItem, ProductFamily } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
 import CompositionViewerModal from '../components/CompositionViewerModal';
@@ -13,6 +13,12 @@ type ShowcaseItem = {
     products: Product[];
     familyId?: string;
     familyName?: string;
+} | {
+    type: 'collection';
+    products: Product[];
+    familyId: string;
+    familyName: string;
+    color: { name: string; hex: string };
 };
 
 const FireIcon = ({ className }: { className: string }) => (
@@ -150,11 +156,48 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
   );
 };
 
+// Novo componente CollectionCard
+const CollectionCard: React.FC<{ 
+    item: ShowcaseItem & { type: 'collection' }, 
+    index: number, 
+    onClick: (product: Product) => void 
+}> = ({ item, index, onClick }) => {
+    const { theme } = useContext(ThemeContext);
+    const isDark = theme === 'dark';
+    const { products: collectionProducts, familyName, color } = item;
+
+    const cardClasses = isDark ? "bg-black/20 backdrop-blur-xl border-white/10" : "bg-white border-gray-200/80 shadow-md";
+    const textNameClasses = isDark ? "text-purple-200" : "text-gray-800";
+    
+    // Optimization: Only animate the first few items
+    const shouldAnimate = index < 4;
+
+    return (
+        <div 
+            className={`col-span-2 rounded-3xl p-3 shadow-lg flex flex-col text-center border transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2 ${cardClasses} ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
+            style={{ 
+                ...shouldAnimate ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms`, opacity: 0 } : {},
+                backgroundColor: `${color.hex}1A` // Fundo transparente com a cor da coleção
+            }}
+        >
+            <h3 className="font-bold text-lg mb-2 text-fuchsia-600 dark:text-fuchsia-400">{`${familyName} ${color.name}`}</h3>
+            <div className="grid grid-cols-2 gap-2">
+                {collectionProducts.map(product => (
+                    <button key={product.id} onClick={() => onClick(product)} className="flex flex-col items-center">
+                        <img src={product.baseImageUrl} alt={product.name} className="w-24 h-24 object-cover rounded-lg mb-1" />
+                        <span className={`text-xs ${textNameClasses}`}>{product.name}</span>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 const ProductGroupCard: React.FC<{ 
     item: ShowcaseItem & { type: 'group' }, 
     index: number, 
     onClick: (product: Product) => void, 
-    productFamilies: {id: string, name: string}[] 
+    productFamilies: ProductFamily[] 
 }> = ({ item, index, onClick, productFamilies }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
@@ -252,7 +295,7 @@ const ProductGroupCard: React.FC<{
                         <span className="font-semibold">{representativeProduct.brand}</span>
                     </div>
                     <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
-                        {representativeProduct.subCategory || representativeProduct.fabricType}
+                        {representativeProduct.fabricType}
                     </span>
                 </div>
             </div>
@@ -339,12 +382,22 @@ interface ShowcaseScreenProps {
   sofaColors: { name: string; hex: string }[];
   cart: CartItem[];
   isLoading?: boolean;
-  productFamilies: {id: string, name: string}[];
+  productFamilies: ProductFamily[];
 }
 
 const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProductId, hasFetchError, canManageStock, onEditProduct, brands, onNavigate, savedCompositions, onAddToCart, sofaColors, cart, isLoading = false, productFamilies }) => {
-  const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
-  const [selectedFabric, setSelectedFabric] = useState<string>('Todos os Tecidos');
+  // WORKAROUND: Força a família "Linhons Vinho" a ser uma coleção para testes.
+  const modifiedProductFamilies = useMemo(() => {
+    return productFamilies.map(family => {
+        if (family.name.toLowerCase() === 'linhons vinho') {
+            return { ...family, isCollection: true };
+        }
+        return family;
+    });
+  }, [productFamilies]);
+
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => localStorage.getItem('showcase_category') || 'Todas');
+  const [selectedFabric, setSelectedFabric] = useState<string>(() => localStorage.getItem('showcase_fabric') || 'Todos os Tecidos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -353,6 +406,18 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
   
   // New State for Filter Expansion
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+  const [isColorFilterOpen, setIsColorFilterOpen] = useState(false);
+  const [selectedColors, setSelectedColors] = useState<string[]>(() => {
+    const savedColors = localStorage.getItem('showcase_colors');
+    return savedColors ? JSON.parse(savedColors) : [];
+  });
+
+  // --- SAVE FILTERS TO LOCALSTORAGE ---
+  useEffect(() => {
+    localStorage.setItem('showcase_category', selectedCategory);
+    localStorage.setItem('showcase_fabric', selectedFabric);
+    localStorage.setItem('showcase_colors', JSON.stringify(selectedColors));
+  }, [selectedCategory, selectedFabric, selectedColors]);
 
   // --- INFINITE SCROLL STATE ---
   const [visibleCount, setVisibleCount] = useState(4); // Match App.tsx initial limit
@@ -444,13 +509,65 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
     let filtered = products.filter(p => {
         const categoryMatch = selectedCategory === 'Todas' || p.category === selectedCategory || p.subCategory === selectedCategory;
         const fabricMatch = selectedFabric === 'Todos os Tecidos' || p.fabricType === selectedFabric;
-        return categoryMatch && fabricMatch;
+        
+        let colorMatch = true;
+        if (selectedColors.length > 0) {
+            const productColors = p.colors.map(c => c.name);
+            colorMatch = selectedColors.some(color => productColors.includes(color));
+        }
+
+        return categoryMatch && fabricMatch && colorMatch;
     });
 
     const grouped: ShowcaseItem[] = [];
 
-    if (selectedFabric !== 'Todos os Tecidos') {
-         grouped.push(...filtered.map(p => ({ type: 'single' as const, product: p })));
+    if (selectedFabric !== 'Todos os Tecidos' || selectedColors.length > 0) {
+        if (selectedColors.length > 0) {
+            const collections: ShowcaseItem[] = [];
+            const nonCollectionProducts: Product[] = [];
+
+            const collectionFamilies = modifiedProductFamilies.filter(f => f.isCollection);
+
+            collectionFamilies.forEach(family => {
+                selectedColors.forEach(colorName => {
+                    const color = PREDEFINED_COLORS.find(c => c.name === colorName);
+                    if (!color) return;
+
+                    const collectionProductsOfColor = filtered.filter(p => 
+                        p.familyIds?.includes(family.id) && p.colors.some(c => c.name === colorName)
+                    );
+
+                    if (collectionProductsOfColor.length > 0) {
+                        const sortedProducts = [...collectionProductsOfColor].sort((a, b) => {
+                            if (sortOrder === 'alpha') {
+                                return a.name.localeCompare(b.name);
+                            }
+                            return 0; // Keep original order for 'recent'
+                        });
+
+                        collections.push({
+                            type: 'collection',
+                            products: sortedProducts,
+                            familyId: family.id,
+                            familyName: family.name,
+                            color: color
+                        });
+                    }
+                });
+            });
+
+            const collectionProductIds = new Set(collections.flatMap(c => c.type === 'collection' ? c.products.map(p => p.id) : []));
+
+            filtered.forEach(p => {
+                if (!collectionProductIds.has(p.id)) {
+                    nonCollectionProducts.push(p);
+                }
+            });
+
+            grouped.push(...collections, ...nonCollectionProducts.map(p => ({ type: 'single' as const, product: p })));
+        } else {
+            grouped.push(...filtered.map(p => ({ type: 'single' as const, product: p })));
+        }
     } else {
         const familyMap = new Map<string, Product[]>();
         const processedExplicitProducts = new Set<string>();
@@ -488,14 +605,22 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
     }
 
     return grouped.sort((a, b) => {
+        // Prioritize collections to always appear first
+        if (a.type === 'collection' && b.type !== 'collection') return -1;
+        if (a.type !== 'collection' && b.type === 'collection') return 1;
+
         const itemA = a.type === 'single' ? a.product : a.products[0];
         const itemB = b.type === 'single' ? b.product : b.products[0];
 
         if (sortOrder === 'alpha') {
-            const nameA = String(itemA?.name || '');
-            const nameB = String(itemB?.name || '');
+            const nameA = a.type === 'collection' ? a.familyName : String(itemA?.name || '');
+            const nameB = b.type === 'collection' ? b.familyName : String(itemB?.name || '');
             return nameA.localeCompare(nameB);
-        } else { 
+        } else { // 'recent'
+            // If both are collections, sort them alphabetically as recency is not applicable
+            if (a.type === 'collection' && b.type === 'collection') {
+                return a.familyName.localeCompare(b.familyName);
+            }
             const getTime = (p: Product) => {
                 if (p.updatedAt) return p.updatedAt;
                 const idTime = parseInt(p.id.split('-')[0], 10);
@@ -504,12 +629,12 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
             return getTime(itemB) - getTime(itemA);
         }
     });
-  }, [products, selectedCategory, selectedFabric, sortOrder, getProductFamilyKey]);
+  }, [products, selectedCategory, selectedFabric, selectedColors, sortOrder, getProductFamilyKey]);
 
   // Reset pagination when filters change
   useEffect(() => {
       setVisibleCount(4);
-  }, [selectedCategory, selectedFabric, sortOrder, products.length]);
+  }, [selectedCategory, selectedFabric, selectedColors, sortOrder, products.length]);
 
   // Intersection Observer for Infinite Scroll
   useEffect(() => {
@@ -647,21 +772,38 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
                           )}
                           
                           {!isCategorySelected && (
-                              <button 
-                                onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
-                                className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-200 text-gray-600'}`}
-                                aria-label={isFiltersExpanded ? "Recolher filtros" : "Expandir filtros"}
-                              >
-                                  {isFiltersExpanded ? (
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                          <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                                      </svg>
-                                  ) : (
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                      </svg>
-                                  )}
-                              </button>
+                              <div className="flex items-center gap-2">
+                                  <button
+                                      onClick={() => {
+                                          setIsColorFilterOpen(!isColorFilterOpen);
+                                          if (!isColorFilterOpen) setIsFiltersExpanded(false);
+                                      }}
+                                      className={`p-2 rounded-full transition-colors flex items-center gap-2 ${isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-200 text-gray-600'} ${isColorFilterOpen ? (isDark ? 'bg-white/10' : 'bg-gray-200') : ''}`}
+                                      title="Filtrar por Cor"
+                                  >
+                                      <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-red-500 via-green-500 to-blue-500 border border-white/20 shadow-sm"></div>
+                                      <span className="text-xs font-bold">Cor</span>
+                                  </button>
+
+                                  <button 
+                                    onClick={() => {
+                                        setIsFiltersExpanded(!isFiltersExpanded);
+                                        if (!isFiltersExpanded) setIsColorFilterOpen(false);
+                                    }}
+                                    className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-200 text-gray-600'}`}
+                                    aria-label={isFiltersExpanded ? "Recolher filtros" : "Expandir filtros"}
+                                  >
+                                      {isFiltersExpanded ? (
+                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                              <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                                          </svg>
+                                      ) : (
+                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                          </svg>
+                                      )}
+                                  </button>
+                              </div>
                           )}
                       </div>
 
@@ -691,6 +833,39 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
                                       </button>
                                   );
                               })}
+                          </div>
+                      )}
+
+                      {/* Color Filter Panel */}
+                      {isColorFilterOpen && !isCategorySelected && (
+                          <div className={`mt-2 pt-4 border-t border-dashed ${isDark ? 'border-white/10' : 'border-gray-300'}`}>
+                              <span className={`text-xs font-bold uppercase tracking-wider mb-2 block ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Filtrar por Cor</span>
+                              <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar px-1">
+                                  {PREDEFINED_COLORS.map(color => {
+                                      const isSelected = selectedColors.includes(color.name);
+                                      return (
+                                          <button
+                                              key={color.name}
+                                              onClick={() => {
+                                                  setSelectedColors(prev => 
+                                                      prev.includes(color.name) 
+                                                          ? prev.filter(c => c !== color.name) 
+                                                          : [...prev, color.name]
+                                                  );
+                                              }}
+                                              className={`flex-shrink-0 w-8 h-8 rounded-full border-2 transition-all transform hover:scale-110 ${isSelected ? 'border-fuchsia-500 ring-2 ring-fuchsia-500/50 scale-110' : 'border-transparent hover:border-gray-300'}`}
+                                              style={{ backgroundColor: color.hex }}
+                                              title={color.name}
+                                          >
+                                              {isSelected && (
+                                                  <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 mx-auto ${['Branco', 'Bege', 'Amarelo'].includes(color.name) ? 'text-black' : 'text-white'}`} viewBox="0 0 20 20" fill="currentColor">
+                                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                  </svg>
+                                              )}
+                                          </button>
+                                      );
+                                  })}
+                              </div>
                           </div>
                       )}
 
@@ -733,7 +908,9 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
                         {displayedProducts.map((item, index) => (
                             item.type === 'group'
                                 ? <ProductGroupCard key={`group-${index}`} item={item} index={index} onClick={(p) => handleProductSelect(p)} productFamilies={productFamilies} />
-                                : <ProductCard key={item.product.id} product={item.product} index={index} onClick={() => handleProductSelect(item.product)} />
+                                : item.type === 'collection'
+                                    ? <CollectionCard key={`collection-${index}`} item={item} index={index} onClick={(p) => handleProductSelect(p)} />
+                                    : <ProductCard key={item.product.id} product={item.product} index={index} onClick={() => handleProductSelect(item.product)} />
                         ))}
                         {visibleCount < allFilteredProducts.length && (
                             <div ref={loadMoreRef} className="col-span-full py-4 text-center">

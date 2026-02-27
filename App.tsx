@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, User, Product, CartItem, SavedComposition, ThemeContext, Theme, CushionSize, Variation, StoreName, SaleRequest, CardFees, CategoryItem, DynamicBrand, CatalogPDF } from './types';
+import { View, User, Product, CartItem, SavedComposition, ThemeContext, Theme, CushionSize, Variation, StoreName, SaleRequest, CardFees, CategoryItem, DynamicBrand, CatalogPDF, ProductFamily } from './types';
 import * as api from './firebase';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
@@ -42,7 +42,7 @@ const App: React.FC = () => {
   const [catalogs, setCatalogs] = useState<CatalogPDF[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [saleRequests, setSaleRequests] = useState<SaleRequest[]>([]);
-  const [settings, setSettings] = useState<{ cardFees: CardFees, weeklyGoal: number, colors?: {name:string, hex:string}[], sofaColors?: {name:string, hex:string}[], productFamilies?: {id: string, name: string}[] }>({
+  const [settings, setSettings] = useState<{ cardFees: CardFees, weeklyGoal: number, colors?: {name:string, hex:string}[], sofaColors?: {name:string, hex:string}[], productFamilies?: ProductFamily[] }>({
       cardFees: { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 },
       weeklyGoal: 0,
       productFamilies: []
@@ -246,9 +246,36 @@ const App: React.FC = () => {
                 onAddCategory={async (name, type) => { await api.addCategory({name, type}); }}
                 onDeleteCategory={(id) => api.deleteCategory(id)}
                 productFamilies={settings.productFamilies || []}
-                onAddProductFamily={(name) => {
-                    const newFamily = { id: `fam_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, name };
+                onAddProductFamily={(name, isCollection) => {
+                    const newFamily: ProductFamily = { id: `fam_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, name, isCollection };
                     api.updateGlobalSettings({ productFamilies: [...(settings.productFamilies || []), newFamily] });
+                }}
+                onUpdateProductFamily={(id, data) => {
+                    const currentFamilies = settings.productFamilies || [];
+                    const updatedFamilies = currentFamilies.map(f => f.id === id ? { ...f, ...data } : f);
+                    api.updateGlobalSettings({ productFamilies: updatedFamilies });
+
+                    const family = updatedFamilies.find(f => f.id === id);
+                    if (family && data.isCollection) {
+                        const familyProducts = products.filter(p => (p.familyIds || []).includes(family.id));
+                        if (familyProducts.length > 0) {
+                            const newComposition: SavedComposition = {
+                                id: `comp_fam_${family.id}`,
+                                name: family.name,
+                                products: familyProducts,
+                                familyId: family.id,
+                            };
+                            setSavedCompositions(prev => {
+                                const existing = prev.find(c => c.familyId === family.id);
+                                if (existing) {
+                                    return prev.map(c => c.familyId === family.id ? newComposition : c);
+                                }
+                                return [...prev, newComposition];
+                            });
+                        }
+                    } else if (family && data.isCollection === false) {
+                        setSavedCompositions(prev => prev.filter(c => c.familyId !== family.id));
+                    }
                 }}
                 onDeleteProductFamily={async (id) => {
                     const currentFamilies = settings.productFamilies || [];

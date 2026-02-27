@@ -269,6 +269,11 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={onClose}>
             <canvas ref={canvasRef} className="hidden"></canvas>
             <div className={`relative w-full max-w-2xl max-h-[90vh] rounded-[2.5rem] border overflow-hidden flex flex-col ${isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200"}`} onClick={e => e.stopPropagation()}>
+                <button onClick={onClose} className="absolute top-4 right-4 z-20 p-2 rounded-full bg-black/20 text-white hover:bg-black/40 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
                 <div className="p-8 overflow-y-auto no-scrollbar space-y-6">
                     <div className="text-center">
                         <h2 className={`text-3xl font-black uppercase tracking-tighter ${isDark ? 'text-white' : 'text-gray-900'}`}>{currentComposition.name}</h2>

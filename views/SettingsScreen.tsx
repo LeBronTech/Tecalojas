@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useRef, useMemo, useEffect } from 'react';
-import { ThemeContext, DynamicBrand, Brand, CardFees, CategoryItem, Product } from '../types';
+import { ThemeContext, DynamicBrand, Brand, CardFees, CategoryItem, Product, ProductFamily } from '../types';
 import { BRANDS, BRAND_LOGOS } from '../constants';
 import * as api from '../firebase';
 
@@ -20,8 +20,9 @@ interface SettingsScreenProps {
   categories: CategoryItem[];
   onAddCategory: (name: string, type: 'category' | 'subcategory') => Promise<void>;
   onDeleteCategory: (id: string) => Promise<void>;
-  productFamilies: {id: string, name: string}[];
-  onAddProductFamily: (name: string) => void;
+  productFamilies: ProductFamily[];
+  onAddProductFamily: (name: string, isCollection?: boolean) => void;
+  onUpdateProductFamily: (id: string, data: Partial<ProductFamily>) => void;
   onDeleteProductFamily: (id: string) => void;
   products: Product[];
   onUpdateProduct: (id: string, data: Partial<Product>) => Promise<void>;
@@ -63,7 +64,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     cardFees, onSaveCardFees,
     sofaColors, onAddSofaColor, onDeleteSofaColor,
     categories, onAddCategory, onDeleteCategory,
-    productFamilies, onAddProductFamily, onDeleteProductFamily,
+    productFamilies, onAddProductFamily, onDeleteProductFamily, onUpdateProductFamily,
     products, onUpdateProduct
 }) => {
   const { theme } = useContext(ThemeContext);
@@ -96,6 +97,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   // Families state
   const [newFamilyName, setNewFamilyName] = useState('');
+  const [newFamilyIsCollection, setNewFamilyIsCollection] = useState(false);
+  const [editingFamilyIsCollection, setEditingFamilyIsCollection] = useState(false);
   const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
   const [familySearchTerm, setFamilySearchTerm] = useState('');
 
@@ -243,8 +246,9 @@ const copyFeedUrl = () => {
 
 const handleAddFamily = () => {
     if (!newFamilyName.trim()) return;
-    onAddProductFamily(newFamilyName.trim());
+    onAddProductFamily(newFamilyName.trim(), newFamilyIsCollection);
     setNewFamilyName('');
+    setNewFamilyIsCollection(false);
 };
 
 const handleToggleProductFamily = async (product: Product, familyId: string) => {
@@ -470,6 +474,18 @@ const handleToggleProductFamily = async (product: Product, familyId: string) => 
                          <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Nome da nova família</label>
                          <Input value={newFamilyName} onChange={e => setNewFamilyName(e.target.value)} placeholder="Ex: Família Floral" />
                      </div>
+                     <div className="flex items-center">
+                        <input 
+                            type="checkbox" 
+                            id="isCollection" 
+                            checked={newFamilyIsCollection} 
+                            onChange={(e) => setNewFamilyIsCollection(e.target.checked)}
+                            className="h-4 w-4 text-fuchsia-600 border-gray-300 rounded focus:ring-fuchsia-500"
+                        />
+                        <label htmlFor="isCollection" className={`ml-2 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            Coleção?
+                        </label>
+                    </div>
                      <button onClick={handleAddFamily} className="bg-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar</button>
                  </div>
 
@@ -520,9 +536,27 @@ const handleToggleProductFamily = async (product: Product, familyId: string) => 
                  {selectedFamilyId && (
                      <div className={`p-4 rounded-xl border ${isDark ? 'bg-black/30 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
                          <div className="flex justify-between items-center mb-4">
-                             <h3 className={`font-bold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                 Produtos na família: {productFamilies.find(f => f.id === selectedFamilyId)?.name}
-                             </h3>
+                            <div className="flex items-center gap-4">
+                                <h3 className={`font-bold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                    Produtos na família: {productFamilies.find(f => f.id === selectedFamilyId)?.name}
+                                </h3>
+                                <div className="flex items-center">
+                                    <input 
+                                        type="checkbox" 
+                                        id="isCollectionEdit" 
+                                        checked={productFamilies.find(f => f.id === selectedFamilyId)?.isCollection || false} 
+                                        onChange={(e) => {
+                                            if (selectedFamilyId) {
+                                                onUpdateProductFamily(selectedFamilyId, { isCollection: e.target.checked });
+                                            }
+                                        }}
+                                        className="h-4 w-4 text-fuchsia-600 border-gray-300 rounded focus:ring-fuchsia-500"
+                                    />
+                                    <label htmlFor="isCollectionEdit" className={`ml-2 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Coleção?
+                                    </label>
+                                </div>
+                            </div>
                              <Input 
                                  placeholder="Buscar produtos..." 
                                  value={familySearchTerm} 

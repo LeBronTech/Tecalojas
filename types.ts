@@ -26,6 +26,12 @@ export interface DynamicBrand {
   logoUrl: string;
 }
 
+export interface ProductFamily {
+  id: string;
+  name: string;
+  isCollection?: boolean;
+}
+
 export interface CategoryItem {
   id: string;
   name: string;

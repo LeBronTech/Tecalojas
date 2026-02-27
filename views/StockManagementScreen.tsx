@@ -1,7 +1,7 @@
 
 import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { Product, StoreName, View, Brand, CushionSize, DynamicBrand, ThemeContext } from '../types';
-import { BRAND_LOGOS } from '../constants';
+import { BRAND_LOGOS, PREDEFINED_COLORS } from '../constants';
 
 const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> = ({ colors, size = 4 }) => {
     const className = `w-${size} h-${size}`;
@@ -256,6 +256,8 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
   const [isFilterHeaderOpen, setIsFilterHeaderOpen] = useState(false);
+  const [isColorHeaderOpen, setIsColorHeaderOpen] = useState(false);
+  const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const lastScrollY = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -317,13 +319,41 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
     };
     
     const categories = useMemo(() => ['Todas', ...Array.from(new Set(products.map(p => p.category)))], [products]);
+
+    const availableColors = useMemo(() => {
+        const allProductColors = products.flatMap(p => p.colors);
+        const uniqueColors = new Map<string, string>();
+
+        allProductColors.forEach(color => {
+            if (!uniqueColors.has(color.name)) {
+                uniqueColors.set(color.name, color.hex);
+            }
+        });
+
+        PREDEFINED_COLORS.forEach(color => {
+            if (!uniqueColors.has(color.name)) {
+                uniqueColors.set(color.name, color.hex);
+            }
+        });
+
+        return Array.from(uniqueColors, ([name, hex]) => ({ name, hex }))
+                    .sort((a, b) => a.name.localeCompare(b.name));
+    }, [products]);
     
     const filteredProducts = useMemo(() => {
-        return products.filter(product =>
-            product.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-            (selectedCategory === 'Todas' || product.category === selectedCategory)
-        );
-    }, [products, searchQuery, selectedCategory]);
+        return products.filter(product => {
+            const nameMatch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+            const categoryMatch = selectedCategory === 'Todas' || product.category === selectedCategory;
+            
+            let colorMatch = true;
+            if (selectedColors.length > 0) {
+                const productColors = product.colors.map(c => c.name);
+                colorMatch = selectedColors.some(color => productColors.includes(color));
+            }
+
+            return nameMatch && categoryMatch && colorMatch;
+        });
+    }, [products, searchQuery, selectedCategory, selectedColors]);
 
     const [orderedProducts, setOrderedProducts] = useState<Product[]>([]);
 
@@ -382,9 +412,12 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
             </div>
 
             <div className={`sticky top-[5.25rem] z-10 pb-4 transition-transform duration-300 ease-in-out pointer-events-none ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-                <div className="text-center px-6 pt-2 pointer-events-auto">
+                <div className="text-center px-6 pt-2 pointer-events-auto flex items-center justify-center gap-2">
                     <button
-                        onClick={() => setIsFilterHeaderOpen(!isFilterHeaderOpen)}
+                        onClick={() => {
+                            setIsFilterHeaderOpen(!isFilterHeaderOpen);
+                            if (!isFilterHeaderOpen) setIsColorHeaderOpen(false);
+                        }}
                         className={`inline-flex items-center justify-center font-semibold py-2 px-4 rounded-lg transition-colors text-sm shadow-lg ${isDark ? 'bg-[#1A1129] text-gray-300 hover:bg-black/60 border border-white/10' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}`}
                         aria-expanded={isFilterHeaderOpen}
                         aria-controls="filters-panel"
@@ -393,6 +426,17 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ml-2 transition-transform duration-300 ${isFilterHeaderOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
+                    </button>
+
+                    <button
+                        onClick={() => {
+                            setIsColorHeaderOpen(!isColorHeaderOpen);
+                            if (!isColorHeaderOpen) setIsFilterHeaderOpen(false);
+                        }}
+                        className={`inline-flex items-center justify-center font-semibold py-2 px-4 rounded-lg transition-colors text-sm shadow-lg ${isDark ? 'bg-[#1A1129] text-gray-300 hover:bg-black/60 border border-white/10' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}`}
+                    >
+                        <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-red-500 via-green-500 to-blue-500 border border-white/20 mr-2 shadow-sm"></div>
+                        Cor
                     </button>
                 </div>
 
@@ -471,6 +515,38 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                                 </button>
                             );
                         })}
+                    </div>
+                </div>
+
+                {/* Painel de Cores */}
+                <div id="colors-panel" className={`transition-all duration-500 ease-in-out overflow-hidden pointer-events-auto ${isColorHeaderOpen ? 'max-h-[200px] opacity-100 pt-4' : 'max-h-0 opacity-0'} ${isDark ? 'bg-[#1A1129]/95 backdrop-blur-md rounded-2xl mx-4 mt-2 shadow-xl border border-white/10' : 'bg-white/95 backdrop-blur-md rounded-2xl mx-4 mt-2 shadow-xl border border-gray-100'}`}>
+                    <div className="px-4 pb-4">
+                        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar px-1 justify-center">
+                            {availableColors.map(color => {
+                                const isSelected = selectedColors.includes(color.name);
+                                return (
+                                    <button
+                                        key={color.name}
+                                        onClick={() => {
+                                            setSelectedColors(prev => 
+                                                prev.includes(color.name) 
+                                                    ? prev.filter(c => c !== color.name) 
+                                                    : [...prev, color.name]
+                                            );
+                                        }}
+                                        className={`flex-shrink-0 w-10 h-10 rounded-full border-2 transition-all transform hover:scale-110 ${isSelected ? 'border-fuchsia-500 ring-2 ring-fuchsia-500/50 scale-110' : 'border-transparent hover:border-gray-300'}`}
+                                        style={{ backgroundColor: color.hex }}
+                                        title={color.name}
+                                    >
+                                        {isSelected && (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mx-auto ${['Branco', 'Bege', 'Amarelo'].includes(color.name) ? 'text-black' : 'text-white'}`} viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
             </div>
