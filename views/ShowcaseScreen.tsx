@@ -162,7 +162,10 @@ const ProductGroupCard: React.FC<{
     const [startSlide, setStartSlide] = useState(false);
 
     const { products: group, familyId, familyName: explicitName } = item;
-    const validImages = useMemo(() => group.map(p => p.baseImageUrl).filter(Boolean), [group]);
+    
+    // Filter products that have images to ensure sync between image index and product
+    const validProducts = useMemo(() => group.filter(p => !!p.baseImageUrl), [group]);
+    const validImages = useMemo(() => validProducts.map(p => p.baseImageUrl!), [validProducts]);
     
     const representativeProduct = group[0];
     
@@ -204,7 +207,7 @@ const ProductGroupCard: React.FC<{
 
     return (
         <button 
-            onClick={() => onClick(representativeProduct)}
+            onClick={() => onClick(validProducts[activeImageIndex] || representativeProduct)}
             className={`rounded-3xl p-3 shadow-lg flex flex-col items-center justify-between text-center border transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2 ${cardClasses} ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
             style={shouldAnimate ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms`, opacity: 0 } : {}}
         >
@@ -249,7 +252,7 @@ const ProductGroupCard: React.FC<{
                         <span className="font-semibold">{representativeProduct.brand}</span>
                     </div>
                     <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
-                        {representativeProduct.fabricType}
+                        {representativeProduct.subCategory || representativeProduct.fabricType}
                     </span>
                 </div>
             </div>
@@ -366,7 +369,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
   }, [initialProductId, products]);
 
   // Update URL on product selection/deselection
-  const handleProductSelect = (product: Product | null) => {
+  const handleProductSelect = useCallback((product: Product | null) => {
       setSelectedProduct(product);
       try {
           if (product) {
@@ -381,7 +384,24 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
       } catch (e) {
           console.warn("Could not update URL history:", e);
       }
-  };
+  }, []);
+
+  // Handle browser back button
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const productId = params.get('product_id');
+      if (productId) {
+        const product = products.find(p => p.id === productId);
+        if (product) setSelectedProduct(product);
+      } else {
+        setSelectedProduct(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [products]);
 
 
   const categories = useMemo(() => {
@@ -580,15 +600,20 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
                         title={sortOrder === 'recent' ? "Mudar para Ordem Alfabética" : "Mudar para Mais Recentes"}
                     >
                         {sortOrder === 'recent' ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        ) : (
-                            <div className="relative flex flex-col items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v12m0 0l-3-3m3 3l3-3" />
+                            <div className="flex items-center gap-0.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                                 </svg>
-                                <div className="absolute -right-1 bottom-0 flex flex-col leading-[0.5] text-[8px] font-black">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                </svg>
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                </svg>
+                                <div className="flex flex-col leading-none text-[10px] font-black">
                                     <span>A</span>
                                     <span>Z</span>
                                 </div>

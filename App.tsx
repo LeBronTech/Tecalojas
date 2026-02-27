@@ -58,6 +58,7 @@ const App: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [lastCreatedProductId, setLastCreatedProductId] = useState<string | null>(null);
   const [initialProductId, setInitialProductId] = useState<string | undefined>();
 
   const isAdmin = currentUser?.role === 'admin';
@@ -206,7 +207,18 @@ const App: React.FC = () => {
           case View.SHOWCASE:
               return <ShowcaseScreen products={products} isLoading={productsLoading} initialProductId={initialProductId} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={activeSofaColors} cart={cart} productFamilies={settings.productFamilies || []} />;
           case View.STOCK:
-              return <StockManagementScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={setDeletingProductId} onAddProduct={() => setIsWizardOpen(true)} onUpdateStock={handleUpdateStock} onMenuClick={() => setIsMenuOpen(true)} canManageStock={isAdmin} hasFetchError={hasFetchError} brands={brands} />;
+              return <StockManagementScreen 
+                products={products} 
+                onEditProduct={setEditingProduct} 
+                onDeleteProduct={setDeletingProductId} 
+                onAddProduct={() => setIsWizardOpen(true)} 
+                onUpdateStock={handleUpdateStock} 
+                onMenuClick={() => setIsMenuOpen(true)} 
+                canManageStock={isAdmin} 
+                hasFetchError={hasFetchError} 
+                brands={brands} 
+                highlightProductId={lastCreatedProductId}
+            />;
           case View.ASSISTANT:
               return <AssistantScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={setDeletingProductId} canManageStock={isAdmin} onMenuClick={() => setIsMenuOpen(true)} />;
           case View.SETTINGS:
@@ -231,7 +243,7 @@ const App: React.FC = () => {
                 onAddSofaColor={(c) => api.updateGlobalSettings({ sofaColors: [...activeSofaColors, c] })}
                 onDeleteSofaColor={(n) => api.updateGlobalSettings({ sofaColors: activeSofaColors.filter(c => c.name !== n) })}
                 categories={categories}
-                onAddCategory={(name, type) => api.addCategory({name, type})}
+                onAddCategory={async (name, type) => { await api.addCategory({name, type}); }}
                 onDeleteCategory={(id) => api.deleteCategory(id)}
                 productFamilies={settings.productFamilies || []}
                 onAddProductFamily={(name) => {
@@ -282,7 +294,7 @@ const App: React.FC = () => {
           case View.GENERATE_KEYS:
               return <GenerateKeysScreen onMenuClick={() => setIsMenuOpen(true)} />;
           default:
-              return <ShowcaseScreen products={products} isLoading={productsLoading} initialProductId={initialProductId} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={activeSofaColors} cart={cart} />;
+              return <ShowcaseScreen products={products} isLoading={productsLoading} initialProductId={initialProductId} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={activeSofaColors} cart={cart} productFamilies={settings.productFamilies || []} />;
       }
   };
 
@@ -360,7 +372,7 @@ const App: React.FC = () => {
                             originalId: parent.id,
                             variations: parent.variations.map(v => ({
                                 ...v,
-                                stock: {}
+                                stock: { [StoreName.TECA]: 0, [StoreName.IONE]: 0 }
                             })),
                             backgroundImages: {}
                         };
@@ -392,7 +404,12 @@ const App: React.FC = () => {
             <ProductCreationWizard 
                 onClose={() => setIsWizardOpen(false)}
                 onConfigure={(newProducts, first) => {
-                    Promise.all(newProducts.map(p => api.addProductData(p))).then(() => {
+                    Promise.all(newProducts.map(p => api.addProductData(p))).then((results) => {
+                        if (results.length > 0 && results[0]) {
+                            setLastCreatedProductId(results[0].id);
+                            // Clear the highlight after some time
+                            setTimeout(() => setLastCreatedProductId(null), 5000);
+                        }
                         setIsWizardOpen(false);
                     });
                 }}

@@ -31,24 +31,24 @@ const StockControl: React.FC<{
     const isDark = theme === 'dark';
     const buttonClasses = isDark ? "bg-gray-700/50 text-gray-200 hover:bg-purple-900/50" : "bg-gray-200 text-gray-700 hover:bg-gray-300";
     const disabledButtonClasses = isDark ? "bg-gray-800/50 text-gray-500 cursor-not-allowed" : "bg-gray-200/50 text-gray-400 cursor-not-allowed";
-    const stockTextClasses = isDark ? "text-cyan-300" : "text-blue-600";
+    const stockTextClasses = isDark ? "text-fuchsia-400" : "text-fuchsia-600";
     
     return (
-         <div className="flex items-center space-x-3">
-            <span className={`font-semibold text-sm w-20 text-right ${isDark ? 'text-purple-300/80' : 'text-gray-500'}`}>{store}:</span>
+         <div className="flex items-center space-x-2">
+            <span className={`font-semibold text-xs w-11 text-right ${isDark ? 'text-purple-300/80' : 'text-gray-500'}`}>{store.substring(0, 4)}:</span>
             <button
                 onClick={(e) => { e.stopPropagation(); onUpdate(-1); }}
                 disabled={disabled || stock <= 0}
-                className={`w-12 h-12 rounded-lg font-bold text-4xl flex items-center justify-center transition-colors ${disabled || stock <= 0 ? disabledButtonClasses : buttonClasses}`}
+                className={`w-11 h-11 rounded-lg font-bold text-xl flex items-center justify-center transition-colors ${disabled || stock <= 0 ? disabledButtonClasses : buttonClasses}`}
                 aria-label={`Diminuir estoque de ${store}`}
             >
                 -
             </button>
-            <span className={`font-bold w-10 text-center text-xl ${stockTextClasses}`}>{stock}</span>
+            <span className={`font-bold w-8 text-center text-lg ${stockTextClasses}`}>{stock}</span>
             <button
                 onClick={(e) => { e.stopPropagation(); onUpdate(1); }}
                 disabled={disabled}
-                className={`w-12 h-12 rounded-lg font-bold text-4xl flex items-center justify-center transition-colors ${disabled ? disabledButtonClasses : buttonClasses}`}
+                className={`w-11 h-11 rounded-lg font-bold text-xl flex items-center justify-center transition-colors ${disabled ? disabledButtonClasses : buttonClasses}`}
                 aria-label={`Aumentar estoque de ${store}`}
             >
                 +
@@ -66,9 +66,10 @@ interface StockItemProps {
     canManageStock: boolean;
     selectedVariation: CushionSize;
     onSelectVariation: (productId: string, size: CushionSize) => void;
+    isHighlighted?: boolean;
 }
 
-const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete, onUpdateStock, canManageStock, selectedVariation, onSelectVariation }) => {
+const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete, onUpdateStock, canManageStock, selectedVariation, onSelectVariation, isHighlighted }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [showBack, setShowBack] = useState(false);
@@ -107,15 +108,16 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
 
     return (
         <div 
+            id={`product-${product.id}`}
             onClick={() => canManageStock && onEdit(product)}
-            className={`rounded-3xl p-5 shadow-lg hover:shadow-xl transition-all duration-300 border ${cardClasses} ${canManageStock ? 'cursor-pointer' : ''}`}
+            className={`rounded-3xl p-5 shadow-lg hover:shadow-xl transition-all duration-300 border ${cardClasses} ${canManageStock ? 'cursor-pointer' : ''} ${isHighlighted ? 'ring-4 ring-fuchsia-500 animate-pulse-pink' : ''}`}
             style={{ 
-                animation: 'float-in 0.3s ease-out forwards',
+                animation: isHighlighted ? 'none' : 'float-in 0.3s ease-out forwards',
                 animationDelay: `${index * 50}ms`,
-                opacity: 0
+                opacity: isHighlighted ? 1 : 0
             }}
         >
-            <div className="flex items-start space-x-4">
+            <div className="flex items-start gap-4 pr-16 relative">
                 <div className={`w-20 h-20 ${imageBgClasses} rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden shadow-md relative`}>
                     {product.baseImageUrl ? (
                         <>
@@ -143,86 +145,88 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
                     )}
                 </div>
                 <div className="flex-grow min-w-0">
-                     <div className="flex justify-between items-start gap-2">
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h4 className={`font-bold text-lg leading-tight ${textNameClasses}`}>{product.name}</h4>
-                                <div className="flex items-center gap-2">
-                                    <span className={`text-2xl font-black ${totalStock <= 1 ? (isDark ? 'text-red-400' : 'text-red-600') : 'text-fuchsia-500'}`}>{totalStock}</span>
-                                    {totalStock <= 1 && <div className="w-3 h-3 bg-red-500 rounded-full blinking-dot"></div>}
-                                    {totalStock === 2 && <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>}
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-x-3 gap-y-1 mt-1 flex-wrap">
-                                <div className="flex items-center gap-1.5">
-                                    <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px" />
-                                    <span className={`text-xs font-semibold ${textMetaClasses}`}>{product.brand}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <MultiColorCircle colors={product.colors} size={4} />
-                                    <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
-                                        {product.fabricType}
-                                    </span>
-                                </div>
-                            </div>
+                     <h4 className={`font-bold text-lg leading-tight ${textNameClasses}`}>{product.name}</h4>
+                     
+                     <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                            <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px" />
+                            <span className={`text-xs font-semibold ${textMetaClasses}`}>{product.brand}</span>
                         </div>
-                        <div className="flex items-center space-x-1 flex-shrink-0">
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onEdit(product); }}
-                                disabled={!canManageStock}
-                                className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? actionBtnClasses : disabledBtnClasses}`}
-                                aria-label={`Editar ${product.name}`}
-                            >
-                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" />
-                                </svg>
-                            </button>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onDelete(product.id); }}
-                                disabled={!canManageStock}
-                                className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? deleteBtnClasses : disabledBtnClasses}`}
-                                aria-label={`Excluir ${product.name}`}
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                            </button>
-                        </div>
+                        <MultiColorCircle colors={product.colors} size={4} />
+                        <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
+                            {product.fabricType}
+                        </span>
+                     </div>
+                </div>
+
+                <div className="absolute top-0 right-0 flex flex-col items-center gap-1">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onEdit(product); }}
+                        disabled={!canManageStock}
+                        className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? actionBtnClasses : disabledBtnClasses}`}
+                        aria-label={`Editar ${product.name}`}
+                    >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" />
+                        </svg>
+                    </button>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onDelete(product.id); }}
+                        disabled={!canManageStock}
+                        className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? deleteBtnClasses : disabledBtnClasses}`}
+                        aria-label={`Excluir ${product.name}`}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                    
+                    <div className="flex items-center justify-center mt-1">
+                        <span className={`text-xl font-black ${totalStock <= 1 ? (isDark ? 'text-red-400' : 'text-red-600') : 'text-fuchsia-500'}`}>{totalStock}</span>
+                        {totalStock <= 1 && <div className="w-2 h-2 bg-red-500 rounded-full blinking-dot ml-1"></div>}
+                        {totalStock === 2 && <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse ml-1"></div>}
                     </div>
                 </div>
             </div>
             
-            <div className={`mt-4 pt-4 flex flex-col items-center justify-center gap-2 border-t ${isDark ? 'border-white/10' : 'border-gray-200/80'}`}>
-                {product.variations && product.variations.length > 1 && (
-                    <div className="mb-2 w-full flex justify-center">
-                         <select
-                            value={selectedVariation}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => onSelectVariation(product.id, e.target.value as CushionSize)}
-                            className={`text-xs p-1.5 rounded-md border focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${selectClasses}`}
-                            disabled={!canManageStock}
-                        >
-                            {product.variations.map(v => (
-                                <option key={v.size} value={v.size}>
-                                    Ver estoque: {v.size}
-                                </option>
-                            ))}
-                        </select>
+            <div className={`mt-4 pt-4 flex flex-row items-start justify-center gap-1 border-t ${isDark ? 'border-white/10' : 'border-gray-200/80'}`}>
+                {/* Size Selection Buttons on the Left */}
+                <div className="flex flex-col gap-2 w-auto min-w-[110px] flex-shrink-0">
+                    <p className={`text-[10px] font-bold uppercase mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Tamanhos</p>
+                    <div className="grid grid-cols-2 gap-2">
+                        {product.variations.map(v => (
+                            <button
+                                key={v.size}
+                                onClick={(e) => { e.stopPropagation(); onSelectVariation(product.id, v.size); }}
+                                className={`px-1 py-1 rounded-lg text-[10px] font-bold transition-all border text-center flex items-center justify-center h-11 ${
+                                    selectedVariation === v.size
+                                        ? (isDark ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-purple-600 border-purple-500 text-white')
+                                        : (isDark ? 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10' : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200')
+                                } ${v.size.toLowerCase().includes('lombar') || v.size.length > 5 ? 'col-span-2' : ''}`}
+                            >
+                                {v.size}
+                            </button>
+                        ))}
                     </div>
-                )}
-                 <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
-                    <StockControl 
-                        store={StoreName.TECA} 
-                        stock={tecaStock} 
-                        onUpdate={(change) => onUpdateStock(product.id, selectedVariation, StoreName.TECA, change)} 
-                        disabled={!canManageStock || !currentVariation}
-                    />
-                    <StockControl 
-                        store={StoreName.IONE} 
-                        stock={ioneStock} 
-                        onUpdate={(change) => onUpdateStock(product.id, selectedVariation, StoreName.IONE, change)} 
-                        disabled={!canManageStock || !currentVariation}
-                    />
+                </div>
+
+                {/* Stock Controls on the Right */}
+                <div className={`flex flex-col items-start justify-center gap-2 pl-2 border-l ${isDark ? 'border-white/5' : 'border-gray-200'}`}>
+                    <p className={`text-[10px] font-bold uppercase mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Estoque: {selectedVariation}</p>
+                    <div className="flex flex-col gap-2">
+                        <StockControl 
+                            store={StoreName.TECA} 
+                            stock={tecaStock} 
+                            onUpdate={(change) => onUpdateStock(product.id, selectedVariation, StoreName.TECA, change)} 
+                            disabled={!canManageStock || !currentVariation}
+                        />
+                        <StockControl 
+                            store={StoreName.IONE} 
+                            stock={ioneStock} 
+                            onUpdate={(change) => onUpdateStock(product.id, selectedVariation, StoreName.IONE, change)} 
+                            disabled={!canManageStock || !currentVariation}
+                        />
+                    </div>
                 </div>
             </div>
         </div>
@@ -240,9 +244,10 @@ interface StockManagementScreenProps {
   canManageStock: boolean;
   hasFetchError: boolean;
   brands: DynamicBrand[];
+  highlightProductId?: string | null;
 }
 
-const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products, onEditProduct, onDeleteProduct, onAddProduct, onUpdateStock, onMenuClick, canManageStock, hasFetchError, brands }) => {
+const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products, onEditProduct, onDeleteProduct, onAddProduct, onUpdateStock, onMenuClick, canManageStock, hasFetchError, brands, highlightProductId }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const [selectedVariations, setSelectedVariations] = useState<Record<string, CushionSize>>({});
@@ -250,7 +255,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
-  const [isFilterHeaderOpen, setIsFilterHeaderOpen] = useState(true);
+  const [isFilterHeaderOpen, setIsFilterHeaderOpen] = useState(false);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const lastScrollY = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -262,7 +267,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
         if (currentScrollY > 100) {
             if (currentScrollY > lastScrollY.current) {
                 if (isHeaderVisible) setIsHeaderVisible(false);
-                if (isFilterHeaderOpen) setIsFilterHeaderOpen(false);
+                // Removed automatic closing of filter header to avoid conflict
             } else {
                 if (!isHeaderVisible) setIsHeaderVisible(true);
             }
@@ -273,6 +278,15 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
         lastScrollY.current = currentScrollY <= 0 ? 0 : currentScrollY;
     }
   };
+
+  useEffect(() => {
+    if (highlightProductId && scrollContainerRef.current) {
+        const element = document.getElementById(`product-${highlightProductId}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+  }, [highlightProductId]);
   
   useEffect(() => {
     if (hasFetchError) {
@@ -305,26 +319,42 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
     const categories = useMemo(() => ['Todas', ...Array.from(new Set(products.map(p => p.category)))], [products]);
     
     const filteredProducts = useMemo(() => {
-        let tempProducts = [...products];
-
-        tempProducts = tempProducts.filter(product =>
+        return products.filter(product =>
             product.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
             (selectedCategory === 'Todas' || product.category === selectedCategory)
         );
+    }, [products, searchQuery, selectedCategory]);
 
-        return tempProducts.sort((a, b) => {
-            if (sortOrder === 'alpha') {
-                return a.name.localeCompare(b.name);
-            } else { 
-                const getTime = (p: Product) => {
-                    if (p.updatedAt) return p.updatedAt;
-                    const idTime = parseInt(p.id.split('-')[0], 10);
-                    return isNaN(idTime) ? 0 : idTime;
-                };
-                return getTime(b) - getTime(a);
+    const [orderedProducts, setOrderedProducts] = useState<Product[]>([]);
+
+    useEffect(() => {
+        setOrderedProducts(prev => {
+            const currentIds = new Set(filteredProducts.map(p => p.id));
+            const prevIds = new Set(prev.map(p => p.id));
+            
+            // Verifica se a lista mudou estruturalmente (adição/remoção/filtro)
+            const hasListChanged = prev.length !== filteredProducts.length || !filteredProducts.every(p => prevIds.has(p.id));
+            
+            if (hasListChanged) {
+                 // Reordena completamente
+                 return [...filteredProducts].sort((a, b) => {
+                    if (sortOrder === 'alpha') {
+                        return a.name.localeCompare(b.name);
+                    } else { 
+                        const getTime = (p: Product) => {
+                            if (p.updatedAt) return p.updatedAt;
+                            const idTime = parseInt(p.id.split('-')[0], 10);
+                            return isNaN(idTime) ? 0 : idTime;
+                        };
+                        return getTime(b) - getTime(a);
+                    }
+                });
             }
+            
+            // Se a lista é estruturalmente a mesma, apenas atualiza os dados mantendo a ordem visual
+            return prev.map(p => filteredProducts.find(fp => fp.id === p.id) || p);
         });
-    }, [products, searchQuery, selectedCategory, sortOrder]);
+    }, [filteredProducts, sortOrder]);
 
   return (
     <div className="h-full w-full flex flex-col relative overflow-hidden">
@@ -344,17 +374,18 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
        </div>
 
         <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-grow overflow-y-auto no-scrollbar">
-            <div className={`sticky top-0 z-10 pt-20 pb-4 transition-transform duration-300 ease-in-out ${isDark ? 'bg-[#1A1129]/80 backdrop-blur-md' : 'bg-gray-50/80 backdrop-blur-md'} ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-                <div className="pb-4 px-6 text-center">
-                    <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gerenciamento de Estoque</h1>
-                    <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
-                        {searchQuery || selectedCategory !== 'Todas' ? `Mostrando ${filteredProducts.length} de ${products.length} produtos` : `${products.length} produtos cadastrados`}
-                    </p>
-                </div>
-                <div className="text-center px-6">
+            <div className="pt-16 pb-2 px-6 text-center">
+                <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Estoque</h1>
+                <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
+                    {searchQuery || selectedCategory !== 'Todas' ? `Mostrando ${orderedProducts.length} de ${products.length} produtos` : `${products.length} produtos cadastrados`}
+                </p>
+            </div>
+
+            <div className={`sticky top-[5.25rem] z-10 pb-4 transition-transform duration-300 ease-in-out pointer-events-none ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+                <div className="text-center px-6 pt-2 pointer-events-auto">
                     <button
                         onClick={() => setIsFilterHeaderOpen(!isFilterHeaderOpen)}
-                        className={`inline-flex items-center justify-center font-semibold py-2 px-4 rounded-lg transition-colors text-sm ${isDark ? 'bg-black/20 text-gray-300 hover:bg-black/40' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        className={`inline-flex items-center justify-center font-semibold py-2 px-4 rounded-lg transition-colors text-sm shadow-lg ${isDark ? 'bg-[#1A1129] text-gray-300 hover:bg-black/60 border border-white/10' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}`}
                         aria-expanded={isFilterHeaderOpen}
                         aria-controls="filters-panel"
                     >
@@ -365,7 +396,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                     </button>
                 </div>
 
-                <div id="filters-panel" className={`transition-all duration-500 ease-in-out overflow-hidden ${isFilterHeaderOpen ? 'max-h-[500px] opacity-100 pt-4' : 'max-h-0 opacity-0'}`}>
+                <div id="filters-panel" className={`transition-all duration-500 ease-in-out overflow-hidden pointer-events-auto ${isFilterHeaderOpen ? 'max-h-[500px] opacity-100 pt-4' : 'max-h-0 opacity-0'} ${isDark ? 'bg-[#1A1129]/95 backdrop-blur-md rounded-2xl mx-4 mt-2 shadow-xl border border-white/10' : 'bg-white/95 backdrop-blur-md rounded-2xl mx-4 mt-2 shadow-xl border border-gray-100'}`}>
                     <div className="px-4 flex items-center gap-4">
                         <div className="relative flex-grow">
                             <input
@@ -373,11 +404,21 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                                 placeholder="Buscar por nome..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400' : 'bg-white border-gray-300/80 text-gray-900 placeholder:text-gray-500 shadow-sm'}`}
+                                className={`w-full border rounded-full py-3 pl-12 pr-12 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400' : 'bg-white border-gray-300/80 text-gray-900 placeholder:text-gray-500 shadow-sm'}`}
                             />
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
+                            {searchQuery && (
+                                <button 
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-fuchsia-500 transition-colors"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
                         </div>
                         <button
                             onClick={() => setSortOrder(prev => prev === 'recent' ? 'alpha' : 'recent')}
@@ -385,15 +426,20 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                             title={sortOrder === 'recent' ? "Mudar para Ordem Alfabética" : "Mudar para Mais Recentes"}
                         >
                             {sortOrder === 'recent' ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            ) : (
-                                <div className="relative flex flex-col items-center justify-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v12m0 0l-3-3m3 3l3-3" />
+                                <div className="flex items-center gap-0.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                                     </svg>
-                                    <div className="absolute -right-1 bottom-0 flex flex-col leading-[0.5] text-[8px] font-black">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                    </svg>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                    </svg>
+                                    <div className="flex flex-col leading-none text-[10px] font-black">
                                         <span>A</span>
                                         <span>Z</span>
                                     </div>
@@ -454,7 +500,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                     </div>
                 )}
 
-                {filteredProducts.map((product, index) => (
+                {orderedProducts.map((product, index) => (
                 <StockItem 
                     key={product.id} 
                     product={product} 
@@ -465,24 +511,27 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                     canManageStock={canManageStock}
                     selectedVariation={selectedVariations[product.id]}
                     onSelectVariation={handleSelectVariation}
+                    isHighlighted={highlightProductId === product.id}
                 />
                 ))}
             </main>
         </div>
 
        <div 
-         className="absolute bottom-28 left-0 right-0 p-6 z-20" 
-         style={{
-           background: `linear-gradient(to top, ${isDark ? '#1A1129f0' : '#fffffff0'}, transparent)`
-         }}
+         className="absolute bottom-28 left-0 right-0 p-6 z-20 pointer-events-none" 
        >
         {canManageStock ? (
-            <button onClick={onAddProduct} className="w-full bg-fuchsia-600 text-white font-bold py-4 rounded-2xl text-lg shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                ADICIONAR NOVO ITEM
-            </button>
+            <div className="flex justify-end pointer-events-auto">
+                <button 
+                    onClick={onAddProduct} 
+                    className="w-14 h-14 bg-fuchsia-600 text-white rounded-full shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-all duration-300 transform hover:scale-110 flex items-center justify-center"
+                    aria-label="Adicionar novo item"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                </button>
+            </div>
         ) : (
             <div className={`text-center p-4 rounded-2xl ${isDark ? 'bg-black/20 text-gray-400' : 'bg-yellow-100 text-yellow-800'}`}>
                 <p className="font-semibold">Modo somente leitura</p>

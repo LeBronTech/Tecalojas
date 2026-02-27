@@ -75,6 +75,19 @@
     .blinking-dot {
       animation: blink 1.2s infinite;
     }
+    @keyframes pulse-pink {
+      0%, 100% {
+        box-shadow: 0 0 0 4px rgba(217, 70, 239, 0.4);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(217, 70, 239, 0.7);
+        transform: scale(1.02);
+      }
+    }
+    .animate-pulse-pink {
+      animation: pulse-pink 1.5s infinite ease-in-out;
+    }
     input[type="color"].rainbow-bg {
         -webkit-appearance: none;
         -moz-appearance: none;

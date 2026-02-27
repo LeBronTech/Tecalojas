@@ -4,6 +4,7 @@ import { Product, StoreName, Variation, CushionSize, Brand, WaterResistanceLevel
 import { VARIATION_DEFAULTS, BRAND_FABRIC_MAP, STORE_NAMES, BRANDS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
 import { GoogleGenAI } from '@google/genai';
 import ColorSelector from './ColorSelector';
+import ImageCropperModal from './ImageCropperModal';
 import ConfirmationModal from './ConfirmationModal';
 
 // --- Moved Helper Component ---
@@ -270,6 +271,7 @@ const initialFormState: Omit<Product, 'id'> = {
   variationGroupId: undefined,
   productionCost: 0,
   isLimited: false,
+  fabricImageUrl: '',
 };
 
 const ButtonSpinner = () => (
@@ -402,6 +404,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isCropperOpen, setIsCropperOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
   const [aiGenerating, setAiGenerating] = useState<Record<string, boolean>>({});
   const [isGeneratingShowcase, setIsGeneratingShowcase] = useState(false);
   const [addVariationSize, setAddVariationSize] = useState<CushionSize | ''>('');
@@ -409,7 +413,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [saveError, setSaveError] = useState<string | null>(null);
   const [bgGenerating, setBgGenerating] = useState<Record<string, boolean>>({});
   const [isBatchColorMode, setIsBatchColorMode] = useState(false);
-  const [activeImageTarget, setActiveImageTarget] = useState<'front' | 'back'>('front');
+  const [activeImageTarget, setActiveImageTarget] = useState<'front' | 'back' | 'fabric'>('front');
   const [selectedNewColors, setSelectedNewColors] = useState<{name: string, hex: string}[]>([]);
   const [isCreatingVariations, setIsCreatingVariations] = useState(false);
   const [isNameAiLoading, setIsNameAiLoading] = useState(false);
@@ -523,9 +527,9 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         }
     }
     
-    setFormData({ 
-        ...initialFormState, 
-        ...migratedData, 
+    setFormData({
+        ...initialFormState,
+        ...migratedData,
         backgroundImages: migratedData.backgroundImages || {},
         colors: migratedData.colors && migratedData.colors.length > 0 ? migratedData.colors : initialFormState.colors,
         productionCost: migratedData.productionCost || 0,
@@ -599,17 +603,24 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   };
 
   const handleImageSelect = async (imageUrl: string) => {
-    let finalImageUrl = imageUrl;
-    if (imageUrl.startsWith('data:image')) {
-        try { finalImageUrl = await resizeImage(imageUrl); } 
-        catch (error) { console.error("Failed to resize image:", error); }
-    }
-    setFormData(prev => ({ 
-        ...prev, 
-        [activeImageTarget === 'front' ? 'baseImageUrl' : 'backImageUrl']: finalImageUrl 
-    }));
     setIsImagePickerOpen(false);
     setIsCameraOpen(false);
+
+    if (activeImageTarget === 'fabric') {
+      setImageToCrop(imageUrl);
+      setIsCropperOpen(true);
+    } else {
+      let finalImageUrl = imageUrl;
+      if (imageUrl.startsWith('data:image')) {
+          try { finalImageUrl = await resizeImage(imageUrl); } 
+          catch (error) { console.error("Failed to resize image:", error); }
+      }
+      setFormData(prev => {
+          if (activeImageTarget === 'front') return { ...prev, baseImageUrl: finalImageUrl };
+          if (activeImageTarget === 'back') return { ...prev, backImageUrl: finalImageUrl };
+          return prev;
+      });
+    }
   };
   
   const handleAddVariation = () => {
@@ -1202,6 +1213,18 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setImageRotation(prev => (prev + 90) % 360);
   };
 
+  const handleFabricImageCropComplete = async (croppedImageBase64: string) => {
+    setIsCropperOpen(false);
+    setImageToCrop(null);
+    try {
+      const resizedImageUrl = await resizeImage(croppedImageBase64);
+      setFormData(prev => ({ ...prev, fabricImageUrl: resizedImageUrl }));
+    } catch (error) {
+      console.error("Failed to resize cropped fabric image:", error);
+      setSaveError("Falha ao processar imagem cortada do tecido.");
+    }
+  };
+
   const handleGenerateQrCode = (variationIndex: number) => {
     const variation = formData.variations[variationIndex];
     if (!formData.id) {
@@ -1340,13 +1363,36 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
                         {/* Action Buttons */}
                         <div className="flex gap-2 mt-2">
-                            <button type="button" onClick={() => handleOpenImagePicker(activeImageTarget)} className={`flex-1 text-center font-bold py-3 px-4 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
+                            <button type="button" onClick={() => handleOpenImagePicker(activeImageTarget === 'fabric' ? 'front' : activeImageTarget)} className={`flex-1 text-center font-bold py-3 px-4 rounded-lg transition-colors ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
                                 Escolher Imagem
                             </button>
                             <button type="button" onClick={generateShowcaseImage} disabled={isGeneratingShowcase || (activeImageTarget === 'front' ? !formData.baseImageUrl : !formData.backImageUrl)} title="Gerar imagem de vitrine com IA" className={`flex-1 text-center font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'} disabled:opacity-50`}>
                                 {isGeneratingShowcase ? <ButtonSpinner /> : 'Gerar IA'}
                             </button>
                         </div>
+
+                        {/* Fabric Image Button */}
+                        <div className="flex flex-col items-center gap-2 mt-1">
+                            <div className="flex items-center gap-3">
+                                <button 
+                                    type="button" 
+                                    onClick={() => {
+                                        setActiveImageTarget('fabric');
+                                        setIsImagePickerOpen(true);
+                                    }} 
+                                    className={`text-xs font-bold py-2 px-4 rounded-full transition-all flex items-center gap-2 ${formData.fabricImageUrl ? (isDark ? 'bg-fuchsia-500/40 text-fuchsia-200 border border-fuchsia-500/50' : 'bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200') : (isDark ? 'bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300')}`}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                    {formData.fabricImageUrl ? 'Alterar Foto do Tecido' : 'Escolher Foto do Tecido'}
+                                </button>
+                                {formData.fabricImageUrl && (
+                                    <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-fuchsia-500 shadow-sm">
+                                        <img src={formData.fabricImageUrl} alt="Tecido" className="w-full h-full object-cover" />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
                         <p className={`text-xs text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                             Selecione a imagem (Frente ou Verso) clicando nela, depois use os botões abaixo para alterar.
                         </p>
@@ -1529,33 +1575,56 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         </div>
                         <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isVariationsVisible ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
                             <div className="space-y-3 pt-2">
-                                {formData.variations.map((v, i) => (<div key={v.size} className={`p-4 rounded-xl border ${cardClasses}`}>
-                                    <div className="flex justify-between items-center mb-3">
-                                        <h4 className="font-bold text-fuchsia-400">{v.size}</h4>
-                                        <button type="button" onClick={() => handleRemoveVariation(i)} className="text-red-500 hover:text-red-700 p-1">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        </button>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                {formData.variations.map((v, i) => (
+                                    <div key={v.size} className={`p-4 rounded-xl border ${cardClasses}`}>
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h4 className="font-bold text-fuchsia-400 text-lg">{v.size}</h4>
+                                            <button type="button" onClick={() => handleRemoveVariation(i)} className="text-red-500 hover:text-red-700 p-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        </div>
+                                    <div className="grid grid-cols-2 gap-4 mb-4">
                                         <div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Capa)</label><input type="number" value={v.priceCover === 0 ? '' : v.priceCover} onChange={e => handleVariationChange(i, 'priceCover', e.target.value)} onFocus={handleInputFocus} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>
                                         <div><label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Preço (Cheia)</label><input type="number" value={v.priceFull === 0 ? '' : v.priceFull} onChange={e => handleVariationChange(i, 'priceFull', e.target.value)} onFocus={handleInputFocus} className={`w-full text-sm p-2 rounded ${inputClasses}`}/></div>
+                                    </div>
+                                    
+                                    <div className="flex flex-col gap-3 mb-4">
                                         {STORE_NAMES.map(storeName => (
-                                            <div key={storeName}>
-                                                <label className={`text-xs font-semibold block mb-1 ${labelClasses}`}>Estoque ({storeName})</label>
-                                                <input 
-                                                    type="number" 
-                                                    value={v.stock[storeName] === 0 ? '' : v.stock[storeName]} 
-                                                    onChange={e => handleVariationChange(i, `stock-${storeName}`, e.target.value)} 
-                                                    onFocus={(e) => {
-                                                        if (window.innerWidth < 768) {
-                                                            e.target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                        }
-                                                    }}
-                                                    className={`w-full text-sm p-2 rounded ${inputClasses}`} 
-                                                />
+                                            <div key={storeName} className={`flex items-center justify-between p-3 rounded-lg border ${isDark ? 'bg-black/20 border-white/5' : 'bg-gray-50 border-gray-200'}`}>
+                                                <span className={`font-bold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{storeName}</span>
+                                                <div className="flex items-center gap-3">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const currentVal = v.stock[storeName] || 0;
+                                                            handleVariationChange(i, `stock-${storeName}`, Math.max(0, currentVal - 1).toString());
+                                                        }}
+                                                        className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-2xl transition-colors ${isDark ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <input 
+                                                        type="number" 
+                                                        value={v.stock[storeName] === 0 ? '' : v.stock[storeName]} 
+                                                        onChange={e => handleVariationChange(i, `stock-${storeName}`, e.target.value)} 
+                                                        className={`w-14 text-center bg-transparent font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'} focus:outline-none`}
+                                                        placeholder="0"
+                                                    />
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const currentVal = v.stock[storeName] || 0;
+                                                            handleVariationChange(i, `stock-${storeName}`, (currentVal + 1).toString());
+                                                        }}
+                                                        className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-2xl transition-colors ${isDark ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
+
                                     <div className="mt-3 flex items-center gap-4">
                                         <div className={`w-16 h-16 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${isDark ? 'border-white/10 bg-black/30' : 'border-gray-200 bg-white'}`}>{v.imageUrl ? <img src={v.imageUrl} alt="Var" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">Sem IA</span>}</div>
                                         <button type="button" disabled={aiGenerating[v.size] || !formData.baseImageUrl} onClick={() => handleGenerateVariationImage(i)} title={`Gerar imagem para variação ${v.size}`} className={`w-full flex items-center justify-center gap-2 text-center font-bold py-2 px-3 rounded-lg text-sm transition-colors ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'} disabled:opacity-50`}>{aiGenerating[v.size] ? <ButtonSpinner /> : 'Gerar Imagem IA'}</button>
@@ -1569,9 +1638,9 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                         </button>
                                     </div>
                                 </div>))}
-                                <div className={`flex gap-2 mt-4 p-2 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+                                <div className={`flex items-center justify-between mt-4 p-2 rounded-lg ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
                                      <select value={addVariationSize} onChange={e => setAddVariationSize(e.target.value as CushionSize)} className={`flex-grow border-2 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition ${inputClasses}`}><option value="" disabled>Selecione um tamanho</option>{Object.values(CushionSize).map(size => (<option key={size} value={size} disabled={formData.variations.some(v => v.size === size)}>{size}</option>))}</select>
-                                    <button type="button" onClick={handleAddVariation} className="bg-fuchsia-600 text-white font-bold p-3 rounded-lg hover:bg-fuchsia-700 transition-transform transform hover:scale-105"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg></button>
+                                    <button type="button" onClick={handleAddVariation} className="bg-fuchsia-600 text-white font-bold p-3 rounded-lg hover:bg-fuchsia-700 transition-transform transform hover:scale-105 ml-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg></button>
                                 </div>
                             </div>
                         </div>
@@ -1834,6 +1903,14 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             <CameraView 
                 onClose={() => setIsCameraOpen(false)} 
                 onCapture={handleImageSelect} 
+            />
+        )}
+        {isCropperOpen && imageToCrop && (
+            <ImageCropperModal
+                imageUrl={imageToCrop}
+                onCropComplete={handleFabricImageCropComplete}
+                onClose={() => setIsCropperOpen(false)}
+                aspectRatio={1 / 1} // Para imagem de tecido, geralmente quadrado
             />
         )}
         {isFamilyModalOpen && (

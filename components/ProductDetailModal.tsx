@@ -3,6 +3,7 @@ import React, { useState, useContext, useEffect, useMemo, useRef, useCallback } 
 import { Product, Variation, WaterResistanceLevel, SavedComposition, ThemeContext, View, StoreName, CushionSize, CartItem } from '../types';
 import { WATER_RESISTANCE_INFO, BRAND_LOGOS, PREDEFINED_COLORS } from '../constants';
 import { GoogleGenAI } from '@google/genai';
+import FabricImageModal from './FabricImageModal';
 
 interface ProductDetailModalProps {
     product: Product;
@@ -215,6 +216,8 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     const [isColorPopoverOpen, setIsColorPopoverOpen] = useState(false);
     const [activeSofaColor, setActiveSofaColor] = useState('Bege');
     const [activeBedColor, setActiveBedColor] = useState('Bege');
+    const [isFabricImageModalOpen, setIsFabricImageModalOpen] = useState(false);
+    const imageRef = useRef<HTMLDivElement>(null);
     const isMounted = useRef(true);
 
     useEffect(() => {
@@ -324,9 +327,16 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                 <div className="flex-grow overflow-y-auto no-scrollbar pt-6">
                         <div className="px-6 mb-4">
                              <h3 className={`font-bold mb-2 ${titleClasses}`}>{envDisplayNames[activeEnvKey || 'front'] || 'Veja em Ambientes'}</h3>
-                            <div className="relative w-full aspect-square rounded-2xl overflow-hidden mb-2">
+                            <div 
+                                className="relative w-full aspect-square rounded-2xl overflow-hidden mb-2"
+                            >
                                 <img src={currentImageUrl} alt={activeEnvKey} className="w-full h-full object-cover" />
-                                <div className="absolute top-2 left-2 flex flex-col gap-2">
+                                
+
+
+
+
+                                <div className="absolute top-2 left-2 flex flex-col gap-2 z-10">
                                 {(activeEnvKey === 'sala' && showSalaColorButton) && (
                                     <button 
                                         onClick={() => setIsColorPopoverOpen(true)} 
@@ -391,10 +401,36 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                             )}
                         </div>
 
-                        <div>
+                        <div className="relative">
                             <p className={`font-bold text-sm mb-1 ${subtitleClasses}`}>Tecido</p>
-                            <p className={`font-bold ${titleClasses}`}>{product.fabricType}</p>
-                            <p className={`text-sm mt-1 ${subtitleClasses}`}>{product.description}</p>
+                            <div className="flex items-start gap-4">
+                                <div className="flex-grow">
+                                    <p className={`font-bold ${titleClasses}`}>{product.fabricType}</p>
+                                    <p className={`text-sm mt-1 ${subtitleClasses}`}>{product.description}</p>
+                                </div>
+                                {product.fabricImageUrl && (
+                                    <button 
+                                        type="button"
+                                        onClick={() => setIsFabricImageModalOpen(true)}
+                                        className="relative flex-shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-fuchsia-500 rounded-full"
+                                    >
+                                        <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-fuchsia-500/30 shadow-lg">
+                                            <img src={product.fabricImageUrl} alt="Tecido" className="w-full h-full object-cover" />
+                                        </div>
+                                        <div className="absolute -bottom-1 -right-1 bg-fuchsia-600 text-white p-1 rounded-full shadow-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                                        </div>
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Fabric Image View Modal */}
+                            {isFabricImageModalOpen && product.fabricImageUrl && (
+                                <FabricImageModal
+                                    imageUrl={product.fabricImageUrl}
+                                    onClose={() => setIsFabricImageModalOpen(false)}
+                                />
+                            )}
                         </div>
 
                         {waterResistanceDetails && (
@@ -427,7 +463,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                             <div className="w-20 h-20 rounded-lg overflow-hidden border-2 border-transparent hover:border-fuchsia-500 transition-all">
                                                 <img src={p.baseImageUrl} alt={p.name} className="w-full h-full object-cover"/>
                                             </div>
-                                            <p className={`text-xs mt-1 ${subtitleClasses}`}>{p.colors[0]?.name}</p>
+                                            <p className={`text-xs mt-1 ${subtitleClasses}`}>{p.subCategory || p.colors[0]?.name}</p>
                                         </button>
                                     ))}
                                 </div>

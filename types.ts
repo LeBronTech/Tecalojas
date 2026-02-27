@@ -3,7 +3,7 @@ import { createContext } from 'react';
 
 export enum StoreName {
   TECA = 'Têca',
-  IONE = 'Ione Decor',
+  IONE = 'Ione',
 }
 
 export enum CushionSize {
@@ -83,6 +83,7 @@ export interface Product {
   colors: { name: string; hex: string }[];
   productionCost?: number;
   isLimited?: boolean;
+  fabricImageUrl?: string;
   updatedAt?: number;
 }
 
