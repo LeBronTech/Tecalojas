@@ -100,6 +100,10 @@ const App: React.FC = () => {
     const unsubCatalogs = api.onCatalogsUpdate(setCatalogs, console.error);
     const unsubCategories = api.onCategoriesUpdate(setCategories, console.error);
     const unsubSettings = api.onSettingsUpdate(setSettings, console.error);
+    let unsubCompositions: () => void;
+    if (currentUser) {
+      unsubCompositions = api.onSavedCompositionsUpdate(currentUser.uid, setSavedCompositions, console.error);
+    }
 
     // Deep Link
     const params = new URLSearchParams(window.location.search);
@@ -112,10 +116,17 @@ const App: React.FC = () => {
         if (unsubFullProducts) unsubFullProducts();
         unsubBrands(); unsubCatalogs();
         unsubCategories(); unsubSettings();
+        if (unsubCompositions) unsubCompositions();
     };
   }, []);
 
   // Load Data (Admin Only) - Prevents permission denied errors for guests
+  useEffect(() => {
+    if (currentUser && savedCompositions.length > 0) {
+      api.saveUserCompositions(currentUser.uid, savedCompositions);
+    }
+  }, [savedCompositions, currentUser]);
+
   useEffect(() => {
       if (isAdmin) {
           const unsubSales = api.onSaleRequestsUpdate(setSaleRequests, (error) => {

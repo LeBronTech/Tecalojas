@@ -1,11 +1,9 @@
 
 import React, { useState, useContext, useMemo } from 'react';
-import { GoogleGenAI } from '@google/genai';
 import { ThemeContext } from '../types';
 import { SavedComposition, View, Product } from '../types';
 import CompositionViewerModal from '../components/CompositionViewerModal';
 import ProductDetailModal from '../components/ProductDetailModal';
-import ColorSelector from '../components/ColorSelector';
 import { PREDEFINED_COLORS } from '../constants';
 
 interface CompositionsScreenProps {
@@ -26,62 +24,7 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
-  const [selectedProductsForGeneration, setSelectedProductsForGeneration] = useState<{[compositionId: string]: string[]}>({});
-
-  const getBase64FromImageUrl = async (imageUrl: string): Promise<{ data: string; mimeType: string }> => {
-    if (imageUrl.startsWith('data:')) {
-        const parts = imageUrl.split(',');
-        const mimeTypePart = parts[0].match(/:(.*?);/);
-        if (!mimeTypePart || !parts[1]) throw new Error('URL de dados da imagem base inválida.');
-        return { mimeType: mimeTypePart[1], data: parts[1] };
-    } else {
-        const response = await fetch(imageUrl);
-        if (!response.ok) throw new Error('Falha ao buscar a imagem pela URL.');
-        const blob = await response.blob();
-        const base64Data = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
-        return { mimeType: blob.type, data: base64Data };
-    }
-  };
-
-  const handleGenerate = async (compositionId: string) => {
-    const composition = savedCompositions.find(c => c.id === compositionId);
-    const selectedProductIds = selectedProductsForGeneration[compositionId] || [];
-    if (!composition || selectedProductIds.length === 0) return;
-
-    setSavedCompositions(prev => prev.map(c => c.id === compositionId ? { ...c, isGenerating: true } : c));
-
-    try {
-        const productsToGenerate = composition.products.filter(p => selectedProductIds.includes(p.id));
-        const imageParts = await Promise.all(productsToGenerate.map(p => getBase64FromImageUrl(p.baseImageUrl).then(img => ({inlineData: img}))));
-        
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-        const promptText = `Crie uma simulação profissional de designer de interiores. Arrume estas ${productsToGenerate.length} almofadas de forma elegante e luxuosa em um sofá moderno de cor neutra. Foco total na iluminação de estúdio e texturas.`;
-        
-        const response = await ai.models.generateContent({ 
-            model: 'gemini-2.5-flash-image', 
-            contents: { parts: [...imageParts, { text: promptText }] } 
-        });
-        
-        const candidate = response.candidates?.[0];
-        const imagePart = candidate?.content?.parts?.find(p => p.inlineData);
-        if (!imagePart?.inlineData) throw new Error("IA não retornou imagem.");
-        
-        const newImageUrl = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
-        
-        setSavedCompositions(prev => prev.map(c => c.id === compositionId ? { ...c, imageUrl: newImageUrl, isGenerating: false } : c));
-        setSelectedProductsForGeneration(prev => ({ ...prev, [compositionId]: [] }));
-
-    } catch (e) {
-        console.error("Erro ao gerar imagem com IA:", e);
-        alert("A IA está instável no momento. Por favor, tente novamente mais tarde.");
-        setSavedCompositions(prev => prev.map(c => c.id === compositionId ? { ...c, isGenerating: false } : c));
-    }
-  };
+  const [carouselState, setCarouselState] = useState<{ [key: string]: number }>({});
 
   const filteredCompositions = useMemo(() => {
     return savedCompositions.filter(comp => {
@@ -185,43 +128,43 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
                             Ver Detalhes
                         </button>
                     </div>
-                    {comp.imageUrl ? (
-                        <div className="aspect-video w-full rounded-lg overflow-hidden">
-                            <img src={comp.imageUrl} alt={comp.name} className="w-full h-full object-cover" />
+                    {comp.imageUrls && comp.imageUrls.length > 0 ? (
+                        <div className="aspect-video w-full rounded-lg overflow-hidden relative">
+                            {comp.imageUrls.map((url, idx) => (
+                                <img key={idx} src={url} alt={`${comp.name} - Imagem ${idx + 1}`} className={`w-full h-full object-cover absolute top-0 left-0 transition-opacity duration-300 ${(carouselState[comp.id] || 0) === idx ? 'opacity-100' : 'opacity-0'}`} />
+                            ))}
+                            {comp.imageUrls.length > 1 && (
+                                <>
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCarouselState(prev => ({ ...prev, [comp.id]: ((prev[comp.id] || 0) - 1 + comp.imageUrls.length) % comp.imageUrls.length }))
+                                        }}
+                                        className="absolute left-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-black/40 text-white hover:bg-black/60">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                                    </button>
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCarouselState(prev => ({ ...prev, [comp.id]: ((prev[comp.id] || 0) + 1) % comp.imageUrls.length }))
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-black/40 text-white hover:bg-black/60">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                    </button>
+                                </>    
+                            )}
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 gap-2">
                             {comp.products.slice(0, 4).map(product => (
                                 <div key={product.id} className="relative flex flex-col items-center">
                                     <img src={product.baseImageUrl} alt={product.name} className="w-24 h-24 object-cover rounded-lg mb-1" />
-                                    <input 
-                                        type="checkbox"
-                                        className="absolute top-1 right-1 h-5 w-5 rounded-full text-fuchsia-500 bg-white/50 border-fuchsia-500 focus:ring-fuchsia-500/50 checked:ring-2 checked:ring-offset-2 checked:ring-offset-black/20"
-                                        checked={selectedProductsForGeneration[comp.id]?.includes(product.id) || false}
-                                        onChange={() => {
-                                            setSelectedProductsForGeneration(prev => {
-                                                const currentSelected = prev[comp.id] || [];
-                                                const newSelected = currentSelected.includes(product.id)
-                                                    ? currentSelected.filter(id => id !== product.id)
-                                                    : [...currentSelected, product.id];
-                                                return { ...prev, [comp.id]: newSelected };
-                                            });
-                                        }}
-                                    />
                                     <span className={`text-xs ${isDark ? 'text-purple-200' : 'text-gray-800'}`}>{product.name}</span>
                                 </div>
                             ))}
                         </div>
                     )}
-                    <div className="flex justify-between items-center mt-4">
-                        <button 
-                            onClick={() => handleGenerate(comp.id)}
-                            disabled={!selectedProductsForGeneration[comp.id] || selectedProductsForGeneration[comp.id].length === 0 || comp.isGenerating}
-                            className={`text-xs font-bold py-2 px-4 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center ${isDark ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'}`}>
-                            {comp.isGenerating ? (
-                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            ) : 'Gerar Visualização com IA'}
-                        </button>
+                    <div className="flex justify-end items-center mt-4">
                         <button onClick={(e) => handleDelete(e, comp.id)} className={`p-2 rounded-full transition-colors ${isDark ? 'text-gray-400 hover:bg-red-500/20 hover:text-red-400' : 'text-gray-500 hover:bg-red-100 hover:text-red-600'}`}>
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
@@ -242,7 +185,7 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
             startIndex={viewerState.startIndex}
             onClose={() => setViewerState({ open: false, startIndex: 0 })}
             onViewProduct={handleViewProduct}
-            onSaveComposition={onSaveComposition}
+            setSavedCompositions={setSavedCompositions}
         />
       )}
       {viewingProduct && (

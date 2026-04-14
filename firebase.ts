@@ -853,3 +853,27 @@ export const updateGlobalSettings = async (data: Partial<{
     const settingsDoc = doc(db, "settings", "global_settings");
     await setDoc(settingsDoc, data, { merge: true });
 };
+
+// --- FIRESTORE (SAVED COMPOSITIONS) ---
+export const onSavedCompositionsUpdate = (
+  userId: string,
+  onSuccess: (compositions: SavedComposition[]) => void,
+  onError: (error: FirestoreError) => void
+) => {
+  const userCompositionsDoc = doc(db, "user_compositions", userId);
+  return onSnapshot(userCompositionsDoc, (doc) => {
+    if (doc.exists()) {
+      const data = doc.data();
+      onSuccess(data.compositions || []);
+    } else {
+      onSuccess([]);
+    }
+  }, onError);
+};
+
+export const saveUserCompositions = (userId: string, compositions: SavedComposition[]) => {
+  const userCompositionsDoc = doc(db, "user_compositions", userId);
+  // Sanitize compositions to remove any undefined fields before saving
+  const sanitizedCompositions = compositions.map(c => JSON.parse(JSON.stringify(c)));
+  return setDoc(userCompositionsDoc, { compositions: sanitizedCompositions });
+};

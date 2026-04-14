@@ -108,7 +108,7 @@ export interface SavedComposition {
   products: Product[];
   productSizes?: CushionSize[];
   items?: CompositionItem[]; // Novo: suporte para arranjo livre
-  imageUrl?: string;
+  imageUrls?: string[];
   isGenerating?: boolean;
   size: number;
   sofaFabric?: string;
