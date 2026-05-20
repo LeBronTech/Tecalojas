@@ -98,8 +98,8 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
         <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
              {(product.fabricImageUrl || product.baseImageUrl) ? (
                 <>
-                    <img 
-                        src={product.fabricImageUrl || product.baseImageUrl} 
+                     <img 
+                        src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} 
                         alt={product.name} 
                         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${product.backImageUrl && showBack ? 'opacity-0' : 'opacity-100'}`}
                         loading="lazy"
@@ -184,7 +184,7 @@ const CollectionCard: React.FC<{
             <div className="grid grid-cols-2 gap-2">
                 {collectionProducts.map(product => (
                     <button key={product.id} onClick={() => onClick(product)} className="flex flex-col items-center">
-                        <img src={product.fabricImageUrl || product.baseImageUrl} alt={product.name} className="w-24 h-24 object-cover rounded-lg mb-1" />
+                        <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-24 h-24 object-cover rounded-lg mb-1" />
                         <span className={`text-[10px] uppercase font-black tracking-tight ${textNameClasses}`}>{product.name}</span>
                     </button>
                 ))}
@@ -207,8 +207,8 @@ const ProductGroupCard: React.FC<{
     const { products: group, familyId, familyName: explicitName } = item;
     
     // Filter products that have images to ensure sync between image index and product
-    const validProducts = useMemo(() => group.filter(p => !!p.fabricImageUrl || !!p.baseImageUrl), [group]);
-    const validImages = useMemo(() => validProducts.map(p => p.fabricImageUrl || p.baseImageUrl!), [validProducts]);
+    const validProducts = useMemo(() => group.filter(p => !!p.baseImageUrl), [group]);
+    const validImages = useMemo(() => validProducts.map(p => p.baseImageUrl!), [validProducts]);
     
     const representativeProduct = group[0];
     

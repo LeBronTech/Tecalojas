@@ -516,6 +516,11 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
   useEffect(() => {
     const migratedData = JSON.parse(JSON.stringify(product)); // Deep copy
+    // Remove undefined values to allow initialFormState defaults to take over
+    Object.keys(migratedData).forEach(key => {
+        if (migratedData[key] === undefined) delete migratedData[key];
+    });
+
     if (migratedData.backgroundImages) {
         const salaBg = migratedData.backgroundImages.sala;
         if (salaBg && typeof salaBg === 'string') {
@@ -618,7 +623,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
       }
       setFormData(prev => {
           if (activeImageTarget === 'front') {
-              const newState = { ...prev, baseImageUrl: finalImageUrl };
+              const newState = { ...prev, baseImageUrl: finalImageUrl, fabricImageUrl: finalImageUrl };
               // if it's the first time setting the image or no original is set, 
               // keep THIS as the original
               if (!prev.originalBaseImageUrl) {
