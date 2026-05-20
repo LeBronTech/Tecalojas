@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "^0.14.1",
     "firebase": "^12.5.0",
+    "framer-motion": "^12.39.0",
     "jsqr": "^1.4.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",

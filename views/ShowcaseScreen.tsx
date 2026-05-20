@@ -1,5 +1,6 @@
 
 import React, { useState, useContext, useEffect, useMemo, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Product, View, DynamicBrand, SavedComposition, ThemeContext, Variation, CushionSize, CartItem, ProductFamily } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
@@ -68,15 +69,17 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
   
   const waterResistanceDetails = WATER_RESISTANCE_INFO[product.waterResistance];
   
+  const prices = product.variations.map(v => v.priceFull);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const isRange = minPrice !== maxPrice;
+
   const getPriceRange = () => {
     if (!product.variations || product.variations.length === 0) {
         return 'R$0,00';
     }
-    const prices = product.variations.map(v => v.priceFull);
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
 
-    if (minPrice === maxPrice) {
+    if (!isRange) {
         return `R$${minPrice.toFixed(2).replace('.', ',')}`;
     }
     return `R$${minPrice.toFixed(2).replace('.', ',')} - R$${maxPrice.toFixed(2).replace('.', ',')}`;
@@ -151,7 +154,7 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
                 {product.fabricType}
             </span>
         </div>
-        <span className="text-md font-bold text-fuchsia-500 mt-2">{getPriceRange()}</span>
+        <span className={`font-bold text-fuchsia-500 mt-2 ${isRange ? 'text-xs' : 'text-md'}`}>{getPriceRange()}</span>
     </button>
   );
 };
@@ -203,27 +206,25 @@ const ProductGroupCard: React.FC<{
     const isDark = theme === 'dark';
     const [activeImageIndex, setActiveImageIndex] = useState(0);
     const [startSlide, setStartSlide] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
 
     const { products: group, familyId, familyName: explicitName } = item;
+    const representativeProduct = group[0];
     
     // Filter products that have images to ensure sync between image index and product
     const validProducts = useMemo(() => group.filter(p => !!p.baseImageUrl), [group]);
     const validImages = useMemo(() => validProducts.map(p => p.baseImageUrl!), [validProducts]);
-    
-    const representativeProduct = group[0];
-    
+
     const familyName = useMemo(() => {
         if (explicitName) return explicitName;
         if (familyId) {
             const family = productFamilies.find(f => f.id === familyId);
             if (family) return family.name;
         }
-        return representativeProduct.category;
+        return `${representativeProduct.category} ${representativeProduct.subCategory ? `(${representativeProduct.subCategory})` : ''}`;
     }, [representativeProduct, productFamilies, familyId, explicitName]);
 
     useEffect(() => {
-        // PERF: Delay the start of the carousel to prioritize initial page load (FCP/LCP).
-        // Only load the first image initially. Load the rest for the slide show later.
         const timer = setTimeout(() => {
             setStartSlide(true);
         }, 3500); 
@@ -242,78 +243,118 @@ const ProductGroupCard: React.FC<{
 
     const cardClasses = isDark ? "bg-black/20 backdrop-blur-xl border-white/10" : "bg-white border-gray-200/80 shadow-md";
     const textNameClasses = isDark ? "text-purple-200" : "text-gray-800";
-    const textMetaClasses = isDark ? "text-purple-300" : "text-gray-500";
     const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
     
     // Optimization: Only animate the first few items
     const shouldAnimate = index < 4;
 
     return (
-        <button 
-            onClick={() => onClick(validProducts[activeImageIndex] || representativeProduct)}
-            className={`rounded-3xl p-3 shadow-lg flex flex-col items-center justify-between text-center border transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2 ${cardClasses} ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
-            style={shouldAnimate ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms`, opacity: 0 } : {}}
+        <motion.div 
+            layout
+            layoutId={familyId}
+            transition={{ duration: 0.5, ease: "easeInOut" }}
+            className={`rounded-3xl p-3 shadow-lg flex flex-col border ${isExpanded ? (isDark ? "bg-fuchsia-950/30 border-fuchsia-900/50" : "bg-fuchsia-50/80 border-fuchsia-200") : cardClasses} ${isExpanded ? 'col-span-2 row-span-2' : ''}`}
+            style={shouldAnimate ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms` } : {}}
         >
-            <div className="w-full">
-                <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
-                    {validImages.length > 0 ? (
-                        <>
-                            {/* Always render the first image immediately */}
-                            <img 
-                                src={validImages[0]} 
-                                alt={`${representativeProduct.name} main`}
-                                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${activeImageIndex === 0 ? 'opacity-100' : 'opacity-0'}`}
-                                loading="lazy"
-                                decoding="async"
-                            />
-                            {/* Render secondary images ONLY after delay to save bandwidth on load */}
-                            {startSlide && validImages.slice(1).map((src, idx) => (
-                                 <img 
-                                    key={idx + 1}
-                                    src={src} 
-                                    alt={`${representativeProduct.name} variation`}
-                                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${(idx + 1) === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
-                                    loading="lazy"
-                                    decoding="async"
-                                />
-                            ))}
-                        </>
-                    ) : (
-                         <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
-                            <img 
-                                src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
-                                alt="Sem Imagem" 
-                                className="w-1/2 h-1/2 object-contain opacity-20" 
-                            />
-                        </div>
-                    )}
-                </div>
-                <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{familyName}</h3>
-                <div className={`flex items-center justify-center flex-wrap gap-x-3 gap-y-2 text-xs mt-2`}>
-                     <div className={`flex items-center gap-1 ${textMetaClasses}`}>
-                        <img src={BRAND_LOGOS[representativeProduct.brand]} alt={representativeProduct.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
-                        <span className="font-semibold">{representativeProduct.brand}</span>
+            {isExpanded ? (
+                    <motion.div
+                        key="expanded"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                    <div className="flex justify-between items-center mb-3">
+                        <h3 className={`font-bold text-sm ${textNameClasses}`}>{familyName}</h3>
+                        <button onClick={() => setIsExpanded(false)} className="text-gray-500 hover:text-fuchsia-500">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </button>
                     </div>
-                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
-                        {representativeProduct.fabricType}
-                    </span>
-                </div>
-            </div>
-            {/* Display color dots instead of text count */}
-            <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 px-2">
-                {group.slice(0, 7).map((p, idx) => (
-                    <div 
-                        key={idx}
-                        className={`w-3 h-3 rounded-full border shadow-sm ${isDark ? 'border-white/20' : 'border-black/10'}`}
-                        style={{ backgroundColor: p.colors?.[0]?.hex || '#ccc' }}
-                        title={p.colors?.[0]?.name}
-                    />
-                ))}
-                {group.length > 7 && (
-                    <span className={`text-[10px] font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+{group.length - 7}</span>
-                )}
-            </div>
-        </button>
+                    <div className="grid grid-cols-2 gap-3">
+                        {group.map(product => (
+                            <button key={product.id} onClick={() => onClick(product)} className="w-full flex flex-col items-center">
+                                <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-full h-32 object-cover rounded-xl mb-1" />
+                                <span className={`text-xs font-semibold ${textNameClasses} truncate w-full`}>{product.name}</span>
+                                <div className={`flex items-center gap-1 mt-1 ${isDark ? 'text-purple-300' : 'text-gray-500'}`}>
+                                    <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-3 h-3 rounded-full object-contain bg-white p-px shadow-sm" />
+                                    <span className="text-[10px] uppercase font-semibold">{product.brand}</span>
+                                </div>
+                                <span className="text-[10px] font-bold text-fuchsia-600">
+                                    {(product.variations[0]?.priceFull || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </motion.div>
+            ) : (
+                <motion.div
+                        key="collapsed"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                >
+                <button 
+                    onClick={() => setIsExpanded(true)}
+                    className="w-full flex-grow flex flex-col items-center justify-between text-center focus:outline-none"
+                >
+                    <div className="w-full">
+                        <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
+                            {validImages.length > 0 ? (
+                                <>
+                                    {/* Always render the first image immediately */}
+                                    <img 
+                                        src={validImages[0]} 
+                                        alt={`${representativeProduct.name} main`}
+                                        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${activeImageIndex === 0 ? 'opacity-100' : 'opacity-0'}`}
+                                        loading="lazy"
+                                        decoding="async"
+                                    />
+                                    {/* Render secondary images ONLY after delay to save bandwidth on load */}
+                                    {startSlide && validImages.slice(1).map((src, idx) => (
+                                         <img 
+                                            key={idx + 1}
+                                            src={src} 
+                                            alt={`${representativeProduct.name} variation`}
+                                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${(idx + 1) === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
+                                    ))}
+                                </>
+                            ) : (
+                                 <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
+                                    <img 
+                                        src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
+                                        alt="Sem Imagem" 
+                                        className="w-1/2 h-1/2 object-contain opacity-20" 
+                                    />
+                                </div>
+                            )}
+                        </div>
+                        <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{familyName}</h3>
+                        <div className="text-[10px] text-fuchsia-500 font-medium pb-2">
+                            {group.length} cores | Clique e veja
+                        </div>
+                    </div>
+                    {/* Display color dots instead of text count */}
+                    <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 px-2">
+                        {group.slice(0, 7).map((p, idx) => (
+                            <div 
+                                key={idx}
+                                className={`w-3 h-3 rounded-full border shadow-sm ${isDark ? 'border-white/20' : 'border-black/10'}`}
+                                style={{ backgroundColor: p.colors?.[0]?.hex || '#ccc' }}
+                                title={p.colors?.[0]?.name}
+                            />
+                        ))}
+                        {group.length > 7 && (
+                            <span className={`text-[10px] font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+{group.length - 7}</span>
+                        )}
+                    </div>
+                </button>
+                    </motion.div>
+            )}
+        </motion.div>
     );
 };
 
@@ -494,6 +535,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
 
     let baseName = p.name.toLowerCase();
     
+    // Sort colors by length to replace longer names first
     const sortedColors = [...PREDEFINED_COLORS].sort((a, b) => b.name.length - a.name.length);
     sortedColors.forEach(c => {
         const regex = new RegExp(`\\b${c.name.toLowerCase()}\\b|\\(${c.name.toLowerCase()}\\)`, 'g');
@@ -503,7 +545,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
     baseName = baseName.replace(/capa|almofada|cheia|vazia|enchimento|kit|lombar/g, '');
     const cleanBase = baseName.replace(/\s\s+/g, ' ').replace(/[()]/g, '').trim();
 
-    return `${p.brand}|${p.category}|${cleanBase}`;
+    // Include subCategory for more specific grouping: brand|category|subCategory|cleanBaseName
+    return `${p.brand}|${p.category}|${p.subCategory || 'default'}|${cleanBase}`;
   }, []);
 
   const allFilteredProducts = useMemo(() => {
@@ -917,7 +960,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
                   </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 grid-flow-dense">
                   {isLoading ? (
                       Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
                   ) : (
