@@ -70,6 +70,7 @@ export interface Product {
   familyIds?: string[]; // New: support multiple families
   name: string;
   baseImageUrl: string;
+  originalBaseImageUrl?: string;
   backImageUrl?: string;
   unitsSold: number;
   category: string;

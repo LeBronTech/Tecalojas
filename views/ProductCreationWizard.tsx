@@ -308,6 +308,7 @@ export const ProductCreationWizard: React.FC<ProductCreationWizardProps> = ({ on
             return {
                 name: newName,
                 baseImageUrl: dropperImage || '',
+                originalBaseImageUrl: dropperImage || '',
                 fabricImageUrl: fabricImage || '',
                 unitsSold: 0,
                 category: pluralize(category),

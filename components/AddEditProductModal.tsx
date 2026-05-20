@@ -533,6 +533,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         backgroundImages: migratedData.backgroundImages || {},
         colors: migratedData.colors && migratedData.colors.length > 0 ? migratedData.colors : initialFormState.colors,
         productionCost: migratedData.productionCost || 0,
+        originalBaseImageUrl: migratedData.originalBaseImageUrl || migratedData.baseImageUrl,
     });
     if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollTop = 0;
@@ -616,7 +617,15 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
           catch (error) { console.error("Failed to resize image:", error); }
       }
       setFormData(prev => {
-          if (activeImageTarget === 'front') return { ...prev, baseImageUrl: finalImageUrl };
+          if (activeImageTarget === 'front') {
+              const newState = { ...prev, baseImageUrl: finalImageUrl };
+              // if it's the first time setting the image or no original is set, 
+              // keep THIS as the original
+              if (!prev.originalBaseImageUrl) {
+                  newState.originalBaseImageUrl = finalImageUrl;
+              }
+              return newState;
+          }
           if (activeImageTarget === 'back') return { ...prev, backImageUrl: finalImageUrl };
           return prev;
       });
@@ -1213,6 +1222,22 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setImageRotation(prev => (prev + 90) % 360);
   };
 
+  const handleRestoreOriginalImage = () => {
+    if (formData.originalBaseImageUrl) {
+      setFormData(prev => ({ 
+        ...prev, 
+        baseImageUrl: prev.originalBaseImageUrl || '' 
+      }));
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData(prev => ({
+      ...prev,
+      [activeImageTarget === 'front' ? 'baseImageUrl' : 'backImageUrl']: ''
+    }));
+  };
+
   const handleFabricImageCropComplete = async (croppedImageBase64: string) => {
     setIsCropperOpen(false);
     setImageToCrop(null);
@@ -1331,6 +1356,36 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                         </div>
                                     )}
                                     {formData.baseImageUrl && activeImageTarget === 'front' && (
+                                        <div className="absolute top-1 left-1 right-1 flex justify-between items-start pointer-events-none">
+                                            {formData.originalBaseImageUrl && formData.baseImageUrl !== formData.originalBaseImageUrl ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); handleRestoreOriginalImage(); }}
+                                                    className="w-8 h-8 rounded-full z-10 bg-black/60 hover:bg-black/80 flex items-center justify-center transition-colors pointer-events-auto"
+                                                    title="Restaurar imagem original"
+                                                    aria-label="Restaurar imagem original"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                    </svg>
+                                                </button>
+                                            ) : (
+                                                <div />
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); handleRemoveImage(); }}
+                                                className="w-8 h-8 rounded-full z-10 bg-red-500/80 hover:bg-red-600 flex items-center justify-center transition-colors pointer-events-auto shadow-lg"
+                                                title="Excluir imagem"
+                                                aria-label="Excluir imagem"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    )}
+                                    {formData.baseImageUrl && activeImageTarget === 'front' && (
                                         <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); handleRotateImage(); }}
@@ -1348,7 +1403,24 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                 <label className={`text-sm font-semibold ${labelClasses}`}>Verso (Opcional)</label>
                                 <div className={`relative w-32 h-32 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border-2 ${activeImageTarget === 'back' ? 'border-fuchsia-500 shadow-lg shadow-fuchsia-500/30' : (isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100')} cursor-pointer transition-all`} onClick={() => setActiveImageTarget('back')}>
                                     {formData.backImageUrl ? (
-                                        <img src={formData.backImageUrl} alt="Preview Verso" className="w-full h-full object-cover transition-transform duration-300" /> 
+                                        <>
+                                            <img src={formData.backImageUrl} alt="Preview Verso" className="w-full h-full object-cover transition-transform duration-300" /> 
+                                            {activeImageTarget === 'back' && (
+                                                <div className="absolute top-1 right-1 z-10 pointer-events-none">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); handleRemoveImage(); }}
+                                                        className="w-8 h-8 rounded-full bg-red-500/80 hover:bg-red-600 flex items-center justify-center transition-colors pointer-events-auto shadow-lg"
+                                                        title="Excluir imagem"
+                                                        aria-label="Excluir imagem"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </>
                                     ) : (
                                         <div className={`w-full h-full flex flex-col items-center justify-center relative ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
                                             <svg className="w-8 h-8 text-gray-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">

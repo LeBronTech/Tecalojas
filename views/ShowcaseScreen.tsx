@@ -96,10 +96,10 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
          } : {}}
     >
         <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
-             {product.baseImageUrl ? (
+             {(product.fabricImageUrl || product.baseImageUrl) ? (
                 <>
                     <img 
-                        src={product.baseImageUrl} 
+                        src={product.fabricImageUrl || product.baseImageUrl} 
                         alt={product.name} 
                         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${product.backImageUrl && showBack ? 'opacity-0' : 'opacity-100'}`}
                         loading="lazy"
@@ -184,8 +184,8 @@ const CollectionCard: React.FC<{
             <div className="grid grid-cols-2 gap-2">
                 {collectionProducts.map(product => (
                     <button key={product.id} onClick={() => onClick(product)} className="flex flex-col items-center">
-                        <img src={product.baseImageUrl} alt={product.name} className="w-24 h-24 object-cover rounded-lg mb-1" />
-                        <span className={`text-xs ${textNameClasses}`}>{product.name}</span>
+                        <img src={product.fabricImageUrl || product.baseImageUrl} alt={product.name} className="w-24 h-24 object-cover rounded-lg mb-1" />
+                        <span className={`text-[10px] uppercase font-black tracking-tight ${textNameClasses}`}>{product.name}</span>
                     </button>
                 ))}
             </div>
@@ -207,8 +207,8 @@ const ProductGroupCard: React.FC<{
     const { products: group, familyId, familyName: explicitName } = item;
     
     // Filter products that have images to ensure sync between image index and product
-    const validProducts = useMemo(() => group.filter(p => !!p.baseImageUrl), [group]);
-    const validImages = useMemo(() => validProducts.map(p => p.baseImageUrl!), [validProducts]);
+    const validProducts = useMemo(() => group.filter(p => !!p.fabricImageUrl || !!p.baseImageUrl), [group]);
+    const validImages = useMemo(() => validProducts.map(p => p.fabricImageUrl || p.baseImageUrl!), [validProducts]);
     
     const representativeProduct = group[0];
     
@@ -396,6 +396,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
     });
   }, [productFamilies]);
 
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>(() => localStorage.getItem('showcase_category') || 'Todas');
   const [selectedFabric, setSelectedFabric] = useState<string>(() => localStorage.getItem('showcase_fabric') || 'Todos os Tecidos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -507,6 +508,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
 
   const allFilteredProducts = useMemo(() => {
     let filtered = products.filter(p => {
+        const searchQueryLower = searchQuery.toLowerCase();
+        const nameMatch = p.name.toLowerCase().includes(searchQueryLower);
         const categoryMatch = selectedCategory === 'Todas' || p.category === selectedCategory || p.subCategory === selectedCategory;
         const fabricMatch = selectedFabric === 'Todos os Tecidos' || p.fabricType === selectedFabric;
         
@@ -516,7 +519,11 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
             colorMatch = selectedColors.some(color => productColors.includes(color));
         }
 
-        return categoryMatch && fabricMatch && colorMatch;
+        const tagsMatch = p.fabricType.toLowerCase().includes(searchQueryLower) || 
+                          p.brand.toLowerCase().includes(searchQueryLower) ||
+                          p.category.toLowerCase().includes(searchQueryLower);
+
+        return (nameMatch || tagsMatch) && categoryMatch && fabricMatch && colorMatch;
     });
 
     const grouped: ShowcaseItem[] = [];
@@ -629,7 +636,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
             return getTime(itemB) - getTime(itemA);
         }
     });
-  }, [products, selectedCategory, selectedFabric, selectedColors, sortOrder, getProductFamilyKey]);
+  }, [products, selectedCategory, selectedFabric, selectedColors, sortOrder, getProductFamilyKey, searchQuery]);
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -714,7 +721,17 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
 
               <div className="relative mb-4 flex items-center gap-4">
                   <div className="relative flex-grow">
-                     <input type="text" placeholder="Buscar por almofadas..." className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${searchInputClasses}`}/>
+                     <input 
+                        type="text" 
+                        placeholder="Buscar por almofadas..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                (document.activeElement as HTMLElement)?.blur();
+                            }
+                        }}
+                        className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${searchInputClasses}`}/>
                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                      </svg>

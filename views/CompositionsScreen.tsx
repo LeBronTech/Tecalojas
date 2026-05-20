@@ -158,8 +158,8 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
                         <div className="grid grid-cols-2 gap-2">
                             {comp.products.slice(0, 4).map(product => (
                                 <div key={product.id} className="relative flex flex-col items-center">
-                                    <img src={product.baseImageUrl} alt={product.name} className="w-24 h-24 object-cover rounded-lg mb-1" />
-                                    <span className={`text-xs ${isDark ? 'text-purple-200' : 'text-gray-800'}`}>{product.name}</span>
+                                    <img src={product.fabricImageUrl || product.baseImageUrl} alt={product.name} className="w-24 h-24 object-cover rounded-lg mb-1" />
+                                    <span className={`text-[10px] font-black uppercase leading-tight ${isDark ? 'text-purple-100' : 'text-gray-800'}`}>{product.name}</span>
                                 </div>
                             ))}
                         </div>

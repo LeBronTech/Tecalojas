@@ -88,6 +88,17 @@
     .animate-pulse-pink {
       animation: pulse-pink 1.5s infinite ease-in-out;
     }
+    @keyframes flash-purple {
+      0%, 100% {
+        box-shadow: 0 0 0 0px rgba(168, 85, 247, 0);
+      }
+      50% {
+        box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.7);
+      }
+    }
+    .animate-flash-purple {
+      animation: flash-purple 1s ease-out;
+    }
     input[type="color"].rainbow-bg {
         -webkit-appearance: none;
         -moz-appearance: none;

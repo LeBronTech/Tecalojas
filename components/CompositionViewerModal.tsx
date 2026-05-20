@@ -41,10 +41,20 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [selectedProductsForGeneration, setSelectedProductsForGeneration] = useState<string[]>([]);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [promptText, setPromptText] = useState(`Crie uma simulação profissional de designer de interiores. Arrume estas almofadas de forma elegante e luxuosa em um sofá moderno de cor neutra. Foco total na iluminação de estúdio e texturas.`);
 
     useEffect(() => { setCurrentIndex(startIndex); }, [startIndex]);
     
     const currentComposition = compositions[currentIndex];
+
+    const handleDeleteImage = useCallback((index: number) => {
+        if (!currentComposition) return;
+        const newImages = (currentComposition.imageUrls || []).filter((_, i) => i !== index);
+        setSavedCompositions(prev => prev.map(c => c.id === currentComposition.id ? { ...c, imageUrls: newImages } : c));
+        if (currentImageIndex >= newImages.length) {
+            setCurrentImageIndex(Math.max(0, newImages.length - 1));
+        }
+    }, [currentComposition, currentImageIndex, setSavedCompositions]);
 
     const getBase64FromImageUrl = useCallback(async (imageUrl: string): Promise<{ data: string; mimeType: string }> => {
         if (imageUrl.startsWith('data:')) {
@@ -74,7 +84,6 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
             const imageParts = await Promise.all(productsToGenerate.map(p => getBase64FromImageUrl(p.baseImageUrl).then(img => ({inlineData: img}))));
             
             const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-            const promptText = `Crie uma simulação profissional de designer de interiores. Arrume estas ${productsToGenerate.length} almofadas de forma elegante e luxuosa em um sofá moderno de cor neutra. Foco total na iluminação de estúdio e texturas.`;
             
             const response = await ai.models.generateContent({ 
                 model: 'gemini-flash-latest', 
@@ -89,6 +98,7 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
             
             setSavedCompositions(prev => prev.map(c => c.id === currentComposition.id ? { ...c, imageUrls: [...(c.imageUrls || []), newImageUrl] } : c));
             setSelectedProductsForGeneration([]);
+            setCurrentImageIndex((currentComposition.imageUrls?.length || 0));
 
         } catch (e) {
             console.error("Erro ao gerar imagem com IA:", e);
@@ -96,7 +106,7 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
         } finally {
             setIsGenerating(false);
         }
-    }, [currentComposition, selectedProductsForGeneration, getBase64FromImageUrl, setSavedCompositions]);
+    }, [currentComposition, selectedProductsForGeneration, getBase64FromImageUrl, setSavedCompositions, promptText]);
 
 
     const drawAndShare = async () => {
@@ -278,33 +288,94 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
                     </div>
 
                     {/* Carousel for AI Generated Images */}
-                    {currentComposition.imageUrls && currentComposition.imageUrls.length > 0 && (
-                        <div className="relative w-full aspect-video rounded-3xl overflow-hidden">
+                    {currentComposition.imageUrls && currentComposition.imageUrls.length > 0 ? (
+                        <div className="relative w-full aspect-video rounded-3xl overflow-hidden group border border-white/5 shadow-2xl">
                             {currentComposition.imageUrls.map((url, index) => (
                                 <img key={index} src={url} alt={`AI Generated ${index + 1}`} className={`absolute top-0 left-0 w-full h-full object-cover transition-opacity duration-500 ${index === currentImageIndex ? 'opacity-100' : 'opacity-0'}`} />
                             ))}
+                            
+                            {/* Overlay Controls */}
+                            <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteImage(currentImageIndex); }}
+                                    className="p-2 rounded-full bg-red-500/80 text-white hover:bg-red-600 shadow-lg backdrop-blur-sm transition-transform hover:scale-110"
+                                    title="Excluir simulação atual"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+
                             {currentComposition.imageUrls.length > 1 && (
                                 <>
-                                    <button onClick={() => setCurrentImageIndex(prev => (prev - 1 + currentComposition.imageUrls.length) % currentComposition.imageUrls.length)} className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/30 text-white hover:bg-black/50">
+                                    <button onClick={() => setCurrentImageIndex(prev => (prev - 1 + currentComposition.imageUrls.length) % currentComposition.imageUrls.length)} className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                                     </button>
-                                    <button onClick={() => setCurrentImageIndex(prev => (prev + 1) % currentComposition.imageUrls.length)} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/30 text-white hover:bg-black/50">
+                                    <button onClick={() => setCurrentImageIndex(prev => (prev + 1) % currentComposition.imageUrls.length)} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                                     </button>
+                                    
+                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                        {currentComposition.imageUrls.map((_, i) => (
+                                            <div key={i} className={`h-1.5 rounded-full transition-all ${i === currentImageIndex ? 'w-6 bg-fuchsia-500' : 'w-1.5 bg-white/50'}`} />
+                                        ))}
+                                    </div>
                                 </>
+                            )}
+                        </div>
+                    ) : (
+                        /* Preview do Arranjo Livre (Fallback se não houver IA) */
+                        <div 
+                            className="aspect-video w-full rounded-3xl relative border-2 border-dashed border-gray-300 dark:border-white/10 overflow-hidden shadow-inner group"
+                            style={{ 
+                                backgroundColor: PREDEFINED_SOFA_COLORS.find(c => c.name === currentComposition.sofaColor)?.hex || '#ccc',
+                                backgroundImage: SOFA_FABRICS.find(f => f.name === currentComposition.sofaFabric)?.pattern || 'none',
+                                backgroundBlendMode: 'overlay'
+                            }}
+                        >
+                            {currentComposition.items && currentComposition.items.length > 0 ? (
+                                currentComposition.items.map(item => (
+                                    <img 
+                                        key={item.id} 
+                                        src={item.product.fabricImageUrl || item.product.baseImageUrl} 
+                                        alt=""
+                                        className="absolute shadow-2xl rounded-lg border border-white/10 transition-transform hover:scale-110"
+                                        style={{ 
+                                            left: `${item.x}%`, 
+                                            top: `${item.y}%`, 
+                                            width: `calc(${SIZE_SCALES[item.size].w} * 1.2)`, 
+                                            zIndex: item.zIndex 
+                                        }}
+                                    />
+                                ))
+                            ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                                    <p className="text-xs uppercase font-black tracking-widest italic opacity-50">Pronta para Simulação IA</p>
+                                </div>
                             )}
                         </div>
                     )}
 
                     <div className={`p-6 rounded-3xl border ${isDark ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
-                        <h3 className={`text-sm font-bold mb-4 ${textClasses}`}>Selecione as almofadas para gerar uma nova visualização:</h3>
-                        <div className="space-y-3 mb-6">
+                        <div className="flex flex-col gap-3 mb-6">
+                            <label className={`text-xs font-black uppercase tracking-widest ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>Instruções para IA:</label>
+                            <textarea 
+                                value={promptText}
+                                onChange={(e) => setPromptText(e.target.value)}
+                                className={`w-full p-4 rounded-xl text-xs border transition-all resize-none h-24 ${isDark ? 'bg-black/20 border-white/10 text-gray-200 focus:border-cyan-500' : 'bg-white border-gray-300 text-gray-700 focus:border-cyan-500 shadow-inner'}`}
+                                placeholder="Ex: Arrume no canto do sofá com iluminação suave..."
+                            />
+                        </div>
+
+                        <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${isDark ? 'text-fuchsia-400' : 'text-fuchsia-700'}`}>Selecione as Peças:</h3>
+                        <div className="space-y-2 mb-6 max-h-48 overflow-y-auto no-scrollbar pr-2">
                             {currentComposition.products.map((p, i) => (
-                                <div key={p.id} className="flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-white/10">
+                                <div key={p.id} className={`flex items-center gap-3 p-2 rounded-xl transition-all border ${selectedProductsForGeneration.includes(p.id) ? (isDark ? 'bg-fuchsia-500/10 border-fuchsia-500/30' : 'bg-fuchsia-50 border-fuchsia-200') : 'border-transparent'}`}>
                                     <input 
                                         type="checkbox"
                                         id={`prod-${p.id}`}
-                                        className="h-5 w-5 rounded-full text-fuchsia-500 bg-white/50 border-fuchsia-500 focus:ring-fuchsia-500/50 checked:ring-2 checked:ring-offset-2 checked:ring-offset-black/20"
+                                        className="h-5 w-5 rounded-md text-fuchsia-600 bg-white/20 border-gray-300 focus:ring-fuchsia-500/50"
                                         checked={selectedProductsForGeneration.includes(p.id)}
                                         onChange={() => {
                                             setSelectedProductsForGeneration(prev => 
@@ -314,20 +385,25 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
                                             );
                                         }}
                                     />
-                                    <label htmlFor={`prod-${p.id}`} className="flex items-center gap-3 cursor-pointer">
-                                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
-                                            <img src={p.baseImageUrl} alt="" className="w-full h-full object-cover" />
+                                    <label htmlFor={`prod-${p.id}`} className="flex items-center gap-3 cursor-pointer flex-grow">
+                                        <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-black/5 shadow-sm">
+                                            <img src={p.fabricImageUrl || p.baseImageUrl} alt="" className="w-full h-full object-cover" />
                                         </div>
                                         <div>
-                                            <p className={`text-xs font-black uppercase ${isDark ? 'text-white' : 'text-gray-900'}`}>{p.name}</p>
-                                            <p className="text-[10px] font-bold text-fuchsia-500 uppercase">{currentComposition.productSizes?.[i]}</p>
+                                            <p className={`text-[10px] font-black uppercase leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>{p.name}</p>
+                                            <p className="text-[9px] font-bold text-fuchsia-500/80 uppercase mt-0.5">{currentComposition.productSizes?.[i]}</p>
                                         </div>
                                     </label>
                                 </div>
                             ))}
                         </div>
-                        <button onClick={handleGenerate} disabled={isGenerating || selectedProductsForGeneration.length === 0} className="w-full font-black py-3 px-8 rounded-xl text-xs transition-all uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40">
-                            {isGenerating ? <ButtonSpinner /> : "Gerar Visualização com IA"}
+                        <button onClick={handleGenerate} disabled={isGenerating || selectedProductsForGeneration.length === 0} className="w-full font-black py-4 px-8 rounded-2xl text-xs transition-all uppercase tracking-widest flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl bg-cyan-600 text-white hover:bg-cyan-700 active:scale-95 group">
+                            {isGenerating ? <ButtonSpinner /> : (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform group-hover:rotate-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                    Gerar Simulação IA
+                                </>
+                            )}
                         </button>
                     </div>
 
