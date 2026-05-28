@@ -1,7 +1,8 @@
 
-import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
+import React, { useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Product, StoreName, View, Brand, CushionSize, DynamicBrand, ThemeContext } from '../types';
 import { BRAND_LOGOS, PREDEFINED_COLORS } from '../constants';
+import SearchBar from '../components/SearchBar';
 
 const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> = ({ colors, size = 4 }) => {
     const className = `w-${size} h-${size}`;
@@ -70,7 +71,7 @@ interface StockItemProps {
     isHighlighted?: boolean;
 }
 
-const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete, onUpdateStock, canManageStock, selectedVariation, onSelectVariation, isHighlighted }) => {
+const StockItemInner: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete, onUpdateStock, canManageStock, selectedVariation, onSelectVariation, isHighlighted }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [showBack, setShowBack] = useState(false);
@@ -243,6 +244,16 @@ const StockItem: React.FC<StockItemProps> = ({ product, index, onEdit, onDelete,
     );
 };
 
+const StockItem = React.memo(StockItemInner, (prevProps, nextProps) => {
+    return (
+        prevProps.product === nextProps.product &&
+        prevProps.index === nextProps.index &&
+        prevProps.canManageStock === nextProps.canManageStock &&
+        prevProps.selectedVariation === nextProps.selectedVariation &&
+        prevProps.isHighlighted === nextProps.isHighlighted
+    );
+});
+
 
 interface StockManagementScreenProps {
   products: Product[];
@@ -255,18 +266,39 @@ interface StockManagementScreenProps {
   hasFetchError: boolean;
   brands: DynamicBrand[];
   highlightProductId?: string | null;
+  isSearchOpen: boolean;
+  setIsSearchOpen: (open: boolean) => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  setSearchIconOpacity: (opacity: number) => void;
 }
 
-const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products, onEditProduct, onDeleteProduct, onAddProduct, onUpdateStock, onMenuClick, canManageStock, hasFetchError, brands, highlightProductId }) => {
+const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ 
+  products, 
+  onEditProduct, 
+  onDeleteProduct, 
+  onAddProduct, 
+  onUpdateStock, 
+  onMenuClick, 
+  canManageStock, 
+  hasFetchError, 
+  brands, 
+  highlightProductId,
+  isSearchOpen,
+  setIsSearchOpen,
+  searchQuery,
+  setSearchQuery,
+  setSearchIconOpacity
+}) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const [selectedVariations, setSelectedVariations] = useState<Record<string, CushionSize>>({});
   const [showWarning, setShowWarning] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todas');
+  const [selectedFabric, setSelectedFabric] = useState('Todos os Tecidos');
   const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
-  const [isFilterHeaderOpen, setIsFilterHeaderOpen] = useState(false);
-  const [isColorHeaderOpen, setIsColorHeaderOpen] = useState(false);
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+  const [isColorFilterOpen, setIsColorFilterOpen] = useState(false);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const isHeaderVisibleRef = useRef(isHeaderVisible);
@@ -276,10 +308,17 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setSearchIconOpacity(0);
+    return () => {
+      setSearchIconOpacity(0);
+    };
+  }, []);
+
+  useEffect(() => {
     isHeaderVisibleRef.current = isHeaderVisible;
   }, [isHeaderVisible]);
 
-  const handleScroll = () => {
+   const handleScroll = () => {
     if (!ticking.current) {
         window.requestAnimationFrame(() => {
             if (scrollContainerRef.current) {
@@ -295,6 +334,10 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                 } else {
                     if (!headerVisible) setIsHeaderVisible(true);
                 }
+                
+                const opacity = Math.min(currentScrollY / 200, 1);
+                const roundedOpacity = Math.round(opacity * 10) / 10;
+                setSearchIconOpacity(roundedOpacity);
                 
                 lastScrollY.current = currentScrollY <= 0 ? 0 : currentScrollY;
             }
@@ -337,11 +380,28 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
         });
     }, [products]);
 
-    const handleSelectVariation = (productId: string, size: CushionSize) => {
+    const handleSelectVariation = useCallback((productId: string, size: CushionSize) => {
         setSelectedVariations(prev => ({ ...prev, [productId]: size }));
-    };
+    }, []);
     
-    const categories = useMemo(() => ['Todas', ...Array.from(new Set(products.map(p => p.category)))], [products]);
+    const categories = useMemo(() => {
+        const allCategoryValues = products.flatMap(p => [p.category, p.subCategory]).filter((c): c is string => !!c && c.trim() !== '');
+        const uniqueCategories = ([...new Set(allCategoryValues)] as string[])
+            .filter(cat => !['Waterblock', 'Waterblocks', '(Gorgurão)', 'Gorgurão'].includes(cat));
+        return ['Todas', ...uniqueCategories.sort((a, b) => a.localeCompare(b))];
+    }, [products]);
+
+    const availableFabrics = useMemo(() => {
+        if (selectedCategory === 'Todas') {
+            return [];
+        }
+        const fabricsInCategory = products
+            .filter(p => p.category === selectedCategory || p.subCategory === selectedCategory)
+            .map(p => p.fabricType);
+        
+        const uniqueFabrics = ([...new Set(fabricsInCategory)] as string[]).sort((a, b) => a.localeCompare(b));
+        return ['Todos os Tecidos', ...uniqueFabrics];
+    }, [selectedCategory, products]);
 
     const availableColors = useMemo(() => {
         const allProductColors = products.flatMap(p => p.colors);
@@ -365,8 +425,10 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
     
     const filteredProducts = useMemo(() => {
         return products.filter(product => {
-            const nameMatch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
-            const categoryMatch = selectedCategory === 'Todas' || product.category === selectedCategory;
+            const searchQueryLower = searchQuery.toLowerCase();
+            const nameMatch = product.name.toLowerCase().includes(searchQueryLower);
+            const categoryMatch = selectedCategory === 'Todas' || product.category === selectedCategory || product.subCategory === selectedCategory;
+            const fabricMatch = selectedFabric === 'Todos os Tecidos' || product.fabricType === selectedFabric;
             
             let colorMatch = true;
             if (selectedColors.length > 0) {
@@ -374,44 +436,57 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                 colorMatch = selectedColors.some(color => productColors.includes(color));
             }
 
-            return nameMatch && categoryMatch && colorMatch;
+            const tagsMatch = product.fabricType.toLowerCase().includes(searchQueryLower) || 
+                              product.brand.toLowerCase().includes(searchQueryLower) ||
+                              product.category.toLowerCase().includes(searchQueryLower);
+
+            return (nameMatch || tagsMatch) && categoryMatch && fabricMatch && colorMatch;
         });
-    }, [products, searchQuery, selectedCategory, selectedColors]);
+    }, [products, searchQuery, selectedCategory, selectedFabric, selectedColors]);
 
-    const [orderedProducts, setOrderedProducts] = useState<Product[]>([]);
-
-    useEffect(() => {
-        setOrderedProducts(prev => {
-            const currentIds = new Set(filteredProducts.map(p => p.id));
-            const prevIds = new Set(prev.map(p => p.id));
-            
-            // Verifica se a lista mudou estruturalmente (adição/remoção/filtro)
-            const hasListChanged = prev.length !== filteredProducts.length || !filteredProducts.every(p => prevIds.has(p.id));
-            
-            if (hasListChanged) {
-                 // Reordena completamente
-                 return [...filteredProducts].sort((a, b) => {
-                    if (sortOrder === 'alpha') {
-                        return a.name.localeCompare(b.name);
-                    } else { 
-                        const getTime = (p: Product) => {
-                            if (p.updatedAt) return p.updatedAt;
-                            const idTime = parseInt(p.id.split('-')[0], 10);
-                            return isNaN(idTime) ? 0 : idTime;
-                        };
-                        return getTime(b) - getTime(a);
-                    }
-                });
+    const orderedProducts = useMemo(() => {
+        return [...filteredProducts].sort((a, b) => {
+            if (sortOrder === 'alpha') {
+                return a.name.localeCompare(b.name);
+            } else { 
+                const getTime = (p: Product) => {
+                    if (p.updatedAt) return p.updatedAt;
+                    const idTime = parseInt(p.id.split('-')[0], 10);
+                    return isNaN(idTime) ? 0 : idTime;
+                };
+                return getTime(b) - getTime(a);
             }
-            
-            // Se a lista é estruturalmente a mesma, apenas atualiza os dados mantendo a ordem visual
-            return prev.map(p => filteredProducts.find(fp => fp.id === p.id) || p);
         });
     }, [filteredProducts, sortOrder]);
 
   return (
     <div className="h-full w-full flex flex-col relative overflow-hidden">
-        <div className="absolute inset-0 z-0 opacity-80 overflow-hidden">
+        {/* Balão de Busca Flutuante (Overlay inteligente acionado pelo cabeçalho no estoque) */}
+        <SearchBar 
+          isFloating={true}
+          isSearchOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          isDark={isDark}
+          onFocusChange={setIsSearchFocused}
+          categories={categories}
+          selectedCategory={selectedCategory}
+          setSelectedCategory={setSelectedCategory}
+          availableFabrics={availableFabrics}
+          selectedFabric={selectedFabric}
+          setSelectedFabric={setSelectedFabric}
+          selectedColors={selectedColors}
+          setSelectedColors={setSelectedColors}
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
+          isFiltersExpanded={isFiltersExpanded}
+          setIsFiltersExpanded={setIsFiltersExpanded}
+          isColorFilterOpen={isColorFilterOpen}
+          setIsColorFilterOpen={setIsColorFilterOpen}
+        />
+
+        <div className="absolute inset-0 z-0 opacity-80 overflow-hidden pointer-events-none">
            {isDark ? (
             <>
               <div className="absolute -top-20 -left-40 w-96 h-96 bg-fuchsia-600/30 rounded-full filter blur-3xl transform rotate-45 opacity-50"></div>
@@ -426,7 +501,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
            )}
        </div>
 
-        <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-grow overflow-y-auto no-scrollbar">
+        <div ref={scrollContainerRef} onScroll={handleScroll} className="relative z-10 flex-grow overflow-y-auto no-scrollbar">
             <div className="pt-16 pb-2 px-6 text-center">
                 <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Estoque</h1>
                 <p className={`text-md ${isDark ? 'text-gray-300' : 'text-gray-600'} mt-1`}>
@@ -434,157 +509,30 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
                 </p>
             </div>
 
-            <div className={`sticky top-[5.25rem] z-10 pb-4 transition-transform duration-300 ease-in-out pointer-events-none ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-                <div className="text-center px-6 pt-2 pointer-events-auto flex items-center justify-center gap-2" style={{ display: isSearchFocused ? 'none' : 'flex' }}>
-                    <button
-                        onClick={() => {
-                            setIsFilterHeaderOpen(!isFilterHeaderOpen);
-                            if (!isFilterHeaderOpen) setIsColorHeaderOpen(false);
-                        }}
-                        className={`inline-flex items-center justify-center font-semibold py-2 px-4 rounded-lg transition-colors text-sm shadow-lg ${isDark ? 'bg-[#1A1129] text-gray-300 hover:bg-black/60 border border-white/10' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}`}
-                        aria-expanded={isFilterHeaderOpen}
-                        aria-controls="filters-panel"
-                    >
-                        Filtros & Busca
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ml-2 transition-transform duration-300 ${isFilterHeaderOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-
-                    <button
-                        onClick={() => {
-                            setIsColorHeaderOpen(!isColorHeaderOpen);
-                            if (!isColorHeaderOpen) setIsFilterHeaderOpen(false);
-                        }}
-                        className={`inline-flex items-center justify-center font-semibold py-2 px-4 rounded-lg transition-colors text-sm shadow-lg ${isDark ? 'bg-[#1A1129] text-gray-300 hover:bg-black/60 border border-white/10' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}`}
-                    >
-                        <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-red-500 via-green-500 to-blue-500 border border-white/20 mr-2 shadow-sm"></div>
-                        Cor
-                    </button>
-                </div>
-
-                <div id="filters-panel" className={`transition-all duration-500 ease-in-out overflow-hidden pointer-events-auto ${isFilterHeaderOpen ? 'max-h-[500px] opacity-100 pt-4' : 'max-h-0 opacity-0'} ${isDark ? 'bg-[#1A1129]/95 backdrop-blur-md rounded-2xl mx-4 mt-2 shadow-xl border border-white/10' : 'bg-white/95 backdrop-blur-md rounded-2xl mx-4 mt-2 shadow-xl border border-gray-100'}`}>
-                    <div className="px-4 flex items-center gap-4">
-                        <div className="relative flex-grow">
-                            <input
-                                type="text"
-                                placeholder="Buscar por nome..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                onFocus={() => setIsSearchFocused(true)}
-                                onBlur={() => setIsSearchFocused(false)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        setIsFilterHeaderOpen(false);
-                                        setIsSearchFocused(false);
-                                        (document.activeElement as HTMLElement)?.blur();
-                                    }
-                                }}
-                                className={`w-full border rounded-full py-3 pl-12 pr-12 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${isDark ? 'bg-black/30 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400' : 'bg-white border-gray-300/80 text-gray-900 placeholder:text-gray-500 shadow-sm'}`}
-                            />
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                            {searchQuery && (
-                                <button 
-                                    onClick={() => setSearchQuery('')}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-fuchsia-500 transition-colors"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            )}
-                        </div>
-                        <button
-                            onClick={() => setSortOrder(prev => prev === 'recent' ? 'alpha' : 'recent')}
-                            className={`flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full border shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${isDark ? 'bg-black/30 border-white/10 text-white hover:bg-white/10' : 'bg-white border-gray-300/80 text-gray-700 hover:bg-gray-50'}`}
-                            title={sortOrder === 'recent' ? "Mudar para Ordem Alfabética" : "Mudar para Mais Recentes"}
-                        >
-                            {sortOrder === 'recent' ? (
-                                <div className="flex items-center gap-0.5">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                    </svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                    </svg>
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                    </svg>
-                                    <div className="flex flex-col leading-none text-[10px] font-black">
-                                        <span>A</span>
-                                        <span>Z</span>
-                                    </div>
-                                </div>
-                            )}
-                        </button>
-                    </div>
-                    
-                    { !isSearchFocused && (
-                        <div className="px-4 flex flex-wrap gap-2 mt-4">
-                             <h3 className={`w-full text-xs font-bold uppercase mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Filtros de Categoria</h3>
-                            {categories.map(category => {
-                                const isActive = selectedCategory === category;
-                                const activeClasses = isDark 
-                                    ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30 border-transparent hover:bg-fuchsia-500' 
-                                    : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20 border-transparent hover:bg-purple-700';
-                                const inactiveClasses = isDark 
-                                    ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
-                                    : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400';
-    
-                                return (
-                                    <button
-                                        key={category}
-                                        onClick={() => setSelectedCategory(category)}
-                                        className={`px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
-                                            isActive ? activeClasses : inactiveClasses
-                                        }`}
-                                    >
-                                        {category}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-
-                {/* Painel de Cores */}
-                { !isSearchFocused && (
-                    <div id="colors-panel" className={`transition-all duration-500 ease-in-out overflow-hidden pointer-events-auto ${isColorHeaderOpen ? 'max-h-[200px] opacity-100 pt-4' : 'max-h-0 opacity-0'} ${isDark ? 'bg-[#1A1129]/95 backdrop-blur-md rounded-2xl mx-4 mt-2 shadow-xl border border-white/10' : 'bg-white/95 backdrop-blur-md rounded-2xl mx-4 mt-2 shadow-xl border border-gray-100'}`}>
-                        <div className="px-4 pb-4">
-                            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar px-1 justify-center">
-                                {availableColors.map(color => {
-                                    const isSelected = selectedColors.includes(color.name);
-                                    return (
-                                        <button
-                                            key={color.name}
-                                            onClick={() => {
-                                                setSelectedColors(prev => 
-                                                    prev.includes(color.name) 
-                                                        ? prev.filter(c => c !== color.name) 
-                                                        : [...prev, color.name]
-                                                );
-                                            }}
-                                            className={`flex-shrink-0 w-10 h-10 rounded-full border-2 transition-all transform hover:scale-110 ${isSelected ? 'border-fuchsia-500 ring-2 ring-fuchsia-500/50 scale-110' : 'border-transparent hover:border-gray-300'}`}
-                                            style={{ backgroundColor: color.hex }}
-                                            title={color.name}
-                                        >
-                                            {isSelected && (
-                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mx-auto ${['Branco', 'Bege', 'Amarelo'].includes(color.name) ? 'text-black' : 'text-white'}`} viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                </svg>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                )}
+            {/* Barra de Busca Fixa (Sempre visível no início do estoque) */}
+            <div className="max-w-md mx-auto mb-6 px-4">
+                <SearchBar 
+                    isFloating={false}
+                    isSearchOpen={false}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    isDark={isDark}
+                    onFocusChange={setIsSearchFocused}
+                    categories={categories}
+                    selectedCategory={selectedCategory}
+                    setSelectedCategory={setSelectedCategory}
+                    availableFabrics={availableFabrics}
+                    selectedFabric={selectedFabric}
+                    setSelectedFabric={setSelectedFabric}
+                    selectedColors={selectedColors}
+                    setSelectedColors={setSelectedColors}
+                    sortOrder={sortOrder}
+                    setSortOrder={setSortOrder}
+                    isFiltersExpanded={isFiltersExpanded}
+                    setIsFiltersExpanded={setIsFiltersExpanded}
+                    isColorFilterOpen={isColorFilterOpen}
+                    setIsColorFilterOpen={setIsColorFilterOpen}
+                />
             </div>
             
             <main className="px-4 space-y-3 pb-60 md:pb-60 z-0">
@@ -629,28 +577,30 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ products,
             </main>
         </div>
 
-       <div 
-         className="absolute bottom-28 left-0 right-0 p-6 z-20 pointer-events-none" 
-       >
-        {canManageStock ? (
-            <div className="flex justify-end pointer-events-auto">
-                <button 
-                    onClick={onAddProduct} 
-                    className="w-14 h-14 bg-fuchsia-600 text-white rounded-full shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-all duration-300 transform hover:scale-110 flex items-center justify-center"
-                    aria-label="Adicionar novo item"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                </button>
-            </div>
-        ) : (
-            <div className={`text-center p-4 rounded-2xl ${isDark ? 'bg-black/20 text-gray-400' : 'bg-yellow-100 text-yellow-800'}`}>
-                <p className="font-semibold">Modo somente leitura</p>
-                <p className="text-sm">Você não tem permissão para gerenciar o estoque.</p>
-            </div>
-        )}
-      </div>
+       {!isSearchFocused && !isSearchOpen && (
+         <div 
+           className="absolute bottom-28 left-0 right-0 p-6 z-20 pointer-events-none" 
+         >
+          {canManageStock ? (
+              <div className="flex justify-end pointer-events-auto">
+                  <button 
+                      onClick={onAddProduct} 
+                      className="w-14 h-14 bg-fuchsia-600 text-white rounded-full shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-all duration-300 transform hover:scale-110 flex items-center justify-center"
+                      aria-label="Adicionar novo item"
+                  >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                  </button>
+              </div>
+          ) : (
+              <div className={`text-center p-4 rounded-2xl ${isDark ? 'bg-black/20 text-gray-400' : 'bg-yellow-100 text-yellow-800'}`}>
+                  <p className="font-semibold">Modo somente leitura</p>
+                  <p className="text-sm">Você não tem permissão para gerenciar o estoque.</p>
+              </div>
+          )}
+        </div>
+       )}
     </div>
   );
 };

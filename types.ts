@@ -91,6 +91,8 @@ export interface Product {
   productionCost?: number;
   isLimited?: boolean;
   fabricImageUrl?: string;
+  isAiImageGenerated?: boolean;
+  isAiBackgroundGenerated?: boolean;
   updatedAt?: number;
 }
 
@@ -109,11 +111,13 @@ export interface SavedComposition {
   products: Product[];
   productSizes?: CushionSize[];
   items?: CompositionItem[]; // Novo: suporte para arranjo livre
+  imageUrl?: string; // Backward compatibility / single image
   imageUrls?: string[];
   isGenerating?: boolean;
-  size: number;
+  size?: number;
   sofaFabric?: string;
   sofaColor?: string;
+  familyId?: string; // Links composition to a product family/collection
 }
 
 export interface CartItem {

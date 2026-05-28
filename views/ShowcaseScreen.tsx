@@ -5,6 +5,7 @@ import { Product, View, DynamicBrand, SavedComposition, ThemeContext, Variation,
 import ProductDetailModal from '../components/ProductDetailModal';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
 import CompositionViewerModal from '../components/CompositionViewerModal';
+import SearchBar from '../components/SearchBar';
 
 type ShowcaseItem = {
     type: 'single';
@@ -91,14 +92,14 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
   return (
     <button 
         onClick={onClick}
-        className={`rounded-3xl p-3 shadow-lg flex flex-col items-center text-center border transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2 ${cardClasses} ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
+        className={`flex flex-col items-center text-center transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 rounded-3xl overflow-visible ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
         style={shouldAnimate ? { 
              animation: 'float-in 0.5s ease-out forwards',
              animationDelay: `${index * 50}ms`,
              opacity: 0 
          } : {}}
     >
-        <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
+        <div className={`w-full aspect-square ${imageBgClasses} rounded-3xl flex items-center justify-center overflow-hidden relative shadow-xl z-20`}>
              {(product.fabricImageUrl || product.baseImageUrl) ? (
                 <>
                      <img 
@@ -127,6 +128,9 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
                     />
                 </div>
              )}
+             {/* Sombreamento inferior na imagem para efeito de profundidade sobre a info com tom cinza claro */}
+             <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-gray-400/10 to-transparent z-20 pointer-events-none" />
+
              {waterResistanceDetails?.showcaseIndicator && (
                 <div className="absolute top-2 right-2 bg-black/50 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-full z-10">
                     {waterResistanceDetails.showcaseIndicator}
@@ -138,23 +142,25 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
                 </div>
              )}
         </div>
-        <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{product.name}</h3>
-        <div className={`flex items-center justify-center flex-wrap gap-x-3 gap-y-2 text-xs mt-2`}>
-            {product.unitsSold >= 5 && (
-                <div className={`flex items-center space-x-1 ${textMetaClasses}`}>
-                    <FireIcon className="w-4 h-4 text-orange-400" />
-                    <span>{product.unitsSold} vendidos</span>
+        <div className={`w-full flex-grow flex flex-col items-center justify-center p-3 pb-5 -mt-5 pt-8 rounded-b-3xl shadow-xl z-10 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-50/90 border-t border-fuchsia-100 shadow-gray-300/40'}`}>
+            <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{product.name}</h3>
+            <div className={`flex items-center justify-center flex-wrap gap-x-3 gap-y-2 text-xs mt-2`}>
+                {product.unitsSold >= 5 && (
+                    <div className={`flex items-center space-x-1 ${textMetaClasses}`}>
+                        <FireIcon className="w-4 h-4 text-orange-400" />
+                        <span>{product.unitsSold} vendidos</span>
+                    </div>
+                )}
+                <div className={`flex items-center gap-1 ${textMetaClasses}`}>
+                    <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
+                    <span className="font-semibold">{product.brand === 'Marca Própia' ? 'Têca' : product.brand}</span>
                 </div>
-            )}
-            <div className={`flex items-center gap-1 ${textMetaClasses}`}>
-                <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
-                <span className="font-semibold">{product.brand}</span>
+                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
+                    {product.fabricType}
+                </span>
             </div>
-             <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
-                {product.fabricType}
-            </span>
+            <span className={`font-bold text-fuchsia-500 mt-2 ${isRange ? 'text-xs' : 'text-md'}`}>{getPriceRange()}</span>
         </div>
-        <span className={`font-bold text-fuchsia-500 mt-2 ${isRange ? 'text-xs' : 'text-md'}`}>{getPriceRange()}</span>
     </button>
   );
 };
@@ -207,8 +213,27 @@ const ProductGroupCard: React.FC<{
     const [activeImageIndex, setActiveImageIndex] = useState(0);
     const [startSlide, setStartSlide] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
+    const cardRef = useRef<HTMLDivElement>(null);
 
     const { products: group, familyId, familyName: explicitName } = item;
+
+    useEffect(() => {
+        if (isExpanded && cardRef.current) {
+            const timer = setTimeout(() => {
+                const scrollContainer = cardRef.current?.closest('main');
+                if (scrollContainer) {
+                    const offset = cardRef.current.offsetTop - 80; // 80px para compensar o header fixo de h-20
+                    scrollContainer.scrollTo({ top: offset, behavior: 'smooth' });
+                }
+            }, 80); 
+            return () => clearTimeout(timer);
+        }
+    }, [isExpanded]);
+
+    const handleExpand = () => {
+        setIsExpanded(true);
+    };
+
     const representativeProduct = group[0];
     
     // Filter products that have images to ensure sync between image index and product
@@ -250,39 +275,48 @@ const ProductGroupCard: React.FC<{
 
     return (
         <motion.div 
+            ref={cardRef}
             layout
             layoutId={familyId}
-            transition={{ duration: 0.5, ease: "easeInOut" }}
-            className={`rounded-3xl p-3 shadow-lg flex flex-col border ${isExpanded ? (isDark ? "bg-fuchsia-950/30 border-fuchsia-900/50" : "bg-fuchsia-50/80 border-fuchsia-200") : cardClasses} ${isExpanded ? 'col-span-2 row-span-2' : ''}`}
-            style={shouldAnimate ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms` } : {}}
+            transition={{ type: "spring", stiffness: 800, damping: 52, mass: 1 }}
+            className={`flex flex-col overflow-visible scroll-mt-20 ${isExpanded ? `col-span-2 row-span-2 z-40 backdrop-blur-md ${isDark ? "bg-fuchsia-950/60 border border-fuchsia-900/50" : "bg-fuchsia-50/90 border border-fuchsia-200"} rounded-3xl p-4 shadow-2xl` : 'rounded-3xl'}`}
+            style={shouldAnimate && !isExpanded ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms` } : {}}
         >
+            <AnimatePresence mode="wait" initial={false}>
             {isExpanded ? (
                     <motion.div
                         key="expanded"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.5 }}
+                        initial={{ opacity: 0, scale: 0.99 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.99 }}
+                        transition={{ duration: 0.1 }}
+                        className="w-full h-full"
                     >
-                    <div className="flex justify-between items-center mb-3">
-                        <h3 className={`font-bold text-sm ${textNameClasses}`}>{familyName}</h3>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className={`font-bold text-base ${textNameClasses}`}>{familyName}</h3>
                         <button onClick={() => setIsExpanded(false)} className="text-gray-500 hover:text-fuchsia-500">
                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
                         </button>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3 mt-2">
                         {group.map(product => (
-                            <button key={product.id} onClick={() => onClick(product)} className="w-full flex flex-col items-center">
-                                <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-full h-32 object-cover rounded-xl mb-1" />
-                                <span className={`text-xs font-semibold ${textNameClasses} truncate w-full`}>{product.name}</span>
-                                <div className={`flex items-center gap-1 mt-1 ${isDark ? 'text-purple-300' : 'text-gray-500'}`}>
-                                    <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-3 h-3 rounded-full object-contain bg-white p-px shadow-sm" />
-                                    <span className="text-[10px] uppercase font-semibold">{product.brand}</span>
+                            <button key={product.id} onClick={() => onClick(product)} className="w-full flex flex-col items-center transition-transform hover:scale-105 group/item">
+                                <div className={`w-full aspect-square ${imageBgClasses} rounded-2xl flex items-center justify-center overflow-hidden relative shadow-md z-10`}>
+                                    <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-black/10 to-transparent z-20 pointer-events-none" />
                                 </div>
-                                <span className="text-[10px] font-bold text-fuchsia-600">
-                                    {(product.variations[0]?.priceFull || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                </span>
+                                <div className={`w-full p-2 -mt-4 pt-6 rounded-b-2xl shadow-xl z-0 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-50/95 border-t border-fuchsia-100 shadow-fuchsia-200/50'}`}>
+                                    <span className={`text-[10px] font-bold ${textNameClasses} truncate block w-full text-center px-1`}>{product.name}</span>
+                                    <div className={`flex items-center justify-center gap-1 mt-1 ${isDark ? 'text-purple-300' : 'text-gray-500'}`}>
+                                        <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-3 h-3 rounded-full object-contain bg-white p-px shadow-sm" />
+                                        <span className="text-[9px] font-semibold">{product.brand === 'Marca Própia' ? 'Têca' : product.brand}</span>
+                                    </div>
+                                    <span className="text-[10px] font-black text-fuchsia-600 block mt-1 text-center">
+                                        {(product.variations[0]?.priceFull || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </span>
+                                </div>
                             </button>
                         ))}
                     </div>
@@ -290,19 +324,20 @@ const ProductGroupCard: React.FC<{
             ) : (
                 <motion.div
                         key="collapsed"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.5 }}
+                        initial={{ opacity: 0, scale: 1.01 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 1.01 }}
+                        transition={{ duration: 0.1 }}
+                        className="w-full h-full"
                 >
                 <button 
-                    onClick={() => setIsExpanded(true)}
-                    className="w-full flex-grow flex flex-col items-center justify-between text-center focus:outline-none"
+                    onClick={handleExpand}
+                    className="w-full h-full flex flex-col items-center justify-between text-center focus:outline-none transition-transform transform hover:scale-105"
                 >
-                    <div className="w-full">
-                        <div className={`w-full h-32 ${imageBgClasses} rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative`}>
+                    <div className="w-full h-full flex flex-col items-center overflow-visible">
+                        <div className={`w-full aspect-square ${imageBgClasses} rounded-3xl flex items-center justify-center overflow-hidden relative shadow-xl z-20`}>
                             {validImages.length > 0 ? (
                                 <>
-                                    {/* Always render the first image immediately */}
                                     <img 
                                         src={validImages[0]} 
                                         alt={`${representativeProduct.name} main`}
@@ -310,7 +345,6 @@ const ProductGroupCard: React.FC<{
                                         loading="lazy"
                                         decoding="async"
                                     />
-                                    {/* Render secondary images ONLY after delay to save bandwidth on load */}
                                     {startSlide && validImages.slice(1).map((src, idx) => (
                                          <img 
                                             key={idx + 1}
@@ -331,74 +365,104 @@ const ProductGroupCard: React.FC<{
                                     />
                                 </div>
                             )}
+                            {/* Sombreamento inferior na imagem para efeito de profundidade sobre a info com tom cinza claro */}
+                            <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-gray-400/15 to-transparent z-30 pointer-events-none" />
                         </div>
-                        <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{familyName}</h3>
-                        <div className="text-[10px] text-fuchsia-500 font-medium pb-2">
-                            {group.length} cores | Clique e veja
+                        <div className={`w-full flex-grow pt-8 pb-5 px-3 -mt-5 flex flex-col items-center justify-center rounded-b-3xl shadow-xl z-10 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-50/90 border-t border-fuchsia-100 shadow-gray-300/40'}`}>
+                            <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{familyName}</h3>
+                            <div className="text-[10px] text-fuchsia-500 font-medium pb-2">
+                                {group.length} cores | Clique e veja
+                            </div>
+                            <div className="flex flex-wrap items-center justify-center gap-1.5 px-2">
+                                {group.slice(0, 7).map((p, idx) => (
+                                    <div 
+                                        key={idx}
+                                        className={`w-3 h-3 rounded-full border shadow-sm ${isDark ? 'border-white/20' : 'border-black/10'}`}
+                                        style={{ backgroundColor: p.colors?.[0]?.hex || '#ccc' }}
+                                        title={p.colors?.[0]?.name}
+                                    />
+                                ))}
+                                {group.length > 7 && (
+                                    <span className={`text-[10px] font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+{group.length - 7}</span>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                    {/* Display color dots instead of text count */}
-                    <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 px-2">
-                        {group.slice(0, 7).map((p, idx) => (
-                            <div 
-                                key={idx}
-                                className={`w-3 h-3 rounded-full border shadow-sm ${isDark ? 'border-white/20' : 'border-black/10'}`}
-                                style={{ backgroundColor: p.colors?.[0]?.hex || '#ccc' }}
-                                title={p.colors?.[0]?.name}
-                            />
-                        ))}
-                        {group.length > 7 && (
-                            <span className={`text-[10px] font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+{group.length - 7}</span>
-                        )}
                     </div>
                 </button>
                     </motion.div>
             )}
+            </AnimatePresence>
         </motion.div>
     );
 };
 
-const FloatingActionButtons = ({ onNavigate }: { onNavigate: (view: View) => void }) => {
+const FloatingActionButtons = ({ onNavigate, isSearchOpen, scrollTop }: { onNavigate: (view: View) => void; isSearchOpen: boolean; scrollTop: number }) => {
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isWhatsAppDimmed, setIsWhatsAppDimmed] = useState(false);
     
     useEffect(() => {
         const timer = setTimeout(() => setIsExpanded(true), 1500);
         const collapseTimer = setTimeout(() => setIsExpanded(false), 4500); 
+        
+        // Add 80% opacity to WhatsApp button after 5 seconds
+        const dimTimer = setTimeout(() => {
+            setIsWhatsAppDimmed(true);
+        }, 5000);
+
         return () => {
             clearTimeout(timer);
             clearTimeout(collapseTimer);
+            clearTimeout(dimTimer);
         }
     }, []);
 
     const whatsappUrl = `https://wa.me/5561991434805?text=${encodeURIComponent("Olá, vi o site das Lojas Têca e gostaria de fazer uma encomenda.")}`;
 
+    // Calculate dynamic opacity for the composition button (fades out completely by 400px scrolled down)
+    const compScrollOpacity = Math.max(0, Math.min(1, 1 - scrollTop / 400));
+    
+    // Total visibility determines if the buttons should be fully opaque or not
+    const baseCompOpacity = isExpanded ? 1.0 : 0.25;
+    const finalCompOpacity = baseCompOpacity * compScrollOpacity;
+
     return (
-        <div className="fixed bottom-32 right-6 z-[60] flex flex-col items-end gap-3">
+        <div className={`fixed bottom-32 right-6 z-[60] flex flex-col items-end gap-3 pointer-events-none transition-all duration-300 ${isSearchOpen ? 'opacity-0 scale-90 select-none' : 'opacity-100 scale-100'}`}>
             {/* Composition Creator Button */}
-            <button 
-                onClick={() => onNavigate(View.COMPOSITION_GENERATOR)}
-                className={`flex items-center bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white rounded-full shadow-2xl transition-all duration-700 ease-in-out h-10 overflow-hidden ${isExpanded ? 'px-4 py-2 w-auto opacity-100' : 'w-10 p-0 justify-center opacity-25 hover:opacity-100'}`}
-            >
-                <div className={`flex items-center justify-center ${isExpanded ? '' : 'w-full h-full'}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" />
-                    </svg>
-                </div>
-                <span className={`ml-2 whitespace-nowrap font-black text-xs uppercase tracking-wider transition-all duration-500 overflow-hidden ${isExpanded ? 'max-w-xs opacity-100' : 'max-w-0 opacity-0'}`}>
-                    Criar Composição
-                </span>
-            </button>
+            {compScrollOpacity > 0 && (
+                <button 
+                    onClick={() => onNavigate(View.COMPOSITION_GENERATOR)}
+                    style={{ 
+                        opacity: isSearchOpen ? 0 : finalCompOpacity,
+                        pointerEvents: (compScrollOpacity > 0.05 && !isSearchOpen) ? 'auto' : 'none',
+                        transform: `scale(${compScrollOpacity === 0 ? 0.85 : 1})`
+                    }}
+                    className={`flex items-center bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white rounded-full shadow-2xl transition-all duration-500 ease-in-out h-10 pointer-events-auto ${isExpanded ? 'px-4 py-2 w-auto' : 'w-10 p-0 justify-center overflow-hidden'}`}
+                >
+                    <div className={`flex items-center justify-center ${isExpanded ? '' : 'w-full h-full'}`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" />
+                        </svg>
+                    </div>
+                    <span className={`ml-2 whitespace-nowrap font-black text-xs uppercase tracking-wider transition-all duration-500 overflow-hidden ${isExpanded ? 'max-w-xs opacity-100' : 'max-w-0 opacity-0'}`}>
+                        Criar Composição
+                    </span>
+                </button>
+            )}
 
             {/* WhatsApp Button */}
             <a 
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`flex items-center bg-[#25D366] text-white rounded-full shadow-2xl transition-all duration-700 ease-in-out h-10 ${isExpanded ? 'px-4 py-2 w-auto' : 'w-10 p-0 justify-center overflow-hidden'}`}
+                style={{
+                    opacity: isSearchOpen ? 0 : undefined,
+                    pointerEvents: isSearchOpen ? 'none' : 'auto'
+                }}
+                className={`flex items-center bg-[#25D366] text-white rounded-full shadow-2xl transition-all duration-500 ease-in-out h-10 pointer-events-auto ${isExpanded ? 'px-4 py-2 w-auto' : 'w-10 p-0 justify-center overflow-hidden'} ${isWhatsAppDimmed ? 'opacity-80 hover:opacity-100' : 'opacity-100'}`}
             >
                 <div className={`flex items-center justify-center ${isExpanded ? '' : 'w-full h-full'}`}>
                     <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                     </svg>
                 </div>
                 <span className={`ml-2 whitespace-nowrap font-black text-xs uppercase tracking-wider transition-all duration-500 overflow-hidden ${isExpanded ? 'max-w-xs opacity-100' : 'max-w-0 opacity-0'}`}>
@@ -411,6 +475,11 @@ const FloatingActionButtons = ({ onNavigate }: { onNavigate: (view: View) => voi
 
 
 interface ShowcaseScreenProps {
+  isSearchOpen: boolean;
+  setIsSearchOpen: (open: boolean) => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  setSearchIconOpacity: (opacity: number) => void;
   products: Product[];
   initialProductId?: string; // Deep link support
   hasFetchError: boolean;
@@ -419,6 +488,7 @@ interface ShowcaseScreenProps {
   brands: DynamicBrand[];
   onNavigate: (view: View) => void;
   savedCompositions: SavedComposition[];
+  setSavedCompositions: React.Dispatch<React.SetStateAction<SavedComposition[]>>;
   onAddToCart: (product: Product, variation: Variation, quantity: number, itemType: 'cover' | 'full', price: number, isPreOrder?: boolean) => void;
   sofaColors: { name: string; hex: string }[];
   cart: CartItem[];
@@ -426,7 +496,27 @@ interface ShowcaseScreenProps {
   productFamilies: ProductFamily[];
 }
 
-const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProductId, hasFetchError, canManageStock, onEditProduct, brands, onNavigate, savedCompositions, onAddToCart, sofaColors, cart, isLoading = false, productFamilies }) => {
+const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ 
+    isSearchOpen, 
+    setIsSearchOpen,
+    searchQuery, 
+    setSearchQuery, 
+    setSearchIconOpacity,
+    products, 
+    initialProductId, 
+    hasFetchError, 
+    canManageStock, 
+    onEditProduct, 
+    brands, 
+    onNavigate, 
+    savedCompositions, 
+    setSavedCompositions, 
+    onAddToCart, 
+    sofaColors, 
+    cart, 
+    isLoading = false, 
+    productFamilies 
+}) => {
   // WORKAROUND: Força a família "Linhons Vinho" a ser uma coleção para testes.
   const modifiedProductFamilies = useMemo(() => {
     return productFamilies.map(family => {
@@ -437,7 +527,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
     });
   }, [productFamilies]);
 
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>(() => localStorage.getItem('showcase_category') || 'Todas');
   const [selectedFabric, setSelectedFabric] = useState<string>(() => localStorage.getItem('showcase_fabric') || 'Todos os Tecidos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -449,6 +538,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
   // New State for Filter Expansion
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   const [isColorFilterOpen, setIsColorFilterOpen] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedColors, setSelectedColors] = useState<string[]>(() => {
     const savedColors = localStorage.getItem('showcase_colors');
     return savedColors ? JSON.parse(savedColors) : [];
@@ -463,6 +553,34 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
 
   // --- INFINITE SCROLL STATE ---
   const [visibleCount, setVisibleCount] = useState(4); // Match App.tsx initial limit
+  const [scrollTop, setScrollTop] = useState(0);
+  
+  const scrollContainerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+      const el = scrollContainerRef.current;
+      if (!el) return;
+      
+      const handleScroll = () => {
+          const currentScrollTop = el.scrollTop;
+          
+          // Throttling scroll state updates in 15px increments or boundaries
+          setScrollTop(prev => {
+              if (Math.abs(currentScrollTop - prev) >= 15 || currentScrollTop <= 10 || currentScrollTop >= 400) {
+                  return currentScrollTop;
+              }
+              return prev;
+          });
+          
+          // Smooth but state-sparing search icon opacity transitions
+          const opacity = Math.min(currentScrollTop / 200, 1);
+          const roundedOpacity = Math.round(opacity * 10) / 10;
+          setSearchIconOpacity(roundedOpacity);
+      };
+
+      el.addEventListener('scroll', handleScroll, { passive: true });
+      return () => el.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Deep link handler
@@ -736,6 +854,31 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
   return (
     <>
       <div className="h-full w-full flex flex-col relative overflow-hidden">
+        {/* Balão de Busca Flutuante (Overlay inteligente acionado pelo cabeçalho) */}
+        <SearchBar 
+          isFloating={true}
+          isSearchOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          isDark={isDark}
+          onFocusChange={setIsSearchFocused}
+          categories={categories}
+          selectedCategory={selectedCategory}
+          setSelectedCategory={setSelectedCategory}
+          availableFabrics={availableFabrics}
+          selectedFabric={selectedFabric}
+          setSelectedFabric={setSelectedFabric}
+          selectedColors={selectedColors}
+          setSelectedColors={setSelectedColors}
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
+          isFiltersExpanded={isFiltersExpanded}
+          setIsFiltersExpanded={setIsFiltersExpanded}
+          isColorFilterOpen={isColorFilterOpen}
+          setIsColorFilterOpen={setIsColorFilterOpen}
+        />
+
         <div className="absolute inset-0 z-0 opacity-80 overflow-hidden">
             {isDark ? (
               <>
@@ -751,214 +894,42 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
             )}
         </div>
 
-          <main className="flex-grow overflow-y-auto px-6 pt-20 pb-52 md:pb-52 flex flex-col no-scrollbar z-10">
+          <main ref={scrollContainerRef as React.RefObject<HTMLElement>} className="flex-grow overflow-y-auto px-6 pt-20 pb-52 md:pb-52 flex flex-col no-scrollbar z-10">
               {hasFetchError && (
                 <div className={`p-4 mb-4 rounded-xl text-center font-semibold border ${isDark ? 'bg-red-900/50 text-red-300 border-red-500/30' : 'bg-red-100 text-red-800 border-red-200'}`}>
                     <p className="font-bold text-lg">Modo de Demonstração Ativo</p>
                     <p className="text-sm">Você está vendo uma vitrine de exemplo. O conteúdo real não pôde ser carregado.</p>
                 </div>
               )}
-               <div className="mb-6">
-                  <h2 className={`text-sm font-bold tracking-widest ${headerTextClasses}`}>CATÁLOGO</h2>
+               <div className="mt-4 mb-6">
+                  <h1 className="text-2xl font-light text-purple-900/85 dark:text-purple-300/85">
+                    Bem vindo a <span className="font-semibold text-purple-700 dark:text-purple-400">Têca Decorações</span>
+                  </h1>
               </div>
 
-              <div className="relative mb-4 flex items-center gap-4">
-                  <div className="relative flex-grow">
-                     <input 
-                        type="text" 
-                        placeholder="Buscar por almofadas..." 
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                (document.activeElement as HTMLElement)?.blur();
-                            }
-                        }}
-                        className={`w-full border rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm transition-shadow shadow-inner ${searchInputClasses}`}/>
-                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                     </svg>
-                  </div>
-                    <button
-                        onClick={() => setSortOrder(prev => prev === 'recent' ? 'alpha' : 'recent')}
-                        className={`flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full border shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-fuchsia-500 ${isDark ? 'bg-black/30 border-white/10 text-white hover:bg-white/10' : 'bg-white border-gray-300/80 text-gray-700 hover:bg-gray-50'}`}
-                        title={sortOrder === 'recent' ? "Mudar para Ordem Alfabética" : "Mudar para Mais Recentes"}
-                    >
-                        {sortOrder === 'recent' ? (
-                            <div className="flex items-center gap-0.5">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                </svg>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                </svg>
-                            </div>
-                        ) : (
-                            <div className="flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                </svg>
-                                <div className="flex flex-col leading-none text-[10px] font-black">
-                                    <span>A</span>
-                                    <span>Z</span>
-                                </div>
-                            </div>
-                        )}
-                    </button>
-              </div>
-              
-              {/* --- New Filter Layout --- */}
-              <div className="relative mb-6">
-                  <div className={`transition-all duration-300 ${isFiltersExpanded || isCategorySelected ? `p-4 rounded-3xl border mb-2 ${isDark ? 'bg-black/30 border-white/10' : 'bg-gray-50 border-gray-200'}` : ''}`}>
-                      
-                      <div className="flex justify-between items-center mb-2">
-                          {isCategorySelected ? (
-                               <div className="flex items-center gap-2">
-                                   <button 
-                                      onClick={() => {
-                                          setSelectedCategory('Todas');
-                                          setSelectedFabric('Todos os Tecidos');
-                                      }}
-                                      className={`p-1.5 rounded-full ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-                                   >
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                      </svg>
-                                   </button>
-                                   <span className={`text-sm font-bold uppercase tracking-wider ${isDark ? 'text-white' : 'text-gray-900'}`}>{selectedCategory}</span>
-                               </div>
-                          ) : (
-                              <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Filtrar por Categoria</span>
-                          )}
-                          
-                          {!isCategorySelected && (
-                              <div className="flex items-center gap-2">
-                                  <button
-                                      onClick={() => {
-                                          setIsColorFilterOpen(!isColorFilterOpen);
-                                          if (!isColorFilterOpen) setIsFiltersExpanded(false);
-                                      }}
-                                      className={`p-2 rounded-full transition-colors flex items-center gap-2 ${isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-200 text-gray-600'} ${isColorFilterOpen ? (isDark ? 'bg-white/10' : 'bg-gray-200') : ''}`}
-                                      title="Filtrar por Cor"
-                                  >
-                                      <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-red-500 via-green-500 to-blue-500 border border-white/20 shadow-sm"></div>
-                                      <span className="text-xs font-bold">Cor</span>
-                                  </button>
-
-                                  <button 
-                                    onClick={() => {
-                                        setIsFiltersExpanded(!isFiltersExpanded);
-                                        if (!isFiltersExpanded) setIsColorFilterOpen(false);
-                                    }}
-                                    className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-200 text-gray-600'}`}
-                                    aria-label={isFiltersExpanded ? "Recolher filtros" : "Expandir filtros"}
-                                  >
-                                      {isFiltersExpanded ? (
-                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                              <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                                          </svg>
-                                      ) : (
-                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                          </svg>
-                                      )}
-                                  </button>
-                              </div>
-                          )}
-                      </div>
-
-                      {/* Category Buttons - Only show if NO category is selected */}
-                      {!isCategorySelected && (
-                          <div className={isFiltersExpanded ? "flex flex-wrap gap-2" : "flex gap-2 overflow-x-auto no-scrollbar py-2 pr-4 items-center"}>
-                              {categories.map(category => {
-                                  if (category === 'Todas') return null; // Already handled by Back button logic or implicit "All" state
-
-                                  const activeClasses = isDark 
-                                      ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30 border-transparent hover:bg-fuchsia-500' 
-                                      : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20 border-transparent hover:bg-purple-700';
-                                  const inactiveClasses = isDark 
-                                      ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
-                                      : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400 shadow-sm';
-
-                                  return (
-                                      <button
-                                          key={category}
-                                          onClick={() => {
-                                            setSelectedCategory(category);
-                                            setSelectedFabric('Todos os Tecidos');
-                                          }}
-                                          className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 flex-shrink-0 ${inactiveClasses}`}
-                                      >
-                                          {category}
-                                      </button>
-                                  );
-                              })}
-                          </div>
-                      )}
-
-                      {/* Color Filter Panel */}
-                      {isColorFilterOpen && !isCategorySelected && (
-                          <div className={`mt-2 pt-4 border-t border-dashed ${isDark ? 'border-white/10' : 'border-gray-300'}`}>
-                              <span className={`text-xs font-bold uppercase tracking-wider mb-2 block ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Filtrar por Cor</span>
-                              <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar px-1">
-                                  {PREDEFINED_COLORS.map(color => {
-                                      const isSelected = selectedColors.includes(color.name);
-                                      return (
-                                          <button
-                                              key={color.name}
-                                              onClick={() => {
-                                                  setSelectedColors(prev => 
-                                                      prev.includes(color.name) 
-                                                          ? prev.filter(c => c !== color.name) 
-                                                          : [...prev, color.name]
-                                                  );
-                                              }}
-                                              className={`flex-shrink-0 w-8 h-8 rounded-full border-2 transition-all transform hover:scale-110 ${isSelected ? 'border-fuchsia-500 ring-2 ring-fuchsia-500/50 scale-110' : 'border-transparent hover:border-gray-300'}`}
-                                              style={{ backgroundColor: color.hex }}
-                                              title={color.name}
-                                          >
-                                              {isSelected && (
-                                                  <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 mx-auto ${['Branco', 'Bege', 'Amarelo'].includes(color.name) ? 'text-black' : 'text-white'}`} viewBox="0 0 20 20" fill="currentColor">
-                                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                  </svg>
-                                              )}
-                                          </button>
-                                      );
-                                  })}
-                              </div>
-                          </div>
-                      )}
-
-                      {/* Sub-filters (Fabrics) - Visible when a Category is Selected OR Expanded */}
-                      {(isCategorySelected || isFiltersExpanded) && availableFabrics.length > 0 && (
-                        <div className={`mt-2 ${!isCategorySelected && isFiltersExpanded ? `pt-4 border-t border-dashed ${isDark ? 'border-white/10' : 'border-gray-300'}` : ''}`}>
-                            {!isCategorySelected && <span className={`text-xs font-bold uppercase tracking-wider mb-2 block ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Refinar por Tecido</span>}
-                            <div className="flex flex-wrap gap-2">
-                                {availableFabrics.map(fabric => {
-                                  const isActive = selectedFabric === fabric;
-                                  const activeClasses = isDark 
-                                      ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30 border-transparent hover:bg-cyan-500' 
-                                      : 'bg-teal-500 text-white shadow-lg shadow-teal-500/20 border-transparent hover:bg-teal-600';
-                                  const inactiveClasses = isDark 
-                                      ? 'bg-black/20 backdrop-blur-md text-gray-200 border-white/10 hover:bg-black/40' 
-                                      : 'bg-white text-gray-700 border-gray-300/80 hover:bg-gray-100 hover:border-gray-400 shadow-sm';
-                                  return (
-                                     <button
-                                          key={fabric}
-                                          onClick={() => setSelectedFabric(fabric)}
-                                          className={`px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border transform hover:scale-105 ${
-                                              isActive ? activeClasses : inactiveClasses
-                                          }`}
-                                      >
-                                          {fabric}
-                                      </button>
-                                  )
-                                })}
-                            </div>
-                        </div>
-                      )}
-                  </div>
-              </div>
+              {/* Barra de Busca Fixa (Sempre visível no início da vitrine, mais estreita e elegante) */}
+              <SearchBar 
+                isFloating={false}
+                isSearchOpen={isSearchOpen}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                isDark={isDark}
+                onFocusChange={setIsSearchFocused}
+                categories={categories}
+                selectedCategory={selectedCategory}
+                setSelectedCategory={setSelectedCategory}
+                availableFabrics={availableFabrics}
+                selectedFabric={selectedFabric}
+                setSelectedFabric={setSelectedFabric}
+                selectedColors={selectedColors}
+                setSelectedColors={setSelectedColors}
+                sortOrder={sortOrder}
+                setSortOrder={setSortOrder}
+                isFiltersExpanded={isFiltersExpanded}
+                setIsFiltersExpanded={setIsFiltersExpanded}
+                isColorFilterOpen={isColorFilterOpen}
+                setIsColorFilterOpen={setIsColorFilterOpen}
+              />
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 grid-flow-dense">
                   {isLoading ? (
@@ -985,7 +956,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
               </div>
           </main>
       </div>
-      <FloatingActionButtons onNavigate={onNavigate} />
+      <FloatingActionButtons onNavigate={onNavigate} isSearchOpen={isSearchOpen || isSearchFocused || searchQuery.trim() !== ''} scrollTop={scrollTop} />
       {selectedProduct && (
           <ProductDetailModal
               product={selectedProduct}
@@ -1007,8 +978,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ products, initialProduc
               compositions={compositionToView.compositions}
               startIndex={compositionToView.startIndex}
               onClose={() => setCompositionToView(null)}
-              onViewProduct={() => {}}
-              onSaveComposition={() => {}}
+              onViewProduct={handleProductSelect}
+              setSavedCompositions={setSavedCompositions}
           />
       )}
     </>

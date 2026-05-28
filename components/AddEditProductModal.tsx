@@ -532,13 +532,26 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         }
     }
     
+    let initialOriginalImage = migratedData.originalBaseImageUrl;
+    if (!initialOriginalImage) {
+        const hasFabricImage = !!migratedData.fabricImageUrl && 
+                               migratedData.fabricImageUrl !== '' && 
+                               !migratedData.fabricImageUrl.includes('Logo-lojas-teca') && 
+                               !migratedData.fabricImageUrl.includes('CKhft4jg');
+        if (hasFabricImage && migratedData.baseImageUrl !== migratedData.fabricImageUrl) {
+            initialOriginalImage = migratedData.fabricImageUrl;
+        } else {
+            initialOriginalImage = migratedData.baseImageUrl;
+        }
+    }
+
     setFormData({
         ...initialFormState,
         ...migratedData,
         backgroundImages: migratedData.backgroundImages || {},
         colors: migratedData.colors && migratedData.colors.length > 0 ? migratedData.colors : initialFormState.colors,
         productionCost: migratedData.productionCost || 0,
-        originalBaseImageUrl: migratedData.originalBaseImageUrl || migratedData.baseImageUrl,
+        originalBaseImageUrl: initialOriginalImage,
     });
     if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollTop = 0;
@@ -783,7 +796,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
             if (!isMounted.current) return prev;
             return { 
                 ...prev, 
-                [activeImageTarget === 'front' ? 'baseImageUrl' : 'backImageUrl']: resizedImageUrl 
+                [activeImageTarget === 'front' ? 'baseImageUrl' : 'backImageUrl']: resizedImageUrl,
+                isAiImageGenerated: activeImageTarget === 'front' ? true : prev.isAiImageGenerated
             };
         });
     } catch (e: any) { 
@@ -944,7 +958,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                         ...(typeof currentData.backgroundImages?.[context] === 'object' ? currentData.backgroundImages?.[context] : {}),
                         [color]: resizedImageUrl
                     }
-                }
+                },
+                isAiBackgroundGenerated: true
             };
             
             setGenerationProgress(`Imagem de ${furniture} ${color} gerada! Salvando...`);

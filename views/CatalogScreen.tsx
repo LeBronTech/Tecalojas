@@ -118,7 +118,9 @@ const CatalogScreen: React.FC<CatalogScreenProps> = ({ catalogs, onUploadCatalog
   return (
     <div className="h-full w-full flex flex-col relative overflow-hidden">
       <main className="flex-grow overflow-y-auto px-6 pt-24 pb-52 md:pb-52 no-scrollbar z-10">
-        <h1 className={`text-3xl font-bold mb-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>Catálogos</h1>
+        <h1 className="text-3xl font-light text-purple-900/85 dark:text-purple-300/85 mb-8">
+          Bem vindo a <span className="font-semibold text-purple-700 dark:text-purple-400">Têca Decorações</span>
+        </h1>
         
         {canManageStock && (
             <Card className="mb-8">

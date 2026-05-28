@@ -50,6 +50,9 @@ const App: React.FC = () => {
 
   // App State
   const [view, setView] = useState<View>(View.SHOWCASE);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchIconOpacity, setSearchIconOpacity] = useState(0);   
   const [cart, setCart] = useState<CartItem[]>([]);
   const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -67,33 +70,17 @@ const App: React.FC = () => {
   useEffect(() => {
     const unsubAuth = api.onAuthStateChanged(setCurrentUser);
     
-    // --- Two-Phase Product Loading Strategy ---
-    // Phase 1: Load just 4 products immediately to show something on screen FAST
-    let unsubFullProducts: () => void;
-    
-    const unsubInitialProducts = api.onProductsUpdate(
+    // Load ALL products immediately
+    const unsubProducts = api.onProductsUpdate(
         (data) => { 
-            // If we haven't loaded the full list yet, show these 4
-            if (productsLoading) {
-                setProducts(data);
-                setProductsLoading(false);
-                
-                // Phase 2: After a delay, load EVERYTHING for search/filtering
-                // Increased delay to ensure the UI is fully interactive first
-                setTimeout(() => {
-                    unsubFullProducts = api.onProductsUpdate(
-                        (fullData) => { setProducts(fullData); },
-                        (err) => { console.error(err); }
-                    );
-                }, 3000);
-            }
+            setProducts(data);
+            setProductsLoading(false);
         },
         (err) => { 
-            console.error("Initial load error:", err); 
+            console.error("Load error:", err); 
             setHasFetchError(true); 
             setProductsLoading(false); 
-        },
-        4 // Limit to 4 items initially (approx 1 screen on mobile)
+        }
     );
 
     const unsubBrands = api.onBrandsUpdate(setBrands, console.error);
@@ -112,8 +99,7 @@ const App: React.FC = () => {
 
     return () => {
         unsubAuth(); 
-        unsubInitialProducts();
-        if (unsubFullProducts) unsubFullProducts();
+        unsubProducts();
         unsubBrands(); unsubCatalogs();
         unsubCategories(); unsubSettings();
         if (unsubCompositions) unsubCompositions();
@@ -147,6 +133,8 @@ const App: React.FC = () => {
   const handleNavigate = (v: View) => {
       setView(v);
       setIsMenuOpen(false);
+      setSearchIconOpacity(0);
+      setIsSearchOpen(false);
   };
 
   const handleAddToCart = (product: Product, variation: Variation, quantity: number, type: 'cover' | 'full', price: number, isPreOrder: boolean = false) => {
@@ -216,7 +204,27 @@ const App: React.FC = () => {
 
       switch (view) {
           case View.SHOWCASE:
-              return <ShowcaseScreen products={products} isLoading={productsLoading} initialProductId={initialProductId} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={activeSofaColors} cart={cart} productFamilies={settings.productFamilies || []} />;
+              return <ShowcaseScreen 
+                  products={products} 
+                  isLoading={productsLoading} 
+                  initialProductId={initialProductId} 
+                  hasFetchError={hasFetchError} 
+                  canManageStock={isAdmin} 
+                  onEditProduct={setEditingProduct} 
+                  brands={brands} 
+                  onNavigate={handleNavigate} 
+                  savedCompositions={savedCompositions} 
+                  setSavedCompositions={setSavedCompositions} 
+                  onAddToCart={handleAddToCart} 
+                  sofaColors={activeSofaColors} 
+                  cart={cart} 
+                  productFamilies={settings.productFamilies || []} 
+                  isSearchOpen={isSearchOpen}
+                  setIsSearchOpen={setIsSearchOpen}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  setSearchIconOpacity={setSearchIconOpacity}
+              />;
           case View.STOCK:
               return <StockManagementScreen 
                 products={products} 
@@ -229,6 +237,11 @@ const App: React.FC = () => {
                 hasFetchError={hasFetchError} 
                 brands={brands} 
                 highlightProductId={lastCreatedProductId}
+                isSearchOpen={isSearchOpen}
+                setIsSearchOpen={setIsSearchOpen}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                setSearchIconOpacity={setSearchIconOpacity}
             />;
           case View.ASSISTANT:
               return <AssistantScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={setDeletingProductId} canManageStock={isAdmin} onMenuClick={() => setIsMenuOpen(true)} />;
@@ -332,12 +345,47 @@ const App: React.FC = () => {
           case View.GENERATE_KEYS:
               return <GenerateKeysScreen onMenuClick={() => setIsMenuOpen(true)} />;
           default:
-              return <ShowcaseScreen products={products} isLoading={productsLoading} initialProductId={initialProductId} hasFetchError={hasFetchError} canManageStock={isAdmin} onEditProduct={setEditingProduct} brands={brands} onNavigate={handleNavigate} savedCompositions={savedCompositions} onAddToCart={handleAddToCart} sofaColors={activeSofaColors} cart={cart} productFamilies={settings.productFamilies || []} />;
+              return <ShowcaseScreen 
+                  products={products} 
+                  isLoading={productsLoading} 
+                  initialProductId={initialProductId} 
+                  hasFetchError={hasFetchError} 
+                  canManageStock={isAdmin} 
+                  onEditProduct={setEditingProduct} 
+                  brands={brands} 
+                  onNavigate={handleNavigate} 
+                  savedCompositions={savedCompositions} 
+                  setSavedCompositions={setSavedCompositions} 
+                  onAddToCart={handleAddToCart} 
+                  sofaColors={activeSofaColors} 
+                  cart={cart} 
+                  productFamilies={settings.productFamilies || []} 
+                  isSearchOpen={isSearchOpen}
+                  setIsSearchOpen={setIsSearchOpen}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  setSearchIconOpacity={setSearchIconOpacity}
+              />;
       }
   };
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {productsLoading ? (
+          <div className={`h-screen w-full flex flex-col items-center justify-center ${theme === 'dark' ? 'bg-[#130b1f]' : 'bg-gray-50'}`}>
+              <img
+                  src={theme === 'dark' ? 'https://i.postimg.cc/qvgmgRpN/Cabe-alho-escuro.png' : 'https://i.postimg.cc/QtcYsyhQ/Cabe-alho-claro.png'}
+                  alt="Logo Têca & Ione"
+                  className="h-24 w-auto mb-8 animate-pulse"
+              />
+              <div className="w-64 h-2 bg-fuchsia-200 dark:bg-fuchsia-900 rounded-full overflow-hidden">
+                  <div className="h-full bg-fuchsia-500 animate-loading-bar"></div>
+              </div>
+              <p className={`mt-4 font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Bem vindo a <span className="font-semibold text-purple-700 dark:text-purple-400">Têca Decorações</span>
+              </p>
+          </div>
+      ) : (
       <div className={`h-screen w-full flex flex-col overflow-hidden transition-colors duration-300 ${theme === 'dark' ? 'bg-[#130b1f] text-white' : 'bg-gray-50 text-gray-900'}`}>
         <Header 
             onMenuClick={() => setIsMenuOpen(true)} 
@@ -348,6 +396,9 @@ const App: React.FC = () => {
             isAdmin={isAdmin}
             isLoggedIn={!!currentUser}
             hasPendingPreorders={saleRequests.some(r => r.status === 'pending' && r.type === 'preorder')}
+            isSearchOpen={isSearchOpen}
+            onToggleSearch={() => setIsSearchOpen(!isSearchOpen)}
+            searchIconOpacity={searchIconOpacity}
         />
         
         <SideMenu 
@@ -469,6 +520,7 @@ const App: React.FC = () => {
             />
         )}
       </div>
+      )}
     </ThemeContext.Provider>
   );
 };

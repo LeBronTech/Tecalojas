@@ -2,8 +2,9 @@
 import React, { useState, useContext, useMemo } from 'react';
 import { Product, StoreName, ThemeContext, Variation } from '../types';
 import { BRAND_LOGOS } from '../constants';
+import { updateProductData } from '../firebase';
 
-type AlertType = 'lowStock' | 'noColor' | 'noVariations' | 'noImage' | 'missingPrice';
+type AlertType = 'lowStock' | 'noColor' | 'noVariations' | 'noImage' | 'missingPrice' | 'noAiImage' | 'noFabricImage' | 'noAiBackground';
 
 interface AssistantScreenProps {
   products: Product[];
@@ -22,6 +23,9 @@ const getIconForAlert = (alertType: AlertType, isDark: boolean) => {
         case 'noColor': return <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 ${color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>;
         case 'noVariations': return <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 ${color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>;
         case 'noImage': return <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 ${color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+        case 'noAiImage': return <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 ${color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>;
+        case 'noAiBackground': return <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 ${color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>;
+        case 'noFabricImage': return <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 ${color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /></svg>;
         default: return <div />;
     }
 };
@@ -46,12 +50,39 @@ const AlertCard: React.FC<{ count: number; title: string; description: string; a
     );
 };
 
-const GenericAlertList: React.FC<{ products: Product[]; title: string; onEditProduct: (product: Product) => void; theme: 'light' | 'dark' }> = ({ products, title, onEditProduct, theme }) => {
+const GenericAlertList: React.FC<{ 
+  products: Product[]; 
+  title: string; 
+  onEditProduct: (product: Product) => void; 
+  theme: 'light' | 'dark';
+  alertType?: AlertType;
+}> = ({ products, title, onEditProduct, theme, alertType }) => {
     const isDark = theme === 'dark';
+
+    const handleMarkAsAi = async (p: Product) => {
+        try {
+            await updateProductData(p.id, { 
+                isAiImageGenerated: true
+            });
+        } catch (error) {
+            console.error("Erro ao marcar como imagem IA:", error);
+        }
+    };
+
+    const handleMarkAsBackgroundAi = async (p: Product) => {
+        try {
+            await updateProductData(p.id, { 
+                isAiBackgroundGenerated: true
+            });
+        } catch (error) {
+            console.error("Erro ao marcar como ambiente IA:", error);
+        }
+    };
+
     return (
         <div className="space-y-3">
             {products.map((product, index) => (
-                <div key={product.id} className={`p-3 rounded-xl flex items-center justify-between border ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm'}`} style={{ animation: `float-in 0.3s ease-out forwards`, animationDelay: `${index * 30}ms`, opacity: 0 }}>
+                <div key={product.id} className={`p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 border ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm'}`} style={{ animation: `float-in 0.3s ease-out forwards`, animationDelay: `${index * 30}ms`, opacity: 0 }}>
                     <div className="flex items-center gap-4">
                         <img src={product.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={product.name} className="w-16 h-16 rounded-lg object-cover" />
                         <div>
@@ -59,9 +90,35 @@ const GenericAlertList: React.FC<{ products: Product[]; title: string; onEditPro
                             <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{product.category}</p>
                         </div>
                     </div>
-                    <button onClick={() => onEditProduct(product)} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'}`}>
-                        Corrigir
-                    </button>
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                        {alertType === 'noAiImage' && (
+                            <button 
+                                onClick={() => handleMarkAsAi(product)} 
+                                className={`font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center gap-1.5 ${isDark ? 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/30' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'}`}
+                                title="Define este produto como já possuindo imagem de vitrine gerada por IA"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Já possui Vitrine IA
+                            </button>
+                        )}
+                        {alertType === 'noAiBackground' && (
+                            <button 
+                                onClick={() => handleMarkAsBackgroundAi(product)} 
+                                className={`font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center gap-1.5 ${isDark ? 'bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/30' : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-700'}`}
+                                title="Define este produto como já possuindo imagens de ambiente/decoração por IA"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Já possui Ambientes IA
+                            </button>
+                        )}
+                        <button onClick={() => onEditProduct(product)} className={`font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2 ${isDark ? 'bg-fuchsia-500/20 text-fuchsia-300 hover:bg-fuchsia-500/40' : 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200'}`}>
+                            Corrigir
+                        </button>
+                    </div>
                 </div>
             ))}
         </div>
@@ -135,6 +192,8 @@ const AssistantScreen: React.FC<AssistantScreenProps> = ({ products, onEditProdu
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const [selectedAlert, setSelectedAlert] = useState<AlertType | null>(null);
+  const [activeTab, setActiveTab] = useState<'pending' | 'validated'>('pending');
+  const [showResetAllConfirm, setShowResetAllConfirm] = useState(false);
 
   const [purchasedFabricIds, setPurchasedFabricIds] = useState<string[]>(() => {
     try {
@@ -156,12 +215,82 @@ const AssistantScreen: React.FC<AssistantScreenProps> = ({ products, onEditProdu
     });
   };
 
+  const handleRemoveValidation = async (productId: string, type: 'image' | 'background') => {
+    try {
+      const updates: any = {};
+      if (type === 'image') {
+        updates.isAiImageGenerated = false;
+      } else if (type === 'background') {
+        updates.isAiBackgroundGenerated = false;
+      }
+      await updateProductData(productId, updates);
+    } catch (error) {
+      console.error("Erro ao remover validação:", error);
+    }
+  };
+
+  const handleResetAllValidations = async () => {
+    try {
+      const promises = validatedProducts.map(p => 
+        updateProductData(p.id, { 
+          isAiImageGenerated: false, 
+          isAiBackgroundGenerated: false 
+        })
+      );
+      await Promise.all(promises);
+      setShowResetAllConfirm(false);
+    } catch (error) {
+      console.error("Erro ao resetar todas as validações:", error);
+    }
+  };
+
   const [lowStockFilter, setLowStockFilter] = useState<'all' | 'purchased'>('all');
 
   const lowStockProducts = useMemo(() => products.filter(p => p.variations.reduce((acc, v) => acc + (v.stock[StoreName.TECA] || 0) + (v.stock[StoreName.IONE] || 0), 0) <= 1), [products]);
   const noColorProducts = useMemo(() => products.filter(p => !p.colors || p.colors.length === 0 || p.colors.some(c => c.name === 'Indefinida')), [products]);
   const noVariationsProducts = useMemo(() => products.filter(p => !p.variations || p.variations.length === 0), [products]);
   const noImageProducts = useMemo(() => products.filter(p => !p.baseImageUrl), [products]);
+  
+  const noAiImageProducts = useMemo(() => products.filter(p => {
+    // Se não tem imagem nenhuma, já aparece no alerta "Sem Imagem"
+    if (!p.baseImageUrl || p.baseImageUrl.includes('Logo-lojas-teca') || p.baseImageUrl.includes('CKhft4jg') || p.baseImageUrl === '') {
+      return false;
+    }
+
+    // Se possui a flag explícita de que já possui imagem IA gerada, filtramos para remover da lista ativa
+    if (p.isAiImageGenerated) {
+      return false;
+    }
+
+    // Caso contrário, colocamos todas as almofadas do aplicativo para validação manual rápida
+    return true;
+  }), [products]);
+
+  const noAiBackgroundProducts = useMemo(() => products.filter(p => {
+    // Se não tem imagem principal de vitrine, não faz sentido ter fundo ainda
+    if (!p.baseImageUrl || p.baseImageUrl.includes('Logo-lojas-teca') || p.baseImageUrl.includes('CKhft4jg') || p.baseImageUrl === '') {
+      return false;
+    }
+
+    // Se possui a flag explícita de ambiente já gerado, filtramos para remover da lista ativa
+    if (p.isAiBackgroundGenerated) {
+      return false;
+    }
+
+    // Caso contrário, colocamos todas as almofadas do aplicativo para validação manual rápida de ambientes
+    return true;
+  }), [products]);
+
+  const noFabricImageProducts = useMemo(() => products.filter(p => {
+    // Como o catálogo é exclusivo de almofadas e capas, qualquer item sem
+    // uma foto específica de detalhe de tecido (fabricImageUrl) ou com a padrão/logo entra aqui.
+    const hasNoFabric = !p.fabricImageUrl || 
+                       p.fabricImageUrl === '' ||
+                       p.fabricImageUrl.includes('Logo-lojas-teca') || 
+                       p.fabricImageUrl.includes('CKhft4jg');
+                       
+    return hasNoFabric;
+  }), [products]);
   
   const filteredLowStockProducts = useMemo(() => {
     if (lowStockFilter === 'all') {
@@ -170,12 +299,19 @@ const AssistantScreen: React.FC<AssistantScreenProps> = ({ products, onEditProdu
     return lowStockProducts.filter(p => purchasedFabricIds.includes(p.id));
   }, [lowStockProducts, lowStockFilter, purchasedFabricIds]);
 
+  const validatedProducts = useMemo(() => {
+    return products.filter(p => p.isAiImageGenerated || p.isAiBackgroundGenerated);
+  }, [products]);
+
 
   const alertConfig: { type: AlertType; title: string; description: string; products: Product[] }[] = [
     { type: 'lowStock', title: 'Está na hora de repor!', description: 'Itens que precisam de reposição urgente.', products: lowStockProducts },
     { type: 'noColor', title: 'Cor Indefinida', description: 'Produtos sem uma cor específica atribuída.', products: noColorProducts },
     { type: 'noVariations', title: 'Sem Variações', description: 'Produtos sem variações de tamanho ou preço.', products: noVariationsProducts },
     { type: 'noImage', title: 'Sem Imagem', description: 'Produtos sem imagem principal.', products: noImageProducts },
+    { type: 'noAiImage', title: 'Almofadas Sem Vitrine IA', description: 'Almofadas que não têm a imagem de vitrine gerada por IA ainda.', products: noAiImageProducts },
+    { type: 'noAiBackground', title: 'Almofadas Sem Ambiente IA', description: 'Almofadas que não têm imagens de ambiente (sala, quarto, etc.) geradas.', products: noAiBackgroundProducts },
+    { type: 'noFabricImage', title: 'Almofadas Sem Foto do Tecido', description: 'Almofadas sem a foto de detalhe do tecido.', products: noFabricImageProducts },
   ];
   
   const currentAlert = selectedAlert ? alertConfig.find(c => c.type === selectedAlert) : null;
@@ -187,12 +323,143 @@ const AssistantScreen: React.FC<AssistantScreenProps> = ({ products, onEditProdu
             {!currentAlert ? (
                 <>
                     <h1 className={`text-3xl font-bold mb-2 text-center ${isDark ? 'text-white' : 'text-gray-900'}`}>Assistente de Estoque</h1>
-                    <p className={`text-md text-center mb-8 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Avisos para manter seu catálogo organizado.</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {alertConfig.map(alert => (
-                            <AlertCard key={alert.type} count={alert.products.length} title={alert.title} description={alert.description} alertType={alert.type} onClick={() => setSelectedAlert(alert.type)} theme={theme} />
-                        ))}
+                    <p className={`text-md text-center mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Avisos para manter seu catálogo organizado.</p>
+                    
+                    <div className="flex justify-center mb-8">
+                        <div className={`p-1 rounded-xl flex gap-1 ${isDark ? 'bg-black/30' : 'bg-gray-100'}`}>
+                            <button
+                                onClick={() => setActiveTab('pending')}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'pending' ? (isDark ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/20' : 'bg-white text-gray-950 shadow-sm') : (isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900')}`}
+                            >
+                                Pendentes de Ajuste
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('validated')}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all relative ${activeTab === 'validated' ? (isDark ? 'bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-600/30' : 'bg-white text-gray-950 shadow-sm') : (isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900')}`}
+                            >
+                                Produtos Validados (IA)
+                                {validatedProducts.length > 0 && (
+                                    <span className="absolute -top-1.5 -right-1.5 bg-fuchsia-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold animate-pulse">
+                                        {validatedProducts.length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
                     </div>
+
+                    {activeTab === 'pending' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {alertConfig.map(alert => (
+                                <AlertCard key={alert.type} count={alert.products.length} title={alert.title} description={alert.description} alertType={alert.type} onClick={() => setSelectedAlert(alert.type)} theme={theme} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            <div className={`p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm'}`}>
+                                <div className="space-y-1">
+                                    <h3 className={`font-bold text-lg ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>Gerenciamento de Validações</h3>
+                                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        Aqui você confere todos os produtos já marcados com vitrine ou ambiente gerados por IA. Você pode remover a validação de forma individual ou zerar todas de uma vez.
+                                    </p>
+                                </div>
+                                {validatedProducts.length > 0 && !showResetAllConfirm && (
+                                    <button 
+                                        onClick={() => setShowResetAllConfirm(true)}
+                                        className="font-bold py-2.5 px-4 rounded-xl text-sm transition-all border border-red-500/30 text-red-500 hover:bg-red-500/10 shrink-0 self-start sm:self-center"
+                                    >
+                                        Zerar Todas as Validações
+                                    </button>
+                                )}
+                            </div>
+
+                            {showResetAllConfirm && (
+                                <div className={`p-5 rounded-2xl border border-red-500/20 bg-red-500/5 space-y-4 animate-fadeIn`}>
+                                    <div className="flex items-center gap-2 text-red-500">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        <span className="font-bold">Atenção! Deseja zerar TODO o assistente de IA?</span>
+                                    </div>
+                                    <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Esta ação redefinirá a flag de IA e de ambiente de <strong>todos</strong> os produtos e eles voltarão para as listas de pendências do Assistente de Almofadas.
+                                    </p>
+                                    <div className="flex gap-2 justify-end">
+                                        <button 
+                                            onClick={() => setShowResetAllConfirm(false)}
+                                            className={`font-semibold py-2 px-4 rounded-lg text-sm transition-colors ${isDark ? 'bg-white/5 hover:bg-white/10 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button 
+                                            onClick={handleResetAllValidations}
+                                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors"
+                                        >
+                                            Sim, Zerar Tudo
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {validatedProducts.length === 0 ? (
+                                <div className={`p-12 text-center rounded-2xl border border-dashed flex flex-col items-center justify-center ${isDark ? 'border-white/10 bg-black/10' : 'border-gray-250 bg-gray-50'}`}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138z" />
+                                    </svg>
+                                    <h4 className={`font-bold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Tudo limpo!</h4>
+                                    <p className={`text-sm mt-1 max-w-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        Nenhum produto foi validado como IA recentemente. Conforme você valida no assistente, eles aparecerão aqui.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {validatedProducts.map((product, index) => (
+                                        <div key={product.id} className={`p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 border ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200 shadow-sm'}`} style={{ animation: `float-in 0.3s ease-out forwards`, animationDelay: `${index * 20}ms`, opacity: 0 }}>
+                                            <div className="flex items-center gap-4">
+                                                <img src={product.baseImageUrl || 'https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png'} alt={product.name} className="w-16 h-16 rounded-lg object-cover bg-white" />
+                                                <div>
+                                                    <p className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{product.name}</p>
+                                                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{product.category}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+                                                {product.isAiImageGenerated && (
+                                                    <div className={`flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-semibold ${isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-800 border border-emerald-250'}`}>
+                                                        <span>Vitrine IA ✔</span>
+                                                        <button 
+                                                            onClick={() => handleRemoveValidation(product.id, 'image')}
+                                                            className={`p-1 rounded-full hover:bg-emerald-500/20 text-emerald-500 transition-colors ml-1`} 
+                                                            title="Remover validação de Vitrine IA"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {product.isAiBackgroundGenerated && (
+                                                    <div className={`flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-semibold ${isDark ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'bg-cyan-50 text-cyan-800 border border-cyan-250'}`}>
+                                                        <span>Ambiente IA ✔</span>
+                                                        <button 
+                                                            onClick={() => handleRemoveValidation(product.id, 'background')}
+                                                            className={`p-1 rounded-full hover:bg-cyan-500/20 text-cyan-500 transition-colors ml-1`} 
+                                                            title="Remover validação de Ambiente IA"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                <button onClick={() => onEditProduct(product)} className={`font-bold py-1.5 px-3 rounded-lg text-xs transition-colors border ${isDark ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-gray-250 text-gray-700 hover:bg-gray-50'}`}>
+                                                    Editar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </>
             ) : (
                 <div>
@@ -228,7 +495,7 @@ const AssistantScreen: React.FC<AssistantScreenProps> = ({ products, onEditProdu
                             />
                         </>
                     ) : (
-                        <GenericAlertList products={currentAlert.products} title={currentAlert.title} onEditProduct={onEditProduct} theme={theme} />
+                        <GenericAlertList products={currentAlert.products} title={currentAlert.title} onEditProduct={onEditProduct} theme={theme} alertType={currentAlert.type} />
                     )}
                 </div>
             )}

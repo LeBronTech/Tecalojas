@@ -218,12 +218,19 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     const [activeBedColor, setActiveBedColor] = useState('Bege');
     const [isFabricImageModalOpen, setIsFabricImageModalOpen] = useState(false);
     const imageRef = useRef<HTMLDivElement>(null);
+    const modalScrollRef = useRef<HTMLDivElement>(null);
     const isMounted = useRef(true);
 
     useEffect(() => {
         isMounted.current = true;
         return () => { isMounted.current = false; };
     }, []);
+
+    useEffect(() => {
+        if (modalScrollRef.current) {
+            modalScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }, [product.id]);
 
     const viewKeys = useMemo(() => {
         const keys: string[] = ['front'];
@@ -324,7 +331,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                     </button>
                 )}
 
-                <div className="flex-grow overflow-y-auto no-scrollbar pt-6">
+                <div className="flex-grow overflow-y-auto no-scrollbar pt-6" ref={modalScrollRef}>
                         <div className="px-6 mb-4">
                              <h3 className={`font-bold mb-2 ${titleClasses}`}>{envDisplayNames[activeEnvKey || 'front'] || 'Veja em Ambientes'}</h3>
                             <div 
