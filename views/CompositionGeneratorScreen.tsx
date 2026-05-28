@@ -378,7 +378,19 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
 
             const imagePart = imgRes.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
             if (imagePart?.inlineData) {
-                setGeneratedImage(`data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`);
+                const b64Str = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+                setGeneratedImage(b64Str);
+                
+                // Upload assíncrono em segundo plano para o Storage
+                try {
+                    const { uploadBase64Image } = await import('../firebase');
+                    const uploadPath = `compositions/gen_${Date.now()}.jpg`;
+                    const { promise } = uploadBase64Image(uploadPath, b64Str);
+                    const uploadedUrl = await promise;
+                    setGeneratedImage(uploadedUrl);
+                } catch (err) {
+                    console.error("Erro ao subir imagem inicial da composição criada para o Storage:", err);
+                }
             }
         } catch (e) {
             console.error("AI Generation Error:", e);

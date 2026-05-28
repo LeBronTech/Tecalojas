@@ -96,7 +96,17 @@ const CompositionViewerModal: React.FC<CompositionViewerModalProps> = ({ composi
             
             const newImageUrl = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
             
-            setSavedCompositions(prev => prev.map(c => c.id === currentComposition.id ? { ...c, imageUrls: [...(c.imageUrls || []), newImageUrl] } : c));
+            let finalUrl = newImageUrl;
+            try {
+                const { uploadBase64Image } = await import('../firebase');
+                const storagePath = `compositions/viewer_${currentComposition.id}_${Date.now()}.jpg`;
+                const { promise } = uploadBase64Image(storagePath, newImageUrl);
+                finalUrl = await promise;
+            } catch (storageError) {
+                console.error("Erro ao subir imagem estendida gerada com IA para o Storage:", storageError);
+            }
+            
+            setSavedCompositions(prev => prev.map(c => c.id === currentComposition.id ? { ...c, imageUrls: [...(c.imageUrls || []), finalUrl] } : c));
             setSelectedProductsForGeneration([]);
             setCurrentImageIndex((currentComposition.imageUrls?.length || 0));
 

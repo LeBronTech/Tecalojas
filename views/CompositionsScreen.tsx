@@ -49,7 +49,8 @@ const CompositionsScreen: React.FC<CompositionsScreenProps> = ({
   const handleViewProduct = (product: Product) => {
       setViewerState({ open: false, startIndex: 0 });
       setTimeout(() => {
-          setViewingProduct(product);
+          const fullProduct = products.find(p => p.id === product.id) || product;
+          setViewingProduct(fullProduct);
       }, 150);
   };
 

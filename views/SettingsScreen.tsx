@@ -101,6 +101,81 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [editingFamilyIsCollection, setEditingFamilyIsCollection] = useState(false);
   const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
   const [familySearchTerm, setFamilySearchTerm] = useState('');
+  const [familyIdToDelete, setFamilyIdToDelete] = useState<string | null>(null);
+
+  // States of composition creator / family management
+  const [familyTabState, setFamilyTabState] = useState<'create' | 'manage'>('create');
+  const [selectedCushionsForNewFamily, setSelectedCushionsForNewFamily] = useState<string[]>([]);
+  const [cushionSearchQuery, setCushionSearchQuery] = useState('');
+
+  const displayedCategories = useMemo(() => {
+    const isSub = categoryTab === 'subcategory';
+    const dbItems = categories.filter(c => c.type === categoryTab);
+    const dbNames = dbItems.map(c => c.name.toLowerCase());
+    
+    // Also extract categories/subcategories from products
+    const productNames = products
+      .map(p => isSub ? p.subCategory : p.category)
+      .filter((c): c is string => !!c && c.trim() !== '');
+      
+    const uniqueProductNames = [...new Set(productNames)];
+    
+    // Combine them
+    const combined: { id?: string, name: string, origin: 'db' | 'products' | 'both' }[] = [];
+    
+    // Add DB ones
+    dbItems.forEach(item => {
+      const hasOnProduct = uniqueProductNames.some(pn => pn.toLowerCase() === item.name.toLowerCase());
+      combined.push({
+        id: item.id,
+        name: item.name,
+        origin: hasOnProduct ? 'both' : 'db'
+      });
+    });
+    
+    // Add product ones that are not in DB
+    uniqueProductNames.forEach(pn => {
+      if (!dbNames.includes(pn.toLowerCase())) {
+        combined.push({
+          name: pn,
+          origin: 'products'
+        });
+      }
+    });
+    
+    return combined.sort((a, b) => a.name.localeCompare(b.name));
+  }, [categories, products, categoryTab]);
+
+  const handleDeleteCategoryCombined = async (item: { id?: string, name: string, origin: 'db' | 'products' | 'both' }) => {
+    const isSub = categoryTab === 'subcategory';
+    const confirmMessage = `Tem certeza que deseja excluir a ${isSub ? 'Sub-categoria' : 'Categoria'} "${item.name}"?` + 
+      (item.origin !== 'db' ? ` Isso também irá remover esta categoria de todos os produtos associados no catálogo.` : '');
+      
+    if (!window.confirm(confirmMessage)) return;
+    
+    try {
+      // 1. Delete from DB if present
+      if (item.id) {
+        await onDeleteCategory(item.id);
+      }
+      
+      // 2. Clear from products in catalog if origin is 'products' or 'both'
+      if (item.origin === 'products' || item.origin === 'both') {
+        const matchingProducts = products.filter(p => 
+          isSub 
+            ? p.subCategory?.toLowerCase() === item.name.toLowerCase()
+            : p.category?.toLowerCase() === item.name.toLowerCase()
+        );
+        
+        for (const p of matchingProducts) {
+          const updateData = isSub ? { subCategory: '' } : { category: '' };
+          await onUpdateProduct(p.id, updateData);
+        }
+      }
+    } catch (e: any) {
+      alert("Erro ao excluir: " + e.message);
+    }
+  };
 
   useEffect(() => {
      setFees(safeCardFees);
@@ -251,6 +326,50 @@ const handleAddFamily = () => {
     setNewFamilyIsCollection(false);
 };
 
+const handleCreateFamilyComposition = async () => {
+    if (!newFamilyName.trim()) {
+        alert("Por favor, digite um nome para a composição!");
+        return;
+    }
+    if (selectedCushionsForNewFamily.length < 2) {
+        alert("Por favor, selecione 2 ou mais almofadas para a composição!");
+        return;
+    }
+    
+    try {
+        const familyId = `fam_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        const newFamily: ProductFamily = {
+            id: familyId,
+            name: newFamilyName.trim(),
+            isCollection: true
+        };
+        
+        const updatedFamilies = [...productFamilies, newFamily];
+        await api.updateGlobalSettings({ productFamilies: updatedFamilies });
+        
+        for (const pId of selectedCushionsForNewFamily) {
+            const prod = products.find(p => p.id === pId);
+            if (prod) {
+                const currentFamilies = prod.familyIds || [];
+                if (!currentFamilies.includes(familyId)) {
+                    await onUpdateProduct(prod.id, { familyIds: [...currentFamilies, familyId] });
+                }
+            }
+        }
+        
+        alert(`Composição "${newFamilyName}" criada com sucesso contendo ${selectedCushionsForNewFamily.length} almofadas!`);
+        
+        setNewFamilyName('');
+        setSelectedCushionsForNewFamily([]);
+        setCushionSearchQuery('');
+        setFamilyTabState('manage');
+        setSelectedFamilyId(familyId);
+    } catch (err: any) {
+        alert("Erro ao criar composição: " + err.message);
+    }
+};
+
 const handleToggleProductFamily = async (product: Product, familyId: string) => {
     const currentFamilies = product.familyIds || [];
     const isMember = currentFamilies.includes(familyId);
@@ -385,20 +504,30 @@ const handleToggleProductFamily = async (product: Product, familyId: string) => 
 
              <Card>
                  <SectionTitle>Gerenciar Categorias</SectionTitle>
+                 <p className={`text-xs -mt-3 mb-4 ${subtitleClasses}`}>Mostra as categorias configuradas no site e nos produtos cadastrados.</p>
                  <div className={`flex p-1 rounded-lg mb-4 ${isDark ? 'bg-black/30' : 'bg-gray-100'}`}>
                      <button onClick={() => setCategoryTab('category')} className={`flex-1 py-2 rounded-md font-bold text-sm transition ${categoryTab === 'category' ? 'bg-fuchsia-600 text-white shadow' : (isDark ? 'text-gray-400' : 'text-gray-600')}`}>Categorias</button>
                      <button onClick={() => setCategoryTab('subcategory')} className={`flex-1 py-2 rounded-md font-bold text-sm transition ${categoryTab === 'subcategory' ? 'bg-fuchsia-600 text-white shadow' : (isDark ? 'text-gray-400' : 'text-gray-600')}`}>Sub-categorias</button>
                  </div>
                  
-                 <div className="flex flex-wrap gap-2 mb-6 max-h-48 overflow-y-auto p-2 rounded-lg bg-black/5">
-                     {categories.filter(c => c.type === categoryTab).map(cat => (
-                         <div key={cat.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isDark ? 'bg-black/30 border-white/10 text-gray-200' : 'bg-white border-gray-200 text-gray-700'}`}>
-                             <span className="text-sm font-semibold">{cat.name}</span>
-                             <button onClick={() => onDeleteCategory(cat.id)} className="text-red-500 hover:text-red-700">
-                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                             </button>
-                         </div>
-                     ))}
+                 <div className="flex flex-wrap gap-2 mb-6 max-h-48 overflow-y-auto p-2 rounded-lg bg-black/5 flex-grow">
+                     {displayedCategories.length === 0 ? (
+                         <p className="text-xs text-center text-gray-500 w-full py-4">Nenhuma categoria encontrada nesta aba.</p>
+                     ) : (
+                         displayedCategories.map(cat => (
+                             <div key={cat.id || cat.name} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isDark ? 'bg-black/30 border-white/10 text-gray-200' : 'bg-white border-gray-200 text-gray-700'}`}>
+                                 <span className="text-xs font-semibold">{cat.name}</span>
+                                 {cat.origin !== 'db' && (
+                                     <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-cyan-500/15 text-cyan-400 font-bold" title="Definido em produto cadastrado">
+                                         Produto
+                                     </span>
+                                 )}
+                                 <button onClick={() => handleDeleteCategoryCombined(cat)} className="text-red-500 hover:text-red-700 p-0.5" title="Excluir Categoria">
+                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                 </button>
+                             </div>
+                         ))
+                     )}
                  </div>
 
                  <div className="flex gap-2">
@@ -468,126 +597,285 @@ const handleToggleProductFamily = async (product: Product, familyId: string) => 
              </Card>
 
              <Card>
-                 <SectionTitle>Gerenciar Famílias</SectionTitle>
-                 <div className="flex items-end gap-3 mb-6">
-                     <div className="flex-grow">
-                         <label className={`text-sm font-semibold mb-1 block ${subtitleClasses}`}>Nome da nova família</label>
-                         <Input value={newFamilyName} onChange={e => setNewFamilyName(e.target.value)} placeholder="Ex: Família Floral" />
-                     </div>
-                     <div className="flex items-center">
-                        <input 
-                            type="checkbox" 
-                            id="isCollection" 
-                            checked={newFamilyIsCollection} 
-                            onChange={(e) => setNewFamilyIsCollection(e.target.checked)}
-                            className="h-4 w-4 text-fuchsia-600 border-gray-300 rounded focus:ring-fuchsia-500"
-                        />
-                        <label htmlFor="isCollection" className={`ml-2 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                            Coleção?
-                        </label>
-                    </div>
-                     <button onClick={handleAddFamily} className="bg-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar</button>
+                 <SectionTitle>Gerenciar Famílias / Composições</SectionTitle>
+                 <p className={`text-xs -mt-3 mb-4 ${subtitleClasses}`}>Associe 2 ou mais almofadas para criar composições integradas, visualizadas juntas no site.</p>
+                 
+                 {/* Abas Internas */}
+                 <div className={`flex p-1 rounded-lg mb-6 ${isDark ? 'bg-black/30' : 'bg-gray-100'}`}>
+                     <button 
+                         type="button" 
+                         onClick={() => setFamilyTabState('create')} 
+                         className={`flex-1 py-1.5 rounded-md font-bold text-xs transition ${familyTabState === 'create' ? 'bg-fuchsia-600 text-white shadow' : (isDark ? 'text-gray-400' : 'text-gray-600')}`}
+                     >
+                         Criar Nova Composição
+                     </button>
+                     <button 
+                         type="button" 
+                         onClick={() => setFamilyTabState('manage')} 
+                         className={`flex-1 py-1.5 rounded-md font-bold text-xs transition ${familyTabState === 'manage' ? 'bg-fuchsia-600 text-white shadow' : (isDark ? 'text-gray-400' : 'text-gray-600')}`}
+                     >
+                         Gerenciar Existentes ({productFamilies ? productFamilies.length : 0})
+                     </button>
                  </div>
+                 
+                  {/* ABA 1: CRIAR NOVA COMPOSIÇÃO */}
+                  {familyTabState === 'create' && (
+                      <div className="space-y-4 mb-6">
+                          <div className="flex flex-col sm:flex-row gap-3 items-end">
+                              <div className="flex-grow w-full">
+                                  <label className="text-xs font-bold mb-1 block text-gray-700 dark:text-gray-300">
+                                      Nome da Composição / Família
+                                  </label>
+                                  <Input 
+                                      value={newFamilyName} 
+                                      onChange={e => setNewFamilyName(e.target.value)} 
+                                      placeholder="Ex: Trio de Veludos Neutros..." 
+                                  />
+                              </div>
+                              <button 
+                                  type="button"
+                                  onClick={handleCreateFamilyComposition} 
+                                  className="w-full sm:w-auto bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition active:scale-95 text-xs flex-shrink-0"
+                              >
+                                  Salvar Composição ({selectedCushionsForNewFamily.length})
+                              </button>
+                          </div>
 
-                 {productFamilies && productFamilies.length > 0 && (
-                     <div className="mb-6">
-                         <label className={`text-sm font-semibold mb-2 block ${subtitleClasses}`}>Selecione uma família para gerenciar</label>
-                         <div className="flex flex-wrap gap-2">
-                             {productFamilies.map(family => (
-                                 <div key={family.id} className="flex items-center gap-1">
-                                     <button
-                                         type="button"
-                                         onClick={() => setSelectedFamilyId(family.id === selectedFamilyId ? null : family.id)}
-                                         className={`px-4 py-2 rounded-lg font-semibold transition-colors ${selectedFamilyId === family.id ? 'bg-fuchsia-600 text-white' : (isDark ? 'bg-black/30 text-gray-300 hover:bg-black/50' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}`}
-                                     >
-                                         {family.name}
-                                     </button>
-                                     <button 
-                                        type="button"
-                                        title="Excluir Família"
-                                        style={{ minWidth: '44px', minHeight: '44px', zIndex: 50 }}
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          console.log("CLICK DETECTED on trash icon for family:", family.id);
-                                          
-                                          if (!onDeleteProductFamily) {
-                                              console.error("onDeleteProductFamily is UNDEFINED");
-                                              return;
-                                          }
+                          {/* Filtro de Busca de Almofadas */}
+                          <div className="pt-2 border-t border-dashed border-gray-200 dark:border-white/10">
+                              <div className="flex justify-between items-center mb-2">
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                                      Selecione as Almofadas (Mínimo 2)
+                                  </span>
+                                  <Input 
+                                      placeholder="Procurar almofada por nome..." 
+                                      value={cushionSearchQuery} 
+                                      onChange={e => setCushionSearchQuery(e.target.value)} 
+                                      className="py-1 px-3 text-xs w-2/3 sm:max-w-xs"
+                                  />
+                              </div>
 
-                                          const confirmed = window.confirm(`Deseja realmente EXCLUIR a família "${family.name}"?`);
-                                          if(confirmed) {
-                                              console.log("User confirmed deletion of:", family.id);
-                                              onDeleteProductFamily(family.id);
-                                              if (selectedFamilyId === family.id) setSelectedFamilyId(null);
-                                          } else {
-                                              console.log("User cancelled deletion.");
-                                          }
-                                      }} className="flex-shrink-0 flex items-center justify-center p-2 text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-all active:scale-90">
-                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                     </button>
-                                 </div>
-                             ))}
-                         </div>
-                     </div>
-                 )}
+                              {/* Grid de Seleção Simplificada */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-72 overflow-y-auto p-2 border rounded-xl bg-black/5 no-scrollbar">
+                                  {products.filter(p => p.name.toLowerCase().includes(cushionSearchQuery.toLowerCase())).map(product => {
+                                      const isSelected = selectedCushionsForNewFamily.includes(product.id);
+                                      return (
+                                          <div 
+                                              key={product.id}
+                                              onClick={() => {
+                                                  setSelectedCushionsForNewFamily(prev => 
+                                                      prev.includes(product.id) 
+                                                          ? prev.filter(id => id !== product.id)
+                                                          : [...prev, product.id]
+                                                  );
+                                              }}
+                                              className={`flex gap-2.5 p-2 items-center cursor-pointer rounded-xl border-2 transition-all ${
+                                                  isSelected 
+                                                      ? 'bg-fuchsia-600/10 border-fuchsia-500 shadow-md shadow-fuchsia-500/15 scale-[1.01]' 
+                                                      : 'bg-white/40 border-gray-200/50 hover:border-gray-400 dark:bg-black/10 dark:border-white/5 dark:hover:border-white/20'
+                                              }`}
+                                          >
+                                              <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-black/20 border border-gray-200/20">
+                                                  <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                              </div>
+                                              <div className="flex-grow min-w-0">
+                                                  <p className="text-[11px] font-bold truncate text-gray-800 dark:text-gray-200">{product.name}</p>
+                                                  <p className="text-[9px] text-gray-500 font-medium truncate">{product.category || 'Sem categoria'}</p>
+                                              </div>
+                                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                                  isSelected ? 'bg-fuchsia-600 border-transparent text-white' : 'border-gray-300 dark:border-white/20'
+                                              }`}>
+                                                  {isSelected && (
+                                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                      </svg>
+                                                  )}
+                                              </div>
+                                          </div>
+                                      );
+                                  })}
+                              </div>
+                          </div>
+                      </div>
+                  )}
 
-                 {selectedFamilyId && (
-                     <div className={`p-4 rounded-xl border ${isDark ? 'bg-black/30 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
-                         <div className="flex justify-between items-center mb-4">
-                            <div className="flex items-center gap-4">
-                                <h3 className={`font-bold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                    Produtos na família: {productFamilies.find(f => f.id === selectedFamilyId)?.name}
-                                </h3>
-                                <div className="flex items-center">
-                                    <input 
-                                        type="checkbox" 
-                                        id="isCollectionEdit" 
-                                        checked={productFamilies.find(f => f.id === selectedFamilyId)?.isCollection || false} 
-                                        onChange={(e) => {
-                                            if (selectedFamilyId) {
-                                                onUpdateProductFamily(selectedFamilyId, { isCollection: e.target.checked });
-                                            }
-                                        }}
-                                        className="h-4 w-4 text-fuchsia-600 border-gray-300 rounded focus:ring-fuchsia-500"
-                                    />
-                                    <label htmlFor="isCollectionEdit" className={`ml-2 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                        Coleção?
-                                    </label>
-                                </div>
-                            </div>
-                             <Input 
-                                 placeholder="Buscar produtos..." 
-                                 value={familySearchTerm} 
-                                 onChange={e => setFamilySearchTerm(e.target.value)} 
-                                 className="max-w-xs"
-                             />
-                         </div>
-                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-96 overflow-y-auto p-2 scrollbar-thin">
-                             {products.filter(p => p.name.toLowerCase().includes(familySearchTerm.toLowerCase())).map(product => {
-                                 const isMember = (product.familyIds || []).includes(selectedFamilyId);
-                                 return (
-                                     <div 
-                                         key={product.id} 
-                                         onClick={() => handleToggleProductFamily(product, selectedFamilyId)}
-                                         className={`relative cursor-pointer rounded-xl overflow-hidden border-2 transition-all ${isMember ? 'border-fuchsia-500 shadow-md shadow-fuchsia-500/20' : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'}`}
-                                     >
-                                         <img src={product.baseImageUrl} alt={product.name} className="w-full aspect-square object-cover" />
-                                         <div className="absolute inset-x-0 bottom-0 bg-black/60 p-2 backdrop-blur-sm">
-                                             <p className="text-white text-xs font-semibold truncate text-center">{product.name}</p>
-                                         </div>
-                                         {isMember && (
-                                             <div className="absolute top-2 right-2 bg-fuchsia-500 text-white rounded-full p-1">
-                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                                             </div>
-                                         )}
-                                     </div>
-                                 );
-                             })}
-                         </div>
-                     </div>
-                 )}
+                  {/* ABA 2: GERENCIAR COMPOSIÇÕES EXISTENTES */}
+                  {familyTabState === 'manage' && (
+                      <div className="space-y-6">
+                          {/* Lista Horizontal de Composições Cadastradas */}
+                          <div>
+                              <label className="text-[10px] font-black uppercase tracking-wider mb-2 block text-gray-500 dark:text-gray-400">
+                                  Selecione a Composição para Gerenciar
+                              </label>
+                              {(!productFamilies || productFamilies.length === 0) ? (
+                                  <p className="text-xs text-gray-500 text-center py-4 bg-black/5 rounded-xl border border-dashed border-gray-200 dark:border-white/5">Nenhuma composição criada ainda.</p>
+                              ) : (
+                                  <div className="flex flex-wrap gap-2.5 max-h-40 overflow-y-auto no-scrollbar py-1">
+                                      {productFamilies.map(family => {
+                                          const familyCushions = products.filter(p => (p.familyIds || []).includes(family.id));
+                                          const isSelected = selectedFamilyId === family.id;
+                                          return (
+                                              <div key={family.id} className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 p-1.5 rounded-xl border border-transparent hover:border-fuchsia-500/20 transition-all">
+                                                  <button
+                                                      type="button"
+                                                      onClick={() => setSelectedFamilyId(isSelected ? null : family.id)}
+                                                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                                                          isSelected 
+                                                              ? 'bg-fuchsia-600 text-white shadow-sm' 
+                                                              : 'text-gray-700 dark:text-gray-300 hover:bg-black/10 dark:hover:bg-white/10'
+                                                      }`}
+                                                  >
+                                                      <span className="truncate max-w-44">{family.name}</span>
+                                                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-black/10 text-gray-500 dark:text-gray-400'}`}>
+                                                          {familyCushions.length}
+                                                      </span>
+                                                  </button>
+                                                  <button 
+                                                      type="button"
+                                                      onClick={() => {
+                                                          if (familyIdToDelete === family.id) {
+                                                              onDeleteProductFamily(family.id);
+                                                              if (selectedFamilyId === family.id) setSelectedFamilyId(null);
+                                                              setFamilyIdToDelete(null);
+                                                          } else {
+                                                              setFamilyIdToDelete(family.id);
+                                                              setTimeout(() => setFamilyIdToDelete(null), 4000);
+                                                          }
+                                                      }}
+                                                      className={`p-1.5 rounded-lg transition-all flex-shrink-0 flex items-center gap-1 ${
+                                                          familyIdToDelete === family.id 
+                                                              ? 'bg-red-600 text-white hover:bg-red-700 font-extrabold text-[10px] animate-pulse px-2 py-1 shadow-sm' 
+                                                              : 'text-red-500 hover:text-red-700 hover:bg-red-500/10'
+                                                      }`}
+                                                      title={familyIdToDelete === family.id ? "Clique novamente para CONFIRMAR" : "Excluir Composição"}
+                                                  >
+                                                      {familyIdToDelete === family.id ? (
+                                                          <span className="font-extrabold uppercase animate-pulse">Confirmar?</span>
+                                                      ) : (
+                                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                          </svg>
+                                                      )}
+                                                  </button>
+                                              </div>
+                                          );
+                                      })}
+                                  </div>
+                              )}
+                          </div>
+
+                          {/* Editor Completo da Composição Selecionada */}
+                          {selectedFamilyId && (() => {
+                              const family = productFamilies.find(f => f.id === selectedFamilyId);
+                              if (!family) return null;
+                              
+                              const members = products.filter(p => (p.familyIds || []).includes(selectedFamilyId));
+                              const nonMembers = products.filter(p => !(p.familyIds || []).includes(selectedFamilyId) && p.name.toLowerCase().includes(familySearchTerm.toLowerCase()));
+                              
+                              return (
+                                  <div className={`p-4 rounded-2xl border ${isDark ? 'bg-black/30 border-white/10' : 'bg-gray-50 border-gray-200'} space-y-4`}>
+                                      {/* Cabecalho de Edição */}
+                                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-2.5 border-b border-dashed border-gray-200 dark:border-white/10">
+                                          <div>
+                                              <label className="text-[10px] font-black uppercase text-fuchsia-600 dark:text-fuchsia-400 tracking-wider block mb-1">Nome da Composição</label>
+                                              <input 
+                                                  type="text" 
+                                                  value={family.name} 
+                                                  onChange={(e) => onUpdateProductFamily(family.id, { name: e.target.value })}
+                                                  className={`w-full text-xs font-semibold px-2.5 py-1.5 rounded-lg border-2 transition focus:outline-none focus:ring-1 focus:ring-fuchsia-500 focus:border-transparent ${isDark ? 'bg-black/40 text-white border-white/10' : 'bg-white text-gray-900 border-gray-200'}`}
+                                                  placeholder="Nome da composição"
+                                              />
+                                              <span className="text-[9px] text-gray-400 dark:text-gray-500 font-bold mt-1 block">Contém {members.length} almofada(s) vinculada(s)</span>
+                                          </div>
+                                          <div className="flex items-center gap-3">
+                                              <input 
+                                                  type="checkbox" 
+                                                  id="isCollectionEdit" 
+                                                  checked={family.isCollection || false} 
+                                                  onChange={(e) => onUpdateProductFamily(selectedFamilyId, { isCollection: e.target.checked })}
+                                                  className="h-4 w-4 text-fuchsia-600 border-gray-400 rounded focus:ring-fuchsia-500 cursor-pointer"
+                                              />
+                                              <label htmlFor="isCollectionEdit" className={`text-xs font-semibold cursor-pointer ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                  Coleção Integrada?
+                                              </label>
+                                          </div>
+                                      </div>
+
+                                      {/* 1. Almofadas Atualmente Vinculadas (Com Exclusão Direta) */}
+                                      <div>
+                                          <span className="text-[10px] font-black uppercase tracking-wider block mb-2 text-gray-750 dark:text-gray-300">
+                                              Almofadas Atualmente Vinculadas ({members.length})
+                                          </span>
+                                          {members.length === 0 ? (
+                                              <p className="text-xs text-center text-gray-500 py-4 bg-black/5 rounded-xl border border-dashed border-gray-250 dark:border-white/5">Esta composição está vazia. Vincule almofadas abaixo!</p>
+                                          ) : (
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                                  {members.map(product => (
+                                                      <div key={product.id} className="flex gap-2.5 p-2 items-center rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/5">
+                                                          <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-8 h-8 rounded object-cover flex-shrink-0 bg-gray-100 dark:bg-black/20" referrerPolicy="no-referrer" />
+                                                          <div className="flex-grow min-w-0">
+                                                              <p className="text-[11px] font-bold truncate text-gray-800 dark:text-gray-200">{product.name}</p>
+                                                              <p className="text-[9px] text-gray-500 truncate font-medium">{product.category}</p>
+                                                          </div>
+                                                          <button
+                                                              type="button"
+                                                              onClick={() => handleToggleProductFamily(product, selectedFamilyId)}
+                                                              className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-500/10 rounded-lg transition-colors flex-shrink-0"
+                                                              title="Excluir Almofada da Composição"
+                                                          >
+                                                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                              </svg>
+                                                          </button>
+                                                      </div>
+                                                  ))}
+                                              </div>
+                                          )}
+                                      </div>
+
+                                      {/* 2. Incluir Outras Almofadas do Catálogo */}
+                                      <div className="pt-2 border-t border-dashed border-gray-200 dark:border-white/10">
+                                          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-2">
+                                              <span className="text-[10px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                                                  Incluir Outras Almofadas do Catálogo
+                                              </span>
+                                              <Input 
+                                                  placeholder="Filtrar catálogo para incluir..." 
+                                                  value={familySearchTerm} 
+                                                  onChange={e => setFamilySearchTerm(e.target.value)} 
+                                                  className="py-1 px-3 text-xs w-full sm:max-w-xs"
+                                              />
+                                          </div>
+                                          {nonMembers.length === 0 ? (
+                                              <p className="text-xs text-center text-gray-500 py-3 block">Nenhum outro produto correspondente no catálogo.</p>
+                                          ) : (
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-52 overflow-y-auto p-1.5 rounded-xl border border-dashed border-gray-200 dark:border-white/10 bg-black/5 no-scrollbar">
+                                                  {nonMembers.map(product => (
+                                                      <button
+                                                          type="button"
+                                                          key={product.id}
+                                                          onClick={() => handleToggleProductFamily(product, selectedFamilyId)}
+                                                          className="flex gap-2.5 p-1.5 items-center rounded-lg border border-transparent hover:border-fuchsia-500/30 bg-white/50 hover:bg-white dark:bg-white/5 dark:hover:bg-white/10 text-left transition-all text-xs"
+                                                      >
+                                                          <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-8 h-8 rounded object-cover flex-shrink-0 bg-gray-100 dark:bg-black/20" referrerPolicy="no-referrer" />
+                                                          <div className="flex-grow min-w-0">
+                                                              <p className="text-[11px] font-bold truncate text-gray-800 dark:text-gray-200">{product.name}</p>
+                                                              <p className="text-[9px] text-gray-500 truncate font-medium">{product.category}</p>
+                                                          </div>
+                                                          <span className="text-fuchsia-500 text-[10px] font-black p-1 hover:bg-fuchsia-500/10 rounded flex items-center justify-center font-mono">
+                                                              + Incluir
+                                                          </span>
+                                                      </button>
+                                                  ))}
+                                              </div>
+                                          )}
+                                      </div>
+                                  </div>
+                              );
+                          })()}
+                      </div>
+                  )}
+
              </Card>
 
               <Card>

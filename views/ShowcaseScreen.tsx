@@ -30,6 +30,31 @@ const FireIcon = ({ className }: { className: string }) => (
     </svg>
 );
 
+const formatCompositionName = (name: string): string => {
+    if (!name) return "Composição";
+    const cleanName = name.trim();
+    if (cleanName.toLowerCase().startsWith("composição")) {
+        const suffix = cleanName.substring(10).trim();
+        return suffix ? `Composição ${suffix}` : "Composição";
+    }
+    return `Composição ${cleanName}`;
+};
+
+const getFullNameWithColor = (familyName: string, colorName: string): string => {
+    const formattedFamily = formatCompositionName(familyName);
+    if (!colorName || colorName === 'Mix') return formattedFamily;
+    
+    const lowerFamily = formattedFamily.toLowerCase();
+    const lowerColor = colorName.toLowerCase();
+    
+    // Se a composição já possui o nome da cor no próprio nome (ex: "Jacquard Vinho" com cor "Vinho")
+    if (lowerFamily.includes(lowerColor)) {
+        return formattedFamily;
+    }
+    
+    return `${formattedFamily} ${colorName}`;
+};
+
 const SkeletonCard = () => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
@@ -173,32 +198,201 @@ const CollectionCard: React.FC<{
 }> = ({ item, index, onClick }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
-    const { products: collectionProducts, familyName, color } = item;
+    const [activeImageIndex, setActiveImageIndex] = useState(0);
+    const [startSlide, setStartSlide] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
+    const cardRef = useRef<HTMLDivElement>(null);
+
+    const { products: collectionProducts, familyId, familyName, color } = item;
+
+    useEffect(() => {
+        if (isExpanded && cardRef.current) {
+            const timer = setTimeout(() => {
+                const scrollContainer = cardRef.current?.closest('main');
+                if (scrollContainer) {
+                    const offset = cardRef.current.offsetTop - 80; // 80px para compensar o header fixo
+                    scrollContainer.scrollTo({ top: offset, behavior: 'smooth' });
+                }
+            }, 80); 
+            return () => clearTimeout(timer);
+        }
+    }, [isExpanded]);
+
+    const handleExpand = () => {
+        setIsExpanded(true);
+    };
+
+    // Filtra produtos que têm imagens
+    const validProducts = useMemo(() => collectionProducts.filter(p => !!p.baseImageUrl), [collectionProducts]);
+    const validImages = useMemo(() => validProducts.map(p => p.baseImageUrl!), [validProducts]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setStartSlide(true);
+        }, 3500); 
+        return () => clearTimeout(timer);
+    }, []);
+
+    useEffect(() => {
+        if (!startSlide || validImages.length <= 1) return;
+
+        const timer = setInterval(() => {
+            setActiveImageIndex(prev => (prev + 1) % validImages.length);
+        }, 3000);
+
+        return () => clearInterval(timer);
+    }, [validImages.length, startSlide]);
 
     const cardClasses = isDark ? "bg-black/20 backdrop-blur-xl border-white/10" : "bg-white border-gray-200/80 shadow-md";
     const textNameClasses = isDark ? "text-purple-200" : "text-gray-800";
+    const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
     
     // Optimization: Only animate the first few items
     const shouldAnimate = index < 4;
 
+    const bgOpacity = isDark ? '22' : '15'; // Hex opacidade
+    const bgOpacityExpanded = isDark ? '33' : '22';
+    const borderOpacity = isDark ? '55' : '33';
+    
+    const cardBgColor = `${color.hex}${isExpanded ? bgOpacityExpanded : bgOpacity}`;
+    const cardBorderColor = `${color.hex}${borderOpacity}`;
+
     return (
-        <div 
-            className={`col-span-2 rounded-3xl p-3 shadow-lg flex flex-col text-center border transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2 ${cardClasses} ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
-            style={{ 
-                ...shouldAnimate ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms`, opacity: 0 } : {},
-                backgroundColor: `${color.hex}1A` // Fundo transparente com a cor da coleção
+        <motion.div 
+            ref={cardRef}
+            layout
+            layoutId={`collection-${familyId}-${color.name}-${index}`}
+            transition={{ type: "spring", stiffness: 800, damping: 52, mass: 1 }}
+            className={`flex flex-col overflow-visible scroll-mt-20 ${isExpanded ? `col-span-2 row-span-2 z-40 backdrop-blur-md rounded-3xl p-4 shadow-2xl` : 'rounded-3xl'}`}
+            style={{
+                ...shouldAnimate && !isExpanded ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms` } : {},
+                backgroundColor: cardBgColor,
+                borderColor: cardBorderColor,
+                borderWidth: '1px',
+                borderStyle: 'solid'
             }}
         >
-            <h3 className="font-bold text-lg mb-2 text-fuchsia-600 dark:text-fuchsia-400">{`${familyName} ${color.name}`}</h3>
-            <div className="grid grid-cols-2 gap-2">
-                {collectionProducts.map(product => (
-                    <button key={product.id} onClick={() => onClick(product)} className="flex flex-col items-center">
-                        <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-24 h-24 object-cover rounded-lg mb-1" />
-                        <span className={`text-[10px] uppercase font-black tracking-tight ${textNameClasses}`}>{product.name}</span>
+            <AnimatePresence mode="wait" initial={false}>
+            {isExpanded ? (
+                <motion.div
+                    key="expanded"
+                    initial={{ opacity: 0, scale: 0.99 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.99 }}
+                    transition={{ duration: 0.1 }}
+                    className="w-full h-full"
+                >
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className={`font-bold text-base flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            <div 
+                                className="w-4 h-4 rounded-full border shadow-sm"
+                                style={{ backgroundColor: color.hex }}
+                            />
+                            {getFullNameWithColor(familyName, color.name)}
+                        </h3>
+                        <button onClick={() => setIsExpanded(false)} className="text-gray-500 hover:text-fuchsia-500 p-1 rounded-full transition-colors focus:outline-none">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                             </svg>
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                        {collectionProducts.map(product => {
+                            const prices = product.variations.map(v => v.priceFull);
+                            const minPrice = Math.min(...prices);
+                            const maxPrice = Math.max(...prices);
+                            const isRange = minPrice !== maxPrice;
+                            const displayPrice = isRange 
+                                ? `R$${minPrice.toFixed(2).replace('.', ',')}` 
+                                : `R$${minPrice.toFixed(2).replace('.', ',')}`;
+
+                            return (
+                                <button key={product.id} onClick={() => onClick(product)} className="w-full flex flex-col items-center transition-transform hover:scale-105 group/item">
+                                    <div className={`w-full aspect-square ${imageBgClasses} rounded-2xl flex items-center justify-center overflow-hidden relative shadow-md z-10`}>
+                                        <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-full h-full object-cover" />
+                                        <div className="absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-black/10 to-transparent z-20 pointer-events-none" />
+                                    </div>
+                                    <div className={`w-full p-2 -mt-4 pt-6 rounded-b-2xl shadow-xl z-0 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-5/95 border-t border-fuchsia-100 shadow-fuchsia-200/50'}`}>
+                                        <span className={`text-[10px] font-bold ${textNameClasses} truncate block w-full text-center px-1`}>{product.name}</span>
+                                        <div className={`flex items-center justify-center gap-1 mt-1 ${isDark ? 'text-purple-300' : 'text-gray-500'}`}>
+                                            <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-3 h-3 rounded-full object-contain bg-white p-px shadow-sm" />
+                                            <span className="text-[9px] font-semibold">{product.brand === 'Marca Própia' ? 'Têca' : product.brand}</span>
+                                        </div>
+                                        <span className="text-[10px] font-black text-fuchsia-600 block mt-1 text-center">
+                                            {displayPrice}
+                                        </span>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </motion.div>
+            ) : (
+                <motion.div
+                    key="collapsed"
+                    initial={{ opacity: 0, scale: 1.01 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.01 }}
+                    transition={{ duration: 0.1 }}
+                    className="w-full h-full"
+                >
+                    <button 
+                        onClick={handleExpand}
+                        className="w-full h-full flex flex-col items-center justify-between text-center focus:outline-none transition-transform transform hover:scale-105"
+                    >
+                        <div className="w-full h-full flex flex-col items-center overflow-visible">
+                            <div className={`w-full aspect-square ${imageBgClasses} rounded-3xl flex items-center justify-center overflow-hidden relative shadow-xl z-20`}>
+                                {validImages.length > 0 ? (
+                                    <>
+                                        <img 
+                                            src={validImages[0]} 
+                                            alt={`${formatCompositionName(familyName)} main`}
+                                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${activeImageIndex === 0 ? 'opacity-100' : 'opacity-0'}`}
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
+                                        {startSlide && validImages.slice(1).map((src, idx) => (
+                                             <img 
+                                                key={idx + 1}
+                                                src={src} 
+                                                alt={`${formatCompositionName(familyName)} variation`}
+                                                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${(idx + 1) === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
+                                                loading="lazy"
+                                                decoding="async"
+                                            />
+                                        ))}
+                                    </>
+                                ) : (
+                                     <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
+                                        <img 
+                                            src="https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png" 
+                                            alt="Sem Imagem" 
+                                            className="w-1/2 h-1/2 object-contain opacity-20" 
+                                        />
+                                     </div>
+                                )}
+                                {/* Sombreamento inferior na imagem para efeito de profundidade sobre a info com tom cinza claro */}
+                                <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-gray-400/15 to-transparent z-30 pointer-events-none" />
+                            </div>
+                            <div className={`w-full flex-grow pt-8 pb-5 px-3 -mt-5 flex flex-col items-center justify-center rounded-b-3xl shadow-xl z-10 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-50/90 border-t border-fuchsia-100 shadow-gray-300/40'}`}>
+                                <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{getFullNameWithColor(familyName, color.name)}</h3>
+                                <div className="text-[10px] text-fuchsia-500 font-medium pb-2">
+                                    {collectionProducts.length} itens | Clique e veja
+                                </div>
+                                <div className="flex flex-wrap items-center justify-center gap-1.5 px-2">
+                                    <div 
+                                        className={`w-3.5 h-3.5 rounded-full border shadow-sm ${isDark ? 'border-white/20' : 'border-black/10'}`}
+                                        style={{ backgroundColor: color.hex }}
+                                        title={color.name}
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </button>
-                ))}
-            </div>
-        </div>
+                </motion.div>
+            )}
+            </AnimatePresence>
+        </motion.div>
     );
 };
 
@@ -293,7 +487,7 @@ const ProductGroupCard: React.FC<{
                         className="w-full h-full"
                     >
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className={`font-bold text-base ${textNameClasses}`}>{familyName}</h3>
+                        <h3 className={`font-bold text-base ${textNameClasses}`}>{(familyId || explicitName) ? formatCompositionName(familyName) : familyName}</h3>
                         <button onClick={() => setIsExpanded(false)} className="text-gray-500 hover:text-fuchsia-500">
                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -369,7 +563,7 @@ const ProductGroupCard: React.FC<{
                             <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-gray-400/15 to-transparent z-30 pointer-events-none" />
                         </div>
                         <div className={`w-full flex-grow pt-8 pb-5 px-3 -mt-5 flex flex-col items-center justify-center rounded-b-3xl shadow-xl z-10 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-50/90 border-t border-fuchsia-100 shadow-gray-300/40'}`}>
-                            <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{familyName}</h3>
+                            <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{(familyId || explicitName) ? formatCompositionName(familyName) : familyName}</h3>
                             <div className="text-[10px] text-fuchsia-500 font-medium pb-2">
                                 {group.length} cores | Clique e veja
                             </div>
@@ -595,11 +789,12 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
 
   // Update URL on product selection/deselection
   const handleProductSelect = useCallback((product: Product | null) => {
-      setSelectedProduct(product);
+      const fullProduct = product ? (products.find(p => p.id === product.id) || product) : null;
+      setSelectedProduct(fullProduct);
       try {
-          if (product) {
+          if (fullProduct) {
               const newUrl = new URL(window.location.href);
-              newUrl.searchParams.set('product_id', product.id);
+              newUrl.searchParams.set('product_id', fullProduct.id);
               window.history.pushState({}, '', newUrl.toString());
           } else {
               const newUrl = new URL(window.location.href);
@@ -609,7 +804,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
       } catch (e) {
           console.warn("Could not update URL history:", e);
       }
-  }, []);
+  }, [products]);
 
   // Handle browser back button
   useEffect(() => {
@@ -763,7 +958,21 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
         familyMap.forEach((group, key) => {
             if (key.startsWith('explicit_')) {
                 const familyId = key.replace('explicit_', '');
-                grouped.push({ type: 'group', products: group, familyId });
+                const family = modifiedProductFamilies.find(f => f.id === familyId);
+                const familyName = family ? family.name : `Composição ${familyId}`;
+                const repProduct = group[0];
+                const productCol = repProduct?.colors?.[0];
+                const colorObj = productCol 
+                    ? { name: productCol.name, hex: productCol.hex } 
+                    : { name: 'Mix', hex: '#a21caf' };
+
+                grouped.push({ 
+                    type: 'collection', 
+                    products: group, 
+                    familyId, 
+                    familyName, 
+                    color: colorObj 
+                });
             } else if (group.length > 1) {
                 grouped.push({ type: 'group', products: group });
             } else {
@@ -797,7 +1006,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
             return getTime(itemB) - getTime(itemA);
         }
     });
-  }, [products, selectedCategory, selectedFabric, selectedColors, sortOrder, getProductFamilyKey, searchQuery]);
+  }, [products, selectedCategory, selectedFabric, selectedColors, sortOrder, getProductFamilyKey, searchQuery, modifiedProductFamilies]);
 
   // Reset pagination when filters change
   useEffect(() => {

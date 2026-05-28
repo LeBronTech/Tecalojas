@@ -81,6 +81,8 @@ const SearchBar: React.FC<SearchBarProps> = ({
       ? "bg-black/40 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400 focus:border-fuchsia-500"
       : "bg-white border-gray-300 text-gray-900 placeholder:text-gray-500 shadow-sm focus:border-purple-500";
 
+    const hasActiveFilters = selectedCategory !== 'Todas' || selectedFabric !== 'Todos os Tecidos' || selectedColors.length > 0;
+
     const content = (
         <div className={`w-full ${isFloating ? '' : 'max-w-md mx-auto mb-6'}`}>
             {/* Campo de busca + Botão de Filtro (Estilo mais fino/estreito e compacto) */}
@@ -110,6 +112,9 @@ const SearchBar: React.FC<SearchBarProps> = ({
                             type="button"
                             onClick={() => {
                                 setSearchQuery('');
+                                setSelectedCategory('Todas');
+                                setSelectedFabric('Todos os Tecidos');
+                                setSelectedColors([]);
                                 inputRef.current?.focus();
                             }}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-fuchsia-500 p-1 rounded-full transition-colors focus:outline-none"
@@ -136,9 +141,11 @@ const SearchBar: React.FC<SearchBarProps> = ({
                         }
                     }}
                     className={`h-8 w-8 flex items-center justify-center rounded-full border shadow-sm transition-all focus:outline-none ${
-                        isFiltersExpanded 
-                            ? (isDark ? 'bg-fuchsia-600/20 border-fuchsia-500 text-fuchsia-400' : 'bg-purple-100 border-purple-300 text-purple-700')
-                            : (isDark ? 'bg-black/30 border-white/10 text-gray-300 hover:bg-white/10' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50')
+                        hasActiveFilters
+                            ? (isDark ? 'bg-fuchsia-600 border-fuchsia-500 text-white shadow-md shadow-fuchsia-500/35 hover:bg-fuchsia-700' : 'bg-purple-600 border-purple-600 text-white shadow-md shadow-purple-500/40 hover:bg-purple-700')
+                            : isFiltersExpanded 
+                                ? (isDark ? 'bg-fuchsia-600/20 border-fuchsia-500 text-fuchsia-400' : 'bg-purple-100 border-purple-300 text-purple-700')
+                                : (isDark ? 'bg-black/30 border-white/10 text-gray-300 hover:bg-white/10' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50')
                     }`}
                     title="Exibir filtros e filtros de cores"
                 >

@@ -871,9 +871,118 @@ export const onSavedCompositionsUpdate = (
   }, onError);
 };
 
-export const saveUserCompositions = (userId: string, compositions: SavedComposition[]) => {
+function slimProduct(product: any): any {
+  if (!product) return product;
+  return {
+    id: product.id || "",
+    name: product.name || "",
+    baseImageUrl: product.baseImageUrl || "",
+    fabricImageUrl: product.fabricImageUrl || product.baseImageUrl || "",
+    category: product.category || "",
+    subCategory: product.subCategory || "",
+    fabricType: product.fabricType || "",
+    colors: product.colors || [],
+    brand: product.brand || "",
+    waterResistance: product.waterResistance || "none"
+  };
+}
+
+export const saveUserCompositions = async (userId: string, compositions: SavedComposition[]) => {
   const userCompositionsDoc = doc(db, "user_compositions", userId);
-  // Sanitize compositions to remove any undefined fields before saving
-  const sanitizedCompositions = compositions.map(c => JSON.parse(JSON.stringify(c)));
-  return setDoc(userCompositionsDoc, { compositions: sanitizedCompositions });
+  
+  // Clone profundo para evitar efeitos colaterais reativos no estado do React
+  const sanitizedCompositions: SavedComposition[] = JSON.parse(JSON.stringify(compositions));
+  
+  const base64UploadTasks: {
+    compositionId: string;
+    field: 'imageUrl' | 'imageUrls';
+    index?: number;
+    base64Str: string;
+  }[] = [];
+  
+  // 1. Limpa todas as informações pesadas redundantes dos objetos de produtos internos das composições (reduz tamanho em até 98%)
+  for (const c of sanitizedCompositions) {
+    if (c.products && Array.isArray(c.products)) {
+      c.products = c.products.map(p => slimProduct(p));
+    }
+    if (c.items && Array.isArray(c.items)) {
+      c.items = c.items.map(item => {
+        if (!item) return item;
+        return {
+          id: item.id || "",
+          product: slimProduct(item.product),
+          size: item.size,
+          x: item.x || 0,
+          y: item.y || 0,
+          zIndex: item.zIndex || 0
+        };
+      });
+    }
+
+    // 2. Identifica todas as strings Base64 gigantescas e substitui por uma URL placeholder para gravação imediata leve
+    if (c.imageUrl && c.imageUrl.startsWith('data:')) {
+      const b64 = c.imageUrl;
+      c.imageUrl = "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"; // Placeholder provisório leve
+      base64UploadTasks.push({
+        compositionId: c.id,
+        field: 'imageUrl',
+        base64Str: b64
+      });
+    }
+    
+    if (c.imageUrls && Array.isArray(c.imageUrls)) {
+      for (let i = 0; i < c.imageUrls.length; i++) {
+        const url = c.imageUrls[i];
+        if (url && url.startsWith('data:')) {
+          c.imageUrls[i] = "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"; // Placeholder provisório leve
+          base64UploadTasks.push({
+            compositionId: c.id,
+            field: 'imageUrls',
+            index: i,
+            base64Str: url
+          });
+        }
+      }
+    }
+  }
+  
+  // 3. Grava imediatamente o documento limpo (extremamente leve - menos de 5KB) para desbloquear o usuário e sumir com o erro do Firestore
+  await setDoc(userCompositionsDoc, { compositions: sanitizedCompositions });
+  
+  // 4. Se houver uploads pendentes, executa o upload em segundo plano para o Storage e depois atualiza o doc com as URLs finais
+  if (base64UploadTasks.length > 0) {
+    console.log(`[saveUserCompositions] Detectadas ${base64UploadTasks.length} imagens em Base64. Iniciando upload em segundo plano para o Storage...`);
+    
+    (async () => {
+      try {
+        const updatedCompositions = [...sanitizedCompositions];
+        
+        for (const task of base64UploadTasks) {
+          const storagePath = `user_compositions/${userId}/${task.compositionId}/${task.field}_${task.index !== undefined ? task.index : 'main'}_${Date.now()}.jpg`;
+          try {
+            const { promise } = uploadBase64Image(storagePath, task.base64Str);
+            const downloadUrl = await promise;
+            
+            // Localiza a composição para atualizar seu campo de imagem
+            const compIndex = updatedCompositions.findIndex(c => c.id === task.compositionId);
+            if (compIndex !== -1) {
+              if (task.field === 'imageUrl') {
+                updatedCompositions[compIndex].imageUrl = downloadUrl;
+              } else if (task.field === 'imageUrls' && task.index !== undefined && updatedCompositions[compIndex].imageUrls) {
+                updatedCompositions[compIndex].imageUrls![task.index] = downloadUrl;
+              }
+            }
+          } catch (uploadErr) {
+            console.error(`[saveUserCompositions] Falha ao fazer upload da imagem ${storagePath}:`, uploadErr);
+          }
+        }
+        
+        // Grava de volta no Firestore com as URLs otimizadas do Firebase Storage
+        await setDoc(userCompositionsDoc, { compositions: updatedCompositions });
+        console.log(`[saveUserCompositions] Todos os uploads de background concluídos! Documento atualizado.`);
+      } catch (err) {
+        console.error("[saveUserCompositions] Falha geral no processamento assíncrono das imagens:", err);
+      }
+    })();
+  }
 };
