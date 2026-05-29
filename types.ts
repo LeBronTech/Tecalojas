@@ -113,6 +113,9 @@ export interface CompositionItem {
   x: number; // Porcentagem 0-100
   y: number; // Porcentagem 0-100
   zIndex: number;
+  zoom?: number;
+  offsetX?: number;
+  offsetY?: number;
 }
 
 export interface SavedComposition {

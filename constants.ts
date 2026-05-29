@@ -85,7 +85,7 @@ export const SOFA_FABRICS = [
     },
     { 
         name: 'Jacquard', 
-        pattern: 'url("https://www.transparenttextures.com/patterns/black-scales.png")' 
+        pattern: 'url("https://www.transparenttextures.com/patterns/diamond-upholstery.png")' 
     },
     { 
         name: 'Suede', 
