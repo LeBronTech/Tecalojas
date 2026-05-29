@@ -564,7 +564,13 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                     Compartilhar no Whats
                                 </button>
 
-                                {/* 2. Botão IA (Vem Depois) */}
+                                {/* 2. Botão Salvar Composição */}
+                                <button onClick={() => setIsSaveModalOpen(true)} disabled={compItems.length === 0} className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 ${isDark ? 'bg-sky-600/20 text-sky-400 hover:bg-sky-600/40' : 'bg-sky-100 text-sky-700 hover:bg-sky-200'}`}>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" strokeWidth={2}/></svg>
+                                    Salvar Composição
+                                </button>
+
+                                {/* 3. Botão IA (Vem Depois) */}
                                 <button onClick={handleGenerate} disabled={isGenerating || compItems.length === 0} className="w-full py-4 bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white font-black rounded-2xl shadow-xl uppercase tracking-widest text-xs disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
                                     {isGenerating ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" /> : 'Gerar imagem IA'}
                                 </button>

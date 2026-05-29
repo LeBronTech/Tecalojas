@@ -33,49 +33,7 @@ const ShareIcon = () => (
     </svg>
 );
 
-interface FurnitureColorPopoverProps {
-    isOpen: boolean;
-    onClose: () => void;
-    onSelectColor: (color: string) => void;
-    colors: { name: string; hex: string }[];
-}
 
-const FurnitureColorPopover: React.FC<FurnitureColorPopoverProps> = ({ isOpen, onClose, onSelectColor, colors }) => {
-    const { theme } = useContext(ThemeContext);
-    const isDark = theme === 'dark';
-
-    if (!isOpen) return null;
-
-    return (
-        <div 
-            className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={onClose}
-        >
-            <div 
-                className={`p-6 rounded-2xl shadow-lg border animate-fade-in-scale w-full max-w-xs ${isDark ? 'bg-[#2D1F49] border-white/10' : 'bg-white border-gray-200'}`}
-                onClick={(e) => e.stopPropagation()}
-            >
-                 <style>{`
-                    @keyframes fade-in-scale { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-                    .animate-fade-in-scale { animation: fade-in-scale 0.2s forwards; }
-                `}</style>
-                <h3 className={`text-lg font-bold text-center mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Trocar cor do sofá e cama</h3>
-                <div className="flex flex-wrap justify-center gap-3">
-                    {colors.map(color => (
-                        <button
-                            key={color.name}
-                            onClick={() => onSelectColor(color.name)}
-                            className={`flex flex-col items-center gap-2 p-2 rounded-md ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
-                        >
-                            <div style={{ backgroundColor: color.hex }} className="w-8 h-8 rounded-full border border-black/20"></div>
-                            <span className={`text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{color.name}</span>
-                        </button>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-};
 
 
 const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, products, onClose, canManageStock, onEditProduct, onSwitchProduct, onAddToCart, onNavigate, sofaColors, cart }) => {
@@ -213,9 +171,9 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
     };
     
     const [activeEnvIndex, setActiveEnvIndex] = useState(0);
-    const [isColorPopoverOpen, setIsColorPopoverOpen] = useState(false);
-    const [activeSofaColor, setActiveSofaColor] = useState('Bege');
-    const [activeBedColor, setActiveBedColor] = useState('Bege');
+    const [isColorSelectorExpanded, setIsColorSelectorExpanded] = useState(false);
+    const [activeSofaColor, setActiveSofaColor] = useState('Cinza');
+    const [activeBedColor, setActiveBedColor] = useState('Branco');
     const [isFabricImageModalOpen, setIsFabricImageModalOpen] = useState(false);
     const imageRef = useRef<HTMLDivElement>(null);
     const modalScrollRef = useRef<HTMLDivElement>(null);
@@ -253,8 +211,12 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
         const bgData = product.backgroundImages?.[activeEnvKey as 'sala' | 'quarto' | 'varanda' | 'piscina'];
         if (typeof bgData === 'string') return bgData;
         if (typeof bgData === 'object' && bgData !== null) {
-            const color = activeEnvKey === 'sala' ? activeSofaColor : activeBedColor;
-            return bgData[color] || bgData['Bege'] || Object.values(bgData)[0];
+            if (activeEnvKey === 'sala') {
+                return bgData[activeSofaColor] || bgData['Cinza'] || bgData['Bege'] || Object.values(bgData)[0];
+            } else if (activeEnvKey === 'quarto') {
+                return bgData[activeBedColor] || bgData['Branco'] || bgData['Bege'] || Object.values(bgData)[0];
+            }
+            return Object.values(bgData)[0];
         }
         return product.baseImageUrl;
     }, [activeEnvKey, activeSofaColor, activeBedColor, product]);
@@ -343,27 +305,58 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
 
 
 
-                                <div className="absolute top-2 left-2 flex flex-col gap-2 z-10">
-                                {(activeEnvKey === 'sala' && showSalaColorButton) && (
-                                    <button 
-                                        onClick={() => setIsColorPopoverOpen(true)} 
-                                        className="bg-black/40 text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-sm"
+                                <style>{`
+                                    @keyframes fadeInRight {
+                                        from { opacity: 0; transform: translateX(10px); }
+                                        to { opacity: 1; transform: translateX(0); }
+                                    }
+                                    .animate-fade-in-right {
+                                        animation: fadeInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                                    }
+                                `}</style>
+
+                                <div className="absolute top-2 left-2 flex flex-col gap-2 z-10 max-w-[90%]">
+                                {((activeEnvKey === 'sala' && showSalaColorButton) || (activeEnvKey === 'quarto' && showQuartoColorButton)) && (
+                                    <div 
+                                        className="bg-black/60 backdrop-blur-md rounded-2xl shadow-lg border border-white/20 p-1 flex flex-col transition-all duration-300 overflow-hidden"
                                     >
-                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6c0 1.887.817 3.556 2.093 4.63.26.173.41.46.41.77v3.27a.75.75 0 001.5 0V14a.75.75 0 00-.03-.223A5.98 5.98 0 0016 8a6 6 0 00-6-6zM3.654 9.324A4.5 4.5 0 0110 3.5a4.5 4.5 0 015.42 7.237.75.75 0 00.58.263h.001c.414 0 .75.336.75.75v.5c0 .414-.336.75-.75.75h-2.14a.75.75 0 00-.737.649A3.5 3.5 0 0110 14.5a3.5 3.5 0 01-3.354-2.851.75.75 0 00-.737-.649H3.75a.75.75 0 01-.75-.75v-.5a.75.75 0 01.654-.726z" /></svg>
-                                        Cor do Sofá
-                                    </button>
-                                )}
-                                {(activeEnvKey === 'quarto' && showQuartoColorButton) && (
-                                     <button 
-                                        onClick={() => setIsColorPopoverOpen(true)} 
-                                        className="bg-black/40 text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-sm"
-                                    >
-                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6c0 1.887.817 3.556 2.093 4.63.26.173.41.46.41.77v3.27a.75.75 0 001.5 0V14a.75.75 0 00-.03-.223A5.98 5.98 0 0016 8a6 6 0 00-6-6zM3.654 9.324A4.5 4.5 0 0110 3.5a4.5 4.5 0 015.42 7.237.75.75 0 00.58.263h.001c.414 0 .75.336.75.75v.5c0 .414-.336.75-.75.75h-2.14a.75.75 0 00-.737.649A3.5 3.5 0 0110 14.5a3.5 3.5 0 01-3.354-2.851.75.75 0 00-.737-.649H3.75a.75.75 0 01-.75-.75v-.5a.75.75 0 01.654-.726z" /></svg>
-                                        Cor da Cama
-                                    </button>
+                                        <button 
+                                            onClick={() => setIsColorSelectorExpanded(!isColorSelectorExpanded)}
+                                            className="text-white text-[11px] font-bold px-3 py-1.5 focus:outline-none select-none transition-colors shrink-0 flex items-center justify-between gap-2"
+                                        >
+                                            <span>Cor</span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 opacity-80 shrink-0 transition-transform duration-350 ${isColorSelectorExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                        
+                                        {isColorSelectorExpanded && (
+                                            <div className="flex flex-wrap gap-1.5 p-1.5 border-t border-white/20 animate-fade-in-down max-w-[130px]">
+                                                {Object.keys((activeEnvKey === 'sala' ? availableSalaColors : availableQuartoColors) || {}).map(colorName => {
+                                                    const colorObj = sofaColors.find(c => c.name.toLowerCase() === colorName.toLowerCase());
+                                                    const isSelected = (activeEnvKey === 'sala' ? activeSofaColor : activeBedColor) === colorName;
+                                                    return (
+                                                        <button
+                                                            key={colorName}
+                                                            title={colorName}
+                                                            onClick={() => {
+                                                                if (activeEnvKey === 'sala') {
+                                                                    setActiveSofaColor(colorName);
+                                                                } else {
+                                                                    setActiveBedColor(colorName);
+                                                                }
+                                                            }}
+                                                            className={`w-5 h-5 rounded-full border-2 transition-all hover:scale-115 shrink-0 ${isSelected ? 'border-fuchsia-500 scale-110 shadow-md ring-1 ring-fuchsia-500/50' : 'border-white/40'}`}
+                                                            style={{ backgroundColor: colorObj?.hex || '#9333ea' }}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                                 {(product.isLimited || product.fabricType === 'Macramê') && (
-                                    <div className="bg-fuchsia-600/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-sm self-start">
+                                    <div className="bg-fuchsia-600/90 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-sm self-start">
                                         Limitado
                                     </div>
                                 )}
@@ -376,7 +369,8 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                     else if (key === 'back') thumbUrl = product.backImageUrl || product.baseImageUrl;
                                     else {
                                         const bgData = product.backgroundImages?.[key as keyof typeof product.backgroundImages];
-                                        thumbUrl = typeof bgData === 'string' ? bgData : (bgData?.['Bege'] || Object.values(bgData || {})[0]);
+                                        const dColor = key === 'sala' ? 'Cinza' : 'Branco';
+                                        thumbUrl = typeof bgData === 'string' ? bgData : (bgData?.[dColor] || bgData?.['Bege'] || Object.values(bgData || {})[0]);
                                     }
                                     
                                     if (!thumbUrl) return null;
@@ -573,16 +567,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                         </div>
                     </div>
                 </div>
-                <FurnitureColorPopover
-                    isOpen={isColorPopoverOpen}
-                    onClose={() => setIsColorPopoverOpen(false)}
-                    onSelectColor={(color) => {
-                        if (activeEnvKey === 'sala') setActiveSofaColor(color);
-                        if (activeEnvKey === 'quarto') setActiveBedColor(color);
-                        setIsColorPopoverOpen(false);
-                    }}
-                    colors={Object.keys(product.backgroundImages?.[activeEnvKey as 'sala'|'quarto'] || {}).map(name => sofaColors.find(c => c.name === name)).filter((c): c is { name: string; hex: string } => !!c)}
-                />
+
             </div>
         </div>
     );

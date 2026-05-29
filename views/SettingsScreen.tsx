@@ -1,6 +1,7 @@
 
 import React, { useState, useContext, useRef, useMemo, useEffect } from 'react';
-import { ThemeContext, DynamicBrand, Brand, CardFees, CategoryItem, Product, ProductFamily } from '../types';
+import { ThemeContext, DynamicBrand, Brand, CardFees, CategoryItem, Product, ProductFamily, Banner } from '../types';
+import { BannerEditorModal } from '../components/BannerEditorModal';
 import { BRANDS, BRAND_LOGOS } from '../constants';
 import * as api from '../firebase';
 
@@ -26,6 +27,11 @@ interface SettingsScreenProps {
   onDeleteProductFamily: (id: string) => void;
   products: Product[];
   onUpdateProduct: (id: string, data: Partial<Product>) => Promise<void>;
+  banners: Banner[];
+  onAddBanner: (banner: Omit<Banner, 'id'>) => Promise<any>;
+  onDeleteBanner: (bannerId: string) => Promise<void>;
+  onAddBannerClick?: () => void;
+  onEditBannerClick?: (banner: Banner) => void;
 }
 
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
@@ -65,7 +71,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     sofaColors, onAddSofaColor, onDeleteSofaColor,
     categories, onAddCategory, onDeleteCategory,
     productFamilies, onAddProductFamily, onDeleteProductFamily, onUpdateProductFamily,
-    products, onUpdateProduct
+    products, onUpdateProduct,
+    banners, onAddBanner, onDeleteBanner,
+    onAddBannerClick, onEditBannerClick
 }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -102,6 +110,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
   const [familySearchTerm, setFamilySearchTerm] = useState('');
   const [familyIdToDelete, setFamilyIdToDelete] = useState<string | null>(null);
+  const [showBannerModal, setShowBannerModal] = useState(false);
 
   // States of composition creator / family management
   const [familyTabState, setFamilyTabState] = useState<'create' | 'manage'>('create');
@@ -593,6 +602,48 @@ const handleToggleProductFamily = async (product: Product, familyId: string) => 
                          <input type="color" value={newSofaColor.hex} onChange={e => setNewSofaColor(prev => ({...prev, hex: e.target.value}))} className="w-12 h-12 p-1 rounded-lg bg-transparent border-0 cursor-pointer" />
                      </div>
                      <button onClick={handleAddSofaColor} className="bg-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar</button>
+                 </div>
+             </Card>
+
+              <Card className="mt-8">
+                  <div className="flex justify-between items-center mb-6">
+                     <SectionTitle>Gerenciar Banners</SectionTitle>
+                     <button onClick={onAddBannerClick} className="bg-fuchsia-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-fuchsia-700 transition">Adicionar Banner</button>
+                  </div>
+                 
+                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                     {banners.map(banner => (
+                         <div 
+                             key={banner.id} 
+                             onClick={() => onEditBannerClick?.(banner)}
+                             className="group relative p-3 border rounded-xl dark:border-white/10 dark:bg-black/20 bg-gray-50 flex flex-col items-center text-center cursor-pointer hover:border-fuchsia-500 hover:scale-[1.02] hover:shadow-md transition-all duration-200"
+                             title="Clique para editar as almofadas ou o nome deste banner"
+                         >
+                             <div className="w-full h-32 overflow-hidden rounded-lg mb-2 bg-gray-100 dark:bg-black/30">
+                                 <img 
+                                     src={banner.imageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} 
+                                     alt={banner.name} 
+                                     className="w-full h-full object-cover transition-opacity duration-300 group-hover:opacity-95" 
+                                     style={{
+                                         objectPosition: `${banner.objectPositionX !== undefined ? banner.objectPositionX : 50}% ${banner.objectPositionY !== undefined ? banner.objectPositionY : 50}%`,
+                                         transform: `scale(${banner.zoomScale !== undefined ? banner.zoomScale / 105 : 1})`, // slightly scaled-down zoom to fit nicely in square admin boxes
+                                         transformOrigin: 'center'
+                                     }}
+                                 />
+                             </div>
+                             <p className="text-sm font-semibold truncate w-full group-hover:text-fuchsia-600 dark:group-hover:text-fuchsia-400 transition-colors">{banner.name}</p>
+                             <button 
+                                 onClick={(e) => { 
+                                     e.stopPropagation(); 
+                                     onDeleteBanner(banner.id); 
+                                 }} 
+                                 className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1.5 shadow-lg hover:bg-red-700 transition"
+                                 title="Excluir banner"
+                             >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                             </button>
+                         </div>
+                     ))}
                  </div>
              </Card>
 

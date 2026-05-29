@@ -1,0 +1,23 @@
+{
+  "entities": {
+    "Banner": {
+      "title": "Banner",
+      "description": "App banner for showcase",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "cushionProductIds": { "type": "array" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "imageUrl", "createdAt"]
+    }
+  },
+  "firestore": {
+    "banners/{bannerId}": {
+      "schema": "Banner",
+      "description": "Banners for showcase"
+    }
+  }
+}

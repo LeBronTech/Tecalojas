@@ -84,7 +84,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
     const hasActiveFilters = selectedCategory !== 'Todas' || selectedFabric !== 'Todos os Tecidos' || selectedColors.length > 0;
 
     const content = (
-        <div className={`w-full ${isFloating ? '' : 'max-w-md mx-auto mb-6'}`}>
+        <div className={`w-full ${isFloating ? '' : 'max-w-md mx-auto mb-1'}`}>
             {/* Campo de busca + Botão de Filtro (Estilo mais fino/estreito e compacto) */}
             <div className="flex items-center gap-2 w-full mb-3">
                 <div className="relative flex-grow">

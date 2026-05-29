@@ -1,7 +1,7 @@
 
 import React, { useState, useContext, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Product, View, DynamicBrand, SavedComposition, ThemeContext, Variation, CushionSize, CartItem, ProductFamily } from '../types';
+import { Product, View, DynamicBrand, SavedComposition, ThemeContext, Variation, CushionSize, CartItem, ProductFamily, WaterResistanceLevel, StoreName, Banner } from '../types';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { BRAND_LOGOS, WATER_RESISTANCE_INFO, PREDEFINED_COLORS } from '../constants';
 import CompositionViewerModal from '../components/CompositionViewerModal';
@@ -70,10 +70,11 @@ const SkeletonCard = () => {
     );
 };
 
-const ProductCard: React.FC<{ product: Product, index: number, onClick: () => void }> = ({ product, index, onClick }) => {
+const ProductCard: React.FC<{ product: Product, index: number, onClick: () => void, sofaColors: { name: string; hex: string }[] }> = ({ product, index, onClick, sofaColors }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
   const [showBack, setShowBack] = useState(false);
+  const [selectedSofaColor, setSelectedSofaColor] = useState<string | null>(null);
 
   useEffect(() => {
     if (!product.backImageUrl) return;
@@ -114,35 +115,36 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
   // Optimization: Only animate the first few items to prevent staggered delay on scroll
   const shouldAnimate = index < 4;
 
+  const availableSofaColors = product.backgroundImages?.sala;
+  const hasSofaColors = typeof availableSofaColors === 'object' && availableSofaColors !== null && Object.keys(availableSofaColors).length > 0;
+
+  const displayedImage = useMemo(() => {
+    return product.backImageUrl && showBack ? product.backImageUrl : (product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png");
+  }, [showBack, product]);
+
   return (
-    <button 
+    <div 
+        role="button"
+        tabIndex={0}
         onClick={onClick}
-        className={`flex flex-col items-center text-center transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 rounded-3xl overflow-visible ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+        className={`flex flex-col items-center text-center transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 rounded-3xl overflow-visible cursor-pointer ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
         style={shouldAnimate ? { 
              animation: 'float-in 0.5s ease-out forwards',
              animationDelay: `${index * 50}ms`,
              opacity: 0 
-         } : {}}
+          } : {}}
     >
         <div className={`w-full aspect-square ${imageBgClasses} rounded-3xl flex items-center justify-center overflow-hidden relative shadow-xl z-20`}>
              {(product.fabricImageUrl || product.baseImageUrl) ? (
                 <>
                      <img 
-                        src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} 
+                        src={displayedImage} 
                         alt={product.name} 
-                        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${product.backImageUrl && showBack ? 'opacity-0' : 'opacity-100'}`}
+                        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 opacity-100"
                         loading="lazy"
                         decoding="async"
                     />
-                    {product.backImageUrl && (
-                        <img 
-                            src={product.backImageUrl} 
-                            alt={`${product.name} verso`} 
-                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${showBack ? 'opacity-100' : 'opacity-0'}`}
-                            loading="lazy"
-                            decoding="async"
-                        />
-                    )}
                 </>
              ) : (
                 <div className={`w-full h-full flex items-center justify-center relative ${imageBgClasses}`}>
@@ -166,6 +168,27 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
                     Limitado
                 </div>
              )}
+
+             {/* Sofa Color Selectors Overlay on Card */}
+             {hasSofaColors && (
+                <div className="absolute bottom-2 right-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-2.5 py-1.5 rounded-full z-30" onClick={e => e.stopPropagation()}>
+                    <span className="text-[9px] text-white font-bold mr-0.5">Sofá:</span>
+                    {Object.keys(availableSofaColors).map(colorName => {
+                        const colorObj = sofaColors.find(c => c.name.toLowerCase() === colorName.toLowerCase());
+                        if (!colorObj) return null;
+                        const isSelected = selectedSofaColor === colorName || (!selectedSofaColor && colorName === 'Cinza');
+                        return (
+                            <button
+                                key={colorName}
+                                title={colorName}
+                                onClick={() => setSelectedSofaColor(colorName)}
+                                className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${isSelected ? 'border-fuchsia-500 scale-110' : 'border-white/40'}`}
+                                style={{ backgroundColor: colorObj.hex }}
+                            />
+                        );
+                    })}
+                </div>
+             )}
         </div>
         <div className={`w-full flex-grow flex flex-col items-center justify-center p-3 pb-5 -mt-5 pt-8 rounded-b-3xl shadow-xl z-10 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-50/90 border-t border-fuchsia-100 shadow-gray-300/40'}`}>
             <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{product.name}</h3>
@@ -186,7 +209,7 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
             </div>
             <span className={`font-bold text-fuchsia-500 mt-2 ${isRange ? 'text-xs' : 'text-md'}`}>{getPriceRange()}</span>
         </div>
-    </button>
+    </div>
   );
 };
 
@@ -194,14 +217,16 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
 const CollectionCard: React.FC<{ 
     item: ShowcaseItem & { type: 'collection' }, 
     index: number, 
-    onClick: (product: Product) => void 
-}> = ({ item, index, onClick }) => {
+    onClick: (product: Product) => void,
+    sofaColors: { name: string; hex: string }[]
+}> = ({ item, index, onClick, sofaColors }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [activeImageIndex, setActiveImageIndex] = useState(0);
     const [startSlide, setStartSlide] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const cardRef = useRef<HTMLDivElement>(null);
+    const [selectedSofaColor, setSelectedSofaColor] = useState<string | null>(null);
 
     const { products: collectionProducts, familyId, familyName, color } = item;
 
@@ -225,6 +250,10 @@ const CollectionCard: React.FC<{
     // Filtra produtos que têm imagens
     const validProducts = useMemo(() => collectionProducts.filter(p => !!p.baseImageUrl), [collectionProducts]);
     const validImages = useMemo(() => validProducts.map(p => p.baseImageUrl!), [validProducts]);
+
+    const getProductImage = (prod: Product) => {
+        return prod.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png";
+    };
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -336,25 +365,28 @@ const CollectionCard: React.FC<{
                     transition={{ duration: 0.1 }}
                     className="w-full h-full"
                 >
-                    <button 
+                    <div 
+                        role="button"
+                        tabIndex={0}
                         onClick={handleExpand}
-                        className="w-full h-full flex flex-col items-center justify-between text-center focus:outline-none transition-transform transform hover:scale-105"
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleExpand(); } }}
+                        className="w-full h-full flex flex-col items-center justify-between text-center focus:outline-none transition-transform transform hover:scale-105 cursor-pointer"
                     >
                         <div className="w-full h-full flex flex-col items-center overflow-visible">
                             <div className={`w-full aspect-square ${imageBgClasses} rounded-3xl flex items-center justify-center overflow-hidden relative shadow-xl z-20`}>
-                                {validImages.length > 0 ? (
+                                {validProducts.length > 0 ? (
                                     <>
                                         <img 
-                                            src={validImages[0]} 
+                                            src={getProductImage(validProducts[0])} 
                                             alt={`${formatCompositionName(familyName)} main`}
                                             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${activeImageIndex === 0 ? 'opacity-100' : 'opacity-0'}`}
                                             loading="lazy"
                                             decoding="async"
                                         />
-                                        {startSlide && validImages.slice(1).map((src, idx) => (
+                                        {startSlide && validProducts.slice(1).map((prod, idx) => (
                                              <img 
                                                 key={idx + 1}
-                                                src={src} 
+                                                src={getProductImage(prod)} 
                                                 alt={`${formatCompositionName(familyName)} variation`}
                                                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${(idx + 1) === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
                                                 loading="lazy"
@@ -388,7 +420,7 @@ const CollectionCard: React.FC<{
                                 </div>
                             </div>
                         </div>
-                    </button>
+                    </div>
                 </motion.div>
             )}
             </AnimatePresence>
@@ -400,14 +432,16 @@ const ProductGroupCard: React.FC<{
     item: ShowcaseItem & { type: 'group' }, 
     index: number, 
     onClick: (product: Product) => void, 
-    productFamilies: ProductFamily[] 
-}> = ({ item, index, onClick, productFamilies }) => {
+    productFamilies: ProductFamily[],
+    sofaColors: { name: string; hex: string }[]
+}> = ({ item, index, onClick, productFamilies, sofaColors }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [activeImageIndex, setActiveImageIndex] = useState(0);
     const [startSlide, setStartSlide] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const cardRef = useRef<HTMLDivElement>(null);
+    const [selectedSofaColor, setSelectedSofaColor] = useState<string | null>(null);
 
     const { products: group, familyId, familyName: explicitName } = item;
 
@@ -433,6 +467,10 @@ const ProductGroupCard: React.FC<{
     // Filter products that have images to ensure sync between image index and product
     const validProducts = useMemo(() => group.filter(p => !!p.baseImageUrl), [group]);
     const validImages = useMemo(() => validProducts.map(p => p.baseImageUrl!), [validProducts]);
+
+    const getProductImage = (prod: Product) => {
+        return prod.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png";
+    };
 
     const familyName = useMemo(() => {
         if (explicitName) return explicitName;
@@ -473,7 +511,7 @@ const ProductGroupCard: React.FC<{
             layout
             layoutId={familyId}
             transition={{ type: "spring", stiffness: 800, damping: 52, mass: 1 }}
-            className={`flex flex-col overflow-visible scroll-mt-20 ${isExpanded ? `col-span-2 row-span-2 z-40 backdrop-blur-md ${isDark ? "bg-fuchsia-950/60 border border-fuchsia-900/50" : "bg-fuchsia-50/90 border border-fuchsia-200"} rounded-3xl p-4 shadow-2xl` : 'rounded-3xl'}`}
+            className={`flex flex-col overflow-visible scroll-mt-20 ${isExpanded ? `col-span-2 row-span-2 z-40 backdrop-blur-md ${isDark ? "bg-fuchsia-950/60 border border-fuchsia-900/50" : "bg-fuchsia-5/90 border border-fuchsia-200"} rounded-3xl p-4 shadow-2xl` : 'rounded-3xl'}`}
             style={shouldAnimate && !isExpanded ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms` } : {}}
         >
             <AnimatePresence mode="wait" initial={false}>
@@ -501,7 +539,7 @@ const ProductGroupCard: React.FC<{
                                     <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-full h-full object-cover" />
                                     <div className="absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-black/10 to-transparent z-20 pointer-events-none" />
                                 </div>
-                                <div className={`w-full p-2 -mt-4 pt-6 rounded-b-2xl shadow-xl z-0 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-50/95 border-t border-fuchsia-100 shadow-fuchsia-200/50'}`}>
+                                <div className={`w-full p-2 -mt-4 pt-6 rounded-b-2xl shadow-xl z-0 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-5/95 border-t border-fuchsia-100 shadow-fuchsia-200/50'}`}>
                                     <span className={`text-[10px] font-bold ${textNameClasses} truncate block w-full text-center px-1`}>{product.name}</span>
                                     <div className={`flex items-center justify-center gap-1 mt-1 ${isDark ? 'text-purple-300' : 'text-gray-500'}`}>
                                         <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-3 h-3 rounded-full object-contain bg-white p-px shadow-sm" />
@@ -524,25 +562,28 @@ const ProductGroupCard: React.FC<{
                         transition={{ duration: 0.1 }}
                         className="w-full h-full"
                 >
-                <button 
+                <div 
+                    role="button"
+                    tabIndex={0}
                     onClick={handleExpand}
-                    className="w-full h-full flex flex-col items-center justify-between text-center focus:outline-none transition-transform transform hover:scale-105"
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleExpand(); } }}
+                    className="w-full h-full flex flex-col items-center justify-between text-center focus:outline-none transition-transform transform hover:scale-105 cursor-pointer"
                 >
                     <div className="w-full h-full flex flex-col items-center overflow-visible">
                         <div className={`w-full aspect-square ${imageBgClasses} rounded-3xl flex items-center justify-center overflow-hidden relative shadow-xl z-20`}>
-                            {validImages.length > 0 ? (
+                            {validProducts.length > 0 ? (
                                 <>
                                     <img 
-                                        src={validImages[0]} 
+                                        src={getProductImage(validProducts[0])} 
                                         alt={`${representativeProduct.name} main`}
                                         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${activeImageIndex === 0 ? 'opacity-100' : 'opacity-0'}`}
                                         loading="lazy"
                                         decoding="async"
                                     />
-                                    {startSlide && validImages.slice(1).map((src, idx) => (
+                                    {startSlide && validProducts.slice(1).map((prod, idx) => (
                                          <img 
                                             key={idx + 1}
-                                            src={src} 
+                                            src={getProductImage(prod)} 
                                             alt={`${representativeProduct.name} variation`}
                                             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${(idx + 1) === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
                                             loading="lazy"
@@ -562,6 +603,7 @@ const ProductGroupCard: React.FC<{
                             {/* Sombreamento inferior na imagem para efeito de profundidade sobre a info com tom cinza claro */}
                             <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-gray-400/15 to-transparent z-30 pointer-events-none" />
                         </div>
+                    </div>
                         <div className={`w-full flex-grow pt-8 pb-5 px-3 -mt-5 flex flex-col items-center justify-center rounded-b-3xl shadow-xl z-10 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-50/90 border-t border-fuchsia-100 shadow-gray-300/40'}`}>
                             <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{(familyId || explicitName) ? formatCompositionName(familyName) : familyName}</h3>
                             <div className="text-[10px] text-fuchsia-500 font-medium pb-2">
@@ -582,7 +624,6 @@ const ProductGroupCard: React.FC<{
                             </div>
                         </div>
                     </div>
-                </button>
                     </motion.div>
             )}
             </AnimatePresence>
@@ -668,6 +709,126 @@ const FloatingActionButtons = ({ onNavigate, isSearchOpen, scrollTop }: { onNavi
 };
 
 
+const customBannerSlides = [
+  {
+    id: 'slide-jacquard-vinho',
+    title: 'Composição Jacquard Vinho',
+    subtitle: 'Toque clássico e aconchegante em tons carmim',
+    emoji: '🛋️',
+    url: 'https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=1200',
+    badge: 'Jacquard Vinho',
+    colorKey: 'Vinho',
+    fabricKey: 'Jacquard',
+    items: [
+      {
+        id: 'mock-vinho-1',
+        name: 'Almofada Jacquard Vinho Tradicional',
+        fabric: 'Jacquard',
+        color: 'Vinho',
+        priceCover: 35.00,
+        priceFull: 45.00,
+        imgUrl: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&q=80&w=400'
+      },
+      {
+        id: 'mock-vinho-2',
+        name: 'Almofada Linho Vinho Liso',
+        fabric: 'Linho',
+        color: 'Vinho',
+        priceCover: 40.00,
+        priceFull: 50.00,
+        imgUrl: 'https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=400'
+      },
+      {
+        id: 'mock-vinho-3',
+        name: 'Almofada Lombar Jacquard Vinho',
+        fabric: 'Jacquard',
+        color: 'Vinho',
+        priceCover: 20.00,
+        priceFull: 25.00,
+        imgUrl: 'https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=400'
+      }
+    ]
+  },
+  {
+    id: 'slide-jacquard-preto',
+    title: 'Composição Jacquard Preto',
+    subtitle: 'Minimalismo requintado em contrastes profundos',
+    emoji: '✨',
+    url: 'https://images.unsplash.com/photo-1544030288-e6e6108867f8?auto=format&fit=crop&q=80&w=1200',
+    badge: 'Jacquard Preto',
+    colorKey: 'Preto',
+    fabricKey: 'Jacquard',
+    items: [
+      {
+        id: 'mock-preto-1',
+        name: 'Almofada Jacquard Preto Geométrico',
+        fabric: 'Jacquard',
+        color: 'Preto',
+        priceCover: 35.00,
+        priceFull: 45.00,
+        imgUrl: 'https://images.unsplash.com/photo-1544030288-e6e6108867f8?auto=format&fit=crop&q=80&w=400'
+      },
+      {
+        id: 'mock-preto-2',
+        name: 'Almofada Linho Preto Encorpado',
+        fabric: 'Linho',
+        color: 'Preto',
+        priceCover: 40.00,
+        priceFull: 50.00,
+        imgUrl: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=400'
+      },
+      {
+        id: 'mock-preto-3',
+        name: 'Almofada Anatômica Trança Preta',
+        fabric: 'Tricot',
+        color: 'Preto',
+        priceCover: 35.00,
+        priceFull: 45.00,
+        imgUrl: 'https://images.unsplash.com/photo-1512211546317-a53edf5f54cc?auto=format&fit=crop&q=80&w=400'
+      }
+    ]
+  },
+  {
+    id: 'slide-costela-tranca',
+    title: 'Composição Costela de Adão & Trança Bege',
+    subtitle: 'Harmonia botânica e moderna com trança acolhedora',
+    emoji: '🎨',
+    url: 'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&q=80&w=1200',
+    badge: 'Costela & Trança',
+    colorKey: 'Bege',
+    fabricKey: 'Linho',
+    items: [
+      {
+        id: 'mock-botanica-1',
+        name: 'Almofada Costela de Adão Estampada',
+        fabric: 'Linho',
+        color: 'Verde',
+        priceCover: 35.00,
+        priceFull: 45.00,
+        imgUrl: 'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&q=80&w=400'
+      },
+      {
+        id: 'mock-botanica-2',
+        name: 'Almofada Trança Bege Lisa Premium',
+        fabric: 'Linho',
+        color: 'Bege',
+        priceCover: 40.00,
+        priceFull: 50.00,
+        imgUrl: 'https://images.unsplash.com/photo-1629079448391-ee446aef5a4b?auto=format&fit=crop&q=80&w=400'
+      },
+      {
+        id: 'mock-botanica-3',
+        name: 'Almofada Verde Oliva Algodão Rústico',
+        fabric: 'Algodão',
+        color: 'Verde',
+        priceCover: 20.00,
+        priceFull: 25.00,
+        imgUrl: 'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&q=80&w=400'
+      }
+    ]
+  }
+];
+
 interface ShowcaseScreenProps {
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
@@ -688,6 +849,7 @@ interface ShowcaseScreenProps {
   cart: CartItem[];
   isLoading?: boolean;
   productFamilies: ProductFamily[];
+  banners?: Banner[];
 }
 
 const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ 
@@ -709,7 +871,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
     sofaColors, 
     cart, 
     isLoading = false, 
-    productFamilies 
+    productFamilies,
+    banners = []
 }) => {
   // WORKAROUND: Força a família "Linhons Vinho" a ser uma coleção para testes.
   const modifiedProductFamilies = useMemo(() => {
@@ -726,8 +889,246 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
+
+  // --- BANNER DE AMBIENTES GERADOS POR IA ---
+  const [selectedSofaColorFilter, setSelectedSofaColorFilter] = useState<string>(() => {
+    return localStorage.getItem('global_sofa_color') || 'Todos';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('global_sofa_color', selectedSofaColorFilter);
+  }, [selectedSofaColorFilter]);
+
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
+
+  const environmentImages = useMemo(() => {
+    const list: {
+      id: string;
+      productId: string;
+      productName: string;
+      url: string;
+      color: string;
+      envType: string;
+    }[] = [];
+
+    products.forEach(p => {
+      if (p.backgroundImages) {
+        console.log(`Product ${p.name} has backgroundImages:`, p.backgroundImages);
+        // Sala
+        if (p.backgroundImages.sala && typeof p.backgroundImages.sala === 'object') {
+          Object.entries(p.backgroundImages.sala).forEach(([color, url]) => {
+            if (url) {
+              list.push({
+                id: `${p.id}-sala-${color}`,
+                productId: p.id,
+                productName: p.name,
+                url,
+                color,
+                envType: 'Sala de Estar',
+              });
+            }
+          });
+        }
+        // Quarto
+        if (p.backgroundImages.quarto && typeof p.backgroundImages.quarto === 'object') {
+          Object.entries(p.backgroundImages.quarto).forEach(([color, url]) => {
+            if (url) {
+              list.push({
+                id: `${p.id}-quarto-${color}`,
+                productId: p.id,
+                productName: p.name,
+                url,
+                color,
+                envType: 'Quarto principal',
+              });
+            }
+          });
+        }
+        // Varanda
+        if (p.backgroundImages.varanda) {
+          list.push({
+            id: `${p.id}-varanda`,
+            productId: p.id,
+            productName: p.name,
+            url: p.backgroundImages.varanda,
+            color: 'Padrão',
+            envType: 'Varanda Decorada',
+          });
+        }
+        // Piscina
+        if (p.backgroundImages.piscina) {
+          list.push({
+            id: `${p.id}-piscina`,
+            productId: p.id,
+            productName: p.name,
+            url: p.backgroundImages.piscina,
+            color: 'Padrão',
+            envType: 'Piscina de Lazer',
+          });
+        }
+      }
+      
+      // Adicionar almofadas aleatórias da vitrine conforme solicitado pelo usuário
+      if (p.baseImageUrl) {
+        list.push({
+          id: `${p.id}-almofada-premium`,
+          productId: p.id,
+          productName: p.name,
+          url: p.baseImageUrl,
+          color: 'Padrão',
+          envType: 'Almofada de Destaque',
+        });
+      }
+    });
+
+    // Remove duplicates based on URL
+    const seen = new Set<string>();
+    const filteredList = list.filter(item => {
+      if (seen.has(item.url)) return false;
+      seen.add(item.url);
+      return true;
+    });
+
+    // TEST FALLBACK
+    if (filteredList.length === 0) {
+      console.log('Adding fallback image for banner testing');
+      filteredList.push({
+        id: 'test-fallback-image',
+        productId: 'none',
+        productName: 'Têca Decorações',
+        url: 'https://images.unsplash.com/photo-1616466723930-f21571253459?q=80&w=1000&auto=format&fit=crop',
+        color: 'Padrão',
+        envType: 'Ambiente de Teste',
+      });
+    }
+
+    console.log('Final environmentImages list:', filteredList);
+    return filteredList;
+  }, [products]);
+
+  const distinctGeneratedSofaColors = useMemo(() => {
+    const colors = new Set<string>();
+    environmentImages.forEach(img => {
+      if (img.color && img.color !== 'Padrão') {
+        colors.add(img.color);
+      }
+    });
+    return Array.from(colors);
+  }, [environmentImages]);
+
+  const filteredBannerImages = useMemo(() => {
+    if (!selectedSofaColorFilter || selectedSofaColorFilter === 'Todos') {
+      return environmentImages;
+    }
+    const filtered = environmentImages.filter(img => img.color === selectedSofaColorFilter || img.color === 'Padrão');
+    if (filtered.length === 0) return environmentImages; // fallback if no images for selected color
+    return filtered;
+  }, [environmentImages, selectedSofaColorFilter]);
+
+  const activeBanners = useMemo(() => {
+    if (!banners || banners.length === 0) {
+      return customBannerSlides;
+    }
+    return banners.map((b) => {
+      // Garantir o uso de IDs únicos desduplicando cushionProductIds
+      const uniqueProductIds = Array.from(new Set(b.cushionProductIds || []));
+      const mappedProducts = uniqueProductIds.map(id => products.find(p => p.id === id)).filter(Boolean) as Product[];
+      return {
+        id: b.id,
+        title: b.name,
+        subtitle: 'Composição personalizada',
+        emoji: '✨',
+        url: b.imageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png",
+        badge: 'Banner',
+        objectPositionX: b.objectPositionX,
+        objectPositionY: b.objectPositionY,
+        zoomScale: b.zoomScale,
+        items: mappedProducts.map(p => ({
+          id: p.id,
+          name: p.name,
+          fabric: p.fabricType || 'Tecido',
+          color: p.colors?.[0]?.name || 'Padrão',
+          priceCover: p.variations?.[0]?.priceCover || 35.00,
+          priceFull: p.variations?.[0]?.priceFull || 45.00,
+          imgUrl: p.baseImageUrl
+        }))
+      };
+    });
+  }, [banners, products]);
+
+  // Auto rotate banner effect
+  useEffect(() => {
+    if (activeBanners.length <= 1) return;
+    const interval = setInterval(() => {
+      setActiveBannerIndex(prev => (prev + 1) % activeBanners.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [activeBanners.length]);
+
+  // Adjust active index if it exceeds list size on color change
+  useEffect(() => {
+    if (activeBannerIndex >= activeBanners.length) {
+      setActiveBannerIndex(0);
+    }
+  }, [activeBannerIndex, activeBanners.length]);
+
   const [sortOrder, setSortOrder] = useState<'recent' | 'alpha'>('recent');
   const [compositionToView, setCompositionToView] = useState<{ compositions: SavedComposition[], startIndex: number } | null>(null);
+  const [selectedBannerComposition, setSelectedBannerComposition] = useState<any | null>(null);
+
+  const getRealOrMockProduct = useCallback((mockId: string, searchColor: string, searchFabric: string, fallbackName: string, fallbackImgUrl: string, priceCover: number, priceFull: number) => {
+    // 1. Tenta localizar por ID exato para garantir que as almofadas selecionadas no banner/composição sejam exibidas com precisão absoluta
+    let realProduct = products.find(p => p.id === mockId);
+    if (realProduct) return realProduct;
+
+    // 2. Tenta localizar pelo nome exato como alternativa secundária
+    realProduct = products.find(p => p.name.trim().toLowerCase() === fallbackName.trim().toLowerCase());
+    if (realProduct) return realProduct;
+
+    // 3. Fallback legado por cor e tecido (apenas se não houver o ID ou nome no banco de dados)
+    realProduct = products.find(p => 
+      p.fabricType.toLowerCase().includes(searchFabric.toLowerCase()) && 
+      p.colors.some(c => c.name.toLowerCase() === searchColor.toLowerCase())
+    );
+    if (realProduct) return realProduct;
+    
+    // Custom mock product conforming precisely to Product interface in types.ts
+    const mockProduct: Product = {
+      id: mockId,
+      name: fallbackName,
+      baseImageUrl: fallbackImgUrl,
+      unitsSold: 42,
+      category: 'Almofadas',
+      fabricType: searchFabric,
+      description: 'Confeccionada sob medida com tecidos de alta gramatura e excelente qualidade, pensada para trazer requinte e sofisticação no design da decoração.',
+      waterResistance: WaterResistanceLevel.NONE,
+      brand: 'Marca Própria',
+      colors: [{ name: searchColor, hex: searchColor === 'Vinho' ? '#722F37' : searchColor === 'Preto' ? '#000000' : '#D2B48C' }],
+      variations: [
+        {
+          size: CushionSize.SQUARE_45,
+          imageUrl: fallbackImgUrl,
+          priceCover: priceCover,
+          priceFull: priceFull,
+          stock: {
+            [StoreName.TECA]: 15,
+            [StoreName.IONE]: 8
+          }
+        },
+        {
+          size: CushionSize.SQUARE_50,
+          imageUrl: fallbackImgUrl,
+          priceCover: priceCover + 5,
+          priceFull: priceFull + 5,
+          stock: {
+            [StoreName.TECA]: 10,
+            [StoreName.IONE]: 5
+          }
+        }
+      ]
+    };
+    return mockProduct;
+  }, [products]);
   
   // New State for Filter Expansion
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
@@ -1111,8 +1512,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
                 </div>
               )}
                <div className="mt-4 mb-6">
-                  <h1 className="text-2xl font-light text-purple-900/85 dark:text-purple-300/85">
-                    Bem vindo a <span className="font-semibold text-purple-700 dark:text-purple-400">Têca Decorações</span>
+                  <h1 className="text-xl sm:text-2xl font-light text-purple-900/85 dark:text-purple-300/85">
+                    Bem vindo a <span className="font-semibold text-purple-700 dark:text-purple-400 whitespace-nowrap">Têca Decorações</span>
                   </h1>
               </div>
 
@@ -1140,6 +1541,82 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
                 setIsColorFilterOpen={setIsColorFilterOpen}
               />
 
+              {/* --- PREMIUM IA ENVIRONMENT BANNER CAROUSEL --- */}
+              {activeBanners.length > 0 && (
+                <div className="relative mt-1 mb-4 w-full h-36 sm:h-44 md:h-52 flex-shrink-0 border border-fuchsia-400/80 dark:border-fuchsia-500/40 rounded-3xl flex flex-col items-center justify-center overflow-hidden bg-fuchsia-500/5 dark:bg-fuchsia-950/5 select-none touch-pan-y shadow-md">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeBannerIndex}
+                      drag={activeBanners.length > 1 ? "x" : false}
+                      dragConstraints={{ left: 0, right: 0 }}
+                      dragElastic={0.6}
+                      onDragEnd={(event, info) => {
+                        if (activeBanners.length <= 1) return;
+                        const swipeThreshold = 40;
+                        if (info.offset.x < -swipeThreshold) {
+                          setActiveBannerIndex(prev => (prev === activeBanners.length - 1 ? 0 : prev + 1));
+                        } else if (info.offset.x > swipeThreshold) {
+                          setActiveBannerIndex(prev => (prev === 0 ? activeBanners.length - 1 : prev - 1));
+                        }
+                      }}
+                      onClick={() => setSelectedBannerComposition(activeBanners[activeBannerIndex])}
+                      initial={{ opacity: 0, scale: 1.05 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.6, ease: [0.25, 1, 0.5, 1] }}
+                      className="absolute inset-0 w-full h-full cursor-pointer flex flex-col justify-end p-4 items-center transition-all"
+                    >
+                      {/* Background Slide Image with Cinematic Ken Burns Zoom-Out (Afastamento) */}
+                      <motion.img 
+                        key={`banner-img-${activeBannerIndex}`}
+                        src={activeBanners[activeBannerIndex]?.url}
+                        alt={activeBanners[activeBannerIndex]?.title}
+                        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                        initial={{
+                          scale: (((activeBanners[activeBannerIndex] as any)?.zoomScale !== undefined ? (activeBanners[activeBannerIndex] as any).zoomScale / 100 : 1) * 1.07)
+                        }}
+                        animate={{
+                          scale: ((activeBanners[activeBannerIndex] as any)?.zoomScale !== undefined ? (activeBanners[activeBannerIndex] as any).zoomScale / 100 : 1)
+                        }}
+                        transition={{
+                          duration: 12,
+                          ease: [0.25, 0.46, 0.45, 0.94] // Gentler easeOutQuad curve for continuous fluid motion
+                        }}
+                        style={{
+                          objectPosition: `${(activeBanners[activeBannerIndex] as any)?.objectPositionX !== undefined ? (activeBanners[activeBannerIndex] as any).objectPositionX : 50}% ${(activeBanners[activeBannerIndex] as any)?.objectPositionY !== undefined ? (activeBanners[activeBannerIndex] as any).objectPositionY : 50}%`,
+                          transformOrigin: 'center'
+                        }}
+                      />
+                      
+                      {/* Subtle shadow overlay gradient */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent pointer-events-none" />
+
+                      {/* Content - Just the title */}
+                      <div className="relative z-10 pb-4 text-center">
+                        <h3 className="text-white font-medium text-lg sm:text-xl tracking-tight">
+                          {activeBanners[activeBannerIndex]?.title}
+                        </h3>
+                      </div>
+                    </motion.div>
+                  </AnimatePresence>
+
+                  {/* Pagination Dots at bottom */}
+                  {activeBanners.length > 1 && (
+                    <div className="absolute bottom-3 right-5 flex items-center gap-1.5 z-20">
+                      {activeBanners.map((_, dotIdx) => (
+                        <button
+                          key={dotIdx}
+                          onClick={(e) => { e.stopPropagation(); setActiveBannerIndex(dotIdx); }}
+                          className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${dotIdx === activeBannerIndex ? 'w-4.5 bg-fuchsia-500' : 'w-1.5 bg-white/40 hover:bg-white/60'}`}
+                          aria-label={`Slide ${dotIdx + 1}`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 grid-flow-dense">
                   {isLoading ? (
                       Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
@@ -1147,10 +1624,10 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
                       <>
                         {displayedProducts.map((item, index) => (
                             item.type === 'group'
-                                ? <ProductGroupCard key={`group-${index}`} item={item} index={index} onClick={(p) => handleProductSelect(p)} productFamilies={productFamilies} />
+                                ? <ProductGroupCard key={`group-${index}`} item={item} index={index} onClick={(p) => handleProductSelect(p)} productFamilies={productFamilies} sofaColors={sofaColors} />
                                 : item.type === 'collection'
-                                    ? <CollectionCard key={`collection-${index}`} item={item} index={index} onClick={(p) => handleProductSelect(p)} />
-                                    : <ProductCard key={item.product.id} product={item.product} index={index} onClick={() => handleProductSelect(item.product)} />
+                                    ? <CollectionCard key={`collection-${index}`} item={item} index={index} onClick={(p) => handleProductSelect(p)} sofaColors={sofaColors} />
+                                    : <ProductCard key={item.product.id} product={item.product} index={index} onClick={() => handleProductSelect(item.product)} sofaColors={sofaColors} />
                         ))}
                         {visibleCount < allFilteredProducts.length && (
                             <div ref={loadMoreRef} className="col-span-full py-4 text-center">
@@ -1191,6 +1668,178 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
               setSavedCompositions={setSavedCompositions}
           />
       )}
+      <AnimatePresence>
+        {selectedBannerComposition && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            {/* Backdrop wrapper */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedBannerComposition(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            
+            {/* Modal Container */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className={`relative w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl border flex flex-col ${
+                isDark ? 'bg-zinc-950 border-white/10 text-white' : 'bg-white border-gray-100 text-gray-950'
+              }`}
+            >
+              {/* Header / Environment Image of the Banner at the Top */}
+              <div className="relative w-full h-48 sm:h-56 flex-shrink-0 select-none overflow-hidden">
+                <img
+                  src={selectedBannerComposition.url}
+                  alt={selectedBannerComposition.title}
+                  className="w-full h-full object-cover"
+                  style={{
+                    objectPosition: `${selectedBannerComposition.objectPositionX !== undefined ? selectedBannerComposition.objectPositionX : 50}% ${selectedBannerComposition.objectPositionY !== undefined ? selectedBannerComposition.objectPositionY : 50}%`,
+                    transform: `scale(${selectedBannerComposition.zoomScale !== undefined ? selectedBannerComposition.zoomScale / 100 : 1})`,
+                    transformOrigin: 'center'
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent pointer-events-none" />
+                
+                {/* Close Button on the Top Right */}
+                <button
+                  onClick={() => setSelectedBannerComposition(null)}
+                  className="absolute top-4 right-4 h-9 w-9 flex items-center justify-center rounded-full bg-black/45 hover:bg-black/60 border border-white/20 text-white transition-all cursor-pointer select-none active:scale-90"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+
+                {/* Title Overlay */}
+                <div className="absolute bottom-4 left-5 right-5">
+                  <span className="bg-fuchsia-605 text-white bg-fuchsia-600 font-bold text-[9px] uppercase tracking-widest px-2.5 py-0.5 rounded-full mb-1 inline-block">
+                    {selectedBannerComposition.emoji} {selectedBannerComposition.badge}
+                  </span>
+                  <h2 className="text-white font-black text-lg sm:text-xl drop-shadow">
+                    {selectedBannerComposition.title}
+                  </h2>
+                </div>
+              </div>
+
+              {/* List of cushions & Prices below the image */}
+              <div className="p-5 overflow-y-auto max-h-[60vh] flex flex-col gap-4">
+                <h3 className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Almofadas da Composição (Selecione para ver detalhes):
+                </h3>
+                
+                <div className="flex flex-col gap-3">
+                  {selectedBannerComposition.items.map((item: any) => {
+                    // Run dynamic finder to get the real product if matching
+                    const realProduct = getRealOrMockProduct(
+                      item.id,
+                      item.color,
+                      item.fabric,
+                      item.name,
+                      item.imgUrl,
+                      item.priceCover,
+                      item.priceFull
+                    );
+
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          setSelectedBannerComposition(null);
+                          setTimeout(() => {
+                            handleProductSelect(realProduct);
+                          }, 150);
+                        }}
+                        className={`flex gap-3.5 p-3 rounded-2xl border transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99] flex-row items-center ${
+                          isDark 
+                            ? 'bg-zinc-900/60 hover:bg-zinc-900 border-white/5 hover:border-fuchsia-500/20' 
+                            : 'bg-gray-50 hover:bg-white border-gray-100 hover:border-purple-500/20 hover:shadow-md'
+                        }`}
+                      >
+                        {/* Cushion Thumbnail */}
+                        <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 shadow-inner border border-black/5 relative">
+                          <img
+                            src={realProduct.baseImageUrl}
+                            alt={realProduct.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+
+                        {/* Info & Prices */}
+                        <div className="flex-grow min-w-0">
+                          <h4 className={`font-extrabold text-xs sm:text-sm truncate ${isDark ? 'text-purple-100' : 'text-gray-800'}`}>
+                            {realProduct.name}
+                          </h4>
+                          
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              isDark ? 'bg-white/5 text-gray-300' : 'bg-gray-200/60 text-gray-600'
+                            }`}>
+                              {realProduct.fabricType}
+                            </span>
+                            <span className={`text-[10px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                              {realProduct.brand}
+                            </span>
+                          </div>
+
+                          {/* Brazilian Cushion Prices display */}
+                          <div className="flex gap-4 mt-2">
+                            <div>
+                              <span className="block text-[8px] sm:text-[9px] uppercase font-black tracking-wider text-gray-400">
+                                Apenas Capa:
+                              </span>
+                              <span className="font-exegesis font-bold text-xs text-fuchsia-500">
+                                R$ {realProduct.variations[0].priceCover.toFixed(2).replace('.', ',')}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="block text-[8px] sm:text-[9px] uppercase font-black tracking-wider text-gray-400">
+                                Almofada Cheia:
+                              </span>
+                              <span className="font-exegesis font-bold text-xs text-emerald-500">
+                                R$ {realProduct.variations[0].priceFull.toFixed(2).replace('.', ',')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Click/Chevron Icon Indicator */}
+                        <div className="text-gray-400/80 hover:text-fuchsia-500 transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Modal Footer / Fast Actions */}
+              <div className={`p-4 border-t flex justify-between items-center bg-gray-50/5 ${
+                isDark ? 'border-white/5 bg-zinc-950/70' : 'border-gray-100 bg-gray-50/30'
+              }`}>
+                <button
+                  onClick={() => setSelectedBannerComposition(null)}
+                  className={`text-xs font-bold px-4 py-2 rounded-xl border transition-all ${
+                    isDark ? 'border-white/10 hover:bg-white/5 text-gray-300' : 'border-gray-200 hover:bg-gray-50 text-gray-600'
+                  }`}
+                >
+                  Fechar
+                </button>
+                <div className="flex gap-2">
+                  <span className="text-[11px] font-semibold text-gray-400 flex items-center gap-1.5">
+                    ✨ Imagens Ambientais Reais
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 };

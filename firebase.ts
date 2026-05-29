@@ -32,7 +32,7 @@ import {
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, uploadString } from "firebase/storage";
 
-import { User, Product, DynamicBrand, CatalogPDF, SaleRequest, CartItem, StoreName, PosCartItem, Variation, CategoryItem, CardFees, SavedComposition } from './types';
+import { User, Product, DynamicBrand, CatalogPDF, Banner, SaleRequest, CartItem, StoreName, PosCartItem, Variation, CategoryItem, CardFees, SavedComposition } from './types';
 import { firebaseConfig } from './firebaseConfig';
 
 // Initialize Firebase
@@ -54,7 +54,32 @@ const catalogsCollection = collection(db, "catalogs");
 const categoriesCollection = collection(db, "categories");
 const saleRequestsCollection = collection(db, "saleRequests");
 const settingsCollection = collection(db, "settings");
-const provider = new GoogleAuthProvider();
+const bannersCollection = collection(db, "banners");
+// ... and add the crud functions
+export const onBannersUpdate = (
+    onSuccess: (banners: Banner[]) => void,
+    onError: (error: FirestoreError) => void
+) => {
+    return onSnapshot(
+      bannersCollection,
+      (snapshot) => {
+        const banners = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() } as Banner)
+        );
+        onSuccess(banners);
+      },
+      onError
+    );
+};
+export const addBanner = (bannerData: Omit<Banner, 'id'>) => {
+    return addDoc(bannersCollection, { ...bannerData, createdAt: Date.now() });
+};
+export const deleteBanner = (bannerId: string) => {
+    return deleteDoc(doc(db, "banners", bannerId));
+};
+export const updateBanner = (bannerId: string, bannerData: Partial<Banner>) => {
+    return updateDoc(doc(db, "banners", bannerId), bannerData);
+};
 
 // --- HELPERS ---
 /**
@@ -82,6 +107,39 @@ const getUserProfile = async (uid: string): Promise<Pick<User, 'role'>> => {
     }
     return { role: 'user' };
 };
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 
 export const signUp = async (email: string, password: string): Promise<User> => {
@@ -184,6 +242,7 @@ export const signInWithGoogle = async (): Promise<User> => {
   if (isWebView) {
     return signInWithGoogleCordova();
   } else {
+    const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
     if (!result.user) {
         throw new Error("Google sign in failed.");
@@ -947,7 +1006,11 @@ export const saveUserCompositions = async (userId: string, compositions: SavedCo
   }
   
   // 3. Grava imediatamente o documento limpo (extremamente leve - menos de 5KB) para desbloquear o usuário e sumir com o erro do Firestore
-  await setDoc(userCompositionsDoc, { compositions: sanitizedCompositions });
+  try {
+      await setDoc(userCompositionsDoc, { compositions: sanitizedCompositions });
+  } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'user_compositions/' + userId);
+  }
   
   // 4. Se houver uploads pendentes, executa o upload em segundo plano para o Storage e depois atualiza o doc com as URLs finais
   if (base64UploadTasks.length > 0) {

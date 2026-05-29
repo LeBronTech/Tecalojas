@@ -487,6 +487,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [familySearchTerm, setFamilySearchTerm] = useState('');
   const [newFamilyName, setNewFamilyName] = useState('');
   const [selectedProductsForNewFamily, setSelectedProductsForNewFamily] = useState<string[]>([]);
+  const [bgManagerContext, setBgManagerContext] = useState<'sala' | 'quarto' | null>(null);
+  const [isGeneratingSingleColor, setIsGeneratingSingleColor] = useState<string | null>(null);
   
   const isMounted = useRef(true);
 
@@ -557,11 +559,11 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     if (migratedData.backgroundImages) {
         const salaBg = migratedData.backgroundImages.sala;
         if (salaBg && typeof salaBg === 'string') {
-            migratedData.backgroundImages.sala = { 'Bege': salaBg };
+            migratedData.backgroundImages.sala = { 'Cinza': salaBg };
         }
         const quartoBg = migratedData.backgroundImages.quarto;
         if (quartoBg && typeof quartoBg === 'string') {
-            migratedData.backgroundImages.quarto = { 'Bege': quartoBg };
+            migratedData.backgroundImages.quarto = { 'Branco': quartoBg };
         }
     }
     
@@ -872,6 +874,14 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         };
         return prompts[background];
     };
+
+    const getGenAI = (): GoogleGenAI => {
+        const key = process.env.GEMINI_API_KEY || process.env.API_KEY;
+        if (!key) {
+            throw new Error('Chave de API do Gemini não configurada.');
+        }
+        return new GoogleGenAI({ apiKey: key });
+    };
   
   const handleGenerateBackgroundImage = async (background: 'Quarto' | 'Sala' | 'Varanda' | 'Piscina') => {
     if (!formData.baseImageUrl) { 
@@ -883,8 +893,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setSaveError(null);
     try {
         const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
-        // FIX: Always use process.env.API_KEY for initialization.
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = getGenAI();
         const imagePart = { inlineData: { data: base64Data, mimeType } };
         const textPart = { text: getPromptForBackground(background) };
         const aiResponse = await ai.models.generateContent({ 
@@ -905,16 +914,25 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
 
         const newImageUrl = `data:${imagePartResponse.inlineData.mimeType};base64,${imagePartResponse.inlineData.data}`;
         const resizedImageUrl = await resizeImage(newImageUrl);
-        setFormData(prev => {
-            if (!isMounted.current) return prev;
-            const newBgs = { ...prev.backgroundImages };
-            if (contextKey === 'sala' || contextKey === 'quarto') {
-                newBgs[contextKey] = { ...newBgs[contextKey], 'Bege': resizedImageUrl };
-            } else {
-                newBgs[contextKey] = resizedImageUrl;
-            }
-            return { ...prev, backgroundImages: newBgs };
-        });
+        
+        const newBgs = { ...formData.backgroundImages };
+        if (contextKey === 'sala' || contextKey === 'quarto') {
+            const defaultCol = contextKey === 'sala' ? 'Cinza' : 'Branco';
+            newBgs[contextKey] = { ...(typeof newBgs[contextKey] === 'object' ? newBgs[contextKey] : {}), [defaultCol]: resizedImageUrl };
+        } else {
+            newBgs[contextKey] = resizedImageUrl;
+        }
+
+        const updatedData: Product = {
+            ...formData,
+            backgroundImages: newBgs,
+            isAiBackgroundGenerated: true
+        };
+
+        const savedProduct = await onSave(updatedData, { closeModal: false });
+        if (isMounted.current) {
+            setFormData(savedProduct);
+        }
     } catch (e: any) { 
         console.error(`AI background generation for ${background} failed:`, e); 
         if (e.message && e.message.includes('429')) {
@@ -961,8 +979,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         setGenerationProgress(`Gerando ${furniture} ${color}...`);
         try {
             const { base64Data, mimeType } = await getBase64FromImageUrl(currentData.baseImageUrl);
-            // FIX: Always use process.env.API_KEY for initialization.
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = getGenAI();
             const imagePart = { inlineData: { data: base64Data, mimeType } };
             const textPart = { text: `Foto de produto profissional. A almofada está em um(a) ${furniture} moderno(a) de cor ${color} em uma ${context} elegante e com luz natural.` };
 
@@ -1022,6 +1039,88 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
         setGenerationProgress('Concluído!');
         setTimeout(() => isMounted.current && setGenerationProgress(''), 2000);
         setIsGeneratingColors(false);
+    }
+  };
+
+  const handleGenerateSingleColoredBackground = async (context: 'sala' | 'quarto', colorName: string) => {
+    if (!formData.baseImageUrl) { 
+        setSaveError("Primeiro, adicione uma imagem base para o produto."); 
+        return; 
+    }
+    setIsGeneratingSingleColor(colorName);
+    setSaveError(null);
+    const furniture = context === 'quarto' ? 'cama' : 'sofá';
+    try {
+        const { base64Data, mimeType } = await getBase64FromImageUrl(formData.baseImageUrl);
+        const ai = getGenAI();
+        const imagePart = { inlineData: { data: base64Data, mimeType } };
+        const textPart = { text: `Foto de produto profissional. A almofada está em um(a) ${furniture} moderno(a) de cor ${colorName} em uma ${context} elegante e com luz natural.` };
+
+        const aiResponse = await ai.models.generateContent({ 
+            model: 'gemini-2.5-flash-image', 
+            contents: { parts: [imagePart, textPart] }
+        });
+        
+        const candidate = aiResponse.candidates?.[0];
+        if (candidate?.finishReason === 'SAFETY') {
+            throw new Error('Geração bloqueada por políticas de segurança.');
+        }
+        
+        const imagePartResponse = candidate?.content?.parts?.find(p => p.inlineData);
+        if (!imagePartResponse?.inlineData) {
+            throw new Error(`A IA não retornou uma imagem válida para ${colorName}.`);
+        }
+        
+        const newImageUrl = `data:${imagePartResponse.inlineData.mimeType};base64,${imagePartResponse.inlineData.data}`;
+        const resizedImageUrl = await resizeImage(newImageUrl);
+
+        const updatedData: Product = {
+            ...formData,
+            backgroundImages: {
+                ...formData.backgroundImages,
+                [context]: {
+                    ...(typeof formData.backgroundImages?.[context] === 'object' ? formData.backgroundImages?.[context] : {}),
+                    [colorName]: resizedImageUrl
+                }
+            },
+            isAiBackgroundGenerated: true
+        };
+        
+        const savedProduct = await onSave(updatedData, { closeModal: false });
+        if (isMounted.current) {
+            setFormData(savedProduct);
+        }
+    } catch (e: any) {
+        console.error(`Error generating single color ${colorName}:`, e);
+        let errorMessage = `Falha em ${colorName}: ${e.message}`;
+        if (e.message && e.message.includes('429')) {
+            const retryMatch = e.message.match(/retry in ([\d.]+)s/);
+            errorMessage = `API ocupada. Tente novamente em ${retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : 'alguns'} segundos.`;
+        } else if (e.message.includes('SAFETY')) {
+            errorMessage = "Geração bloqueada por políticas de segurança.";
+        }
+        if (isMounted.current) setSaveError(errorMessage);
+    } finally {
+        if (isMounted.current) {
+            setIsGeneratingSingleColor(null);
+        }
+    }
+  };
+
+  const handleDeleteSingleColoredBackground = async (context: 'sala' | 'quarto', colorName: string) => {
+    const imagesObj = { ...(formData.backgroundImages?.[context] as Record<string, string> || {}) };
+    delete imagesObj[colorName];
+    
+    const updatedData: Product = {
+        ...formData,
+        backgroundImages: {
+            ...formData.backgroundImages,
+            [context]: imagesObj
+        }
+    };
+    const savedProduct = await onSave(updatedData, { closeModal: false });
+    if (isMounted.current) {
+        setFormData(savedProduct);
     }
   };
 
@@ -1787,12 +1886,35 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                     const contextKey = bg.toLowerCase() as 'sala' | 'quarto' | 'varanda' | 'piscina'; 
                                     const imagesForContext = formData.backgroundImages?.[contextKey];
                                     const isColorVaried = typeof imagesForContext === 'object' && imagesForContext !== null;
-                                    const imageUrl = isColorVaried ? (imagesForContext['Bege'] || Object.values(imagesForContext)[0]) : (typeof imagesForContext === 'string' ? imagesForContext : undefined);
+                                    const defaultCol = contextKey === 'sala' ? 'Cinza' : 'Branco';
+                                    const imageUrl = isColorVaried ? (imagesForContext[defaultCol] || imagesForContext['Bege'] || Object.values(imagesForContext)[0]) : (typeof imagesForContext === 'string' ? imagesForContext : undefined);
                                     const isGenerating = bgGenerating[contextKey]; 
                                     
                                     return (
                                     <div key={bg} className="flex flex-col items-center p-2 rounded-lg bg-black/10">
-                                        <div className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}>{isGenerating ? (<ButtonSpinner />) : imageUrl ? (<img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />) : (<span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>)}</div>
+                                        <div 
+                                            onClick={() => {
+                                                if (contextKey === 'sala' || contextKey === 'quarto') {
+                                                    setBgManagerContext(contextKey);
+                                                }
+                                            }}
+                                            className={`w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden border-2 mb-2 relative group/bg cursor-pointer ${isDark ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-100'}`}
+                                        >
+                                            {isGenerating ? (
+                                                <ButtonSpinner />
+                                            ) : imageUrl ? (
+                                                <>
+                                                    <img src={imageUrl} alt={`Fundo de ${bg}`} className="w-full h-full object-cover" />
+                                                    {(contextKey === 'sala' || contextKey === 'quarto') && (
+                                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/bg:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold text-center p-2">
+                                                            Clique para Gerenciar Cores
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <span className={`text-xs text-center ${labelClasses}`}>Sem Imagem</span>
+                                            )}
+                                        </div>
                                         <div className="w-full flex flex-col gap-2">
                                             <button type="button" onClick={() => handleGenerateBackgroundImage(bg)} disabled={isGenerating || !formData.baseImageUrl || isGeneratingColors} title={`Gerar fundo padrão de ${bg}`} className={`w-full text-center font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-2 ${isDark ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/40' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
                                                 {isGenerating ? <ButtonSpinner/> : `Gerar Padrão (${bg})`}
@@ -2168,6 +2290,120 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                 Salvar Nova Família e Atribuir
                             </button>
                         </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Modal de gerenciamento individual de cores do sofá/cama */}
+        {bgManagerContext && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[130] p-4 animate-fade-in">
+                <style>{`
+                    .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
+                    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                `}</style>
+                <div className={`w-full max-w-4xl max-h-[85vh] flex flex-col rounded-3xl overflow-hidden border shadow-2xl ${isDark ? 'bg-[#1e1435] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+                    <div className="p-6 border-b flex justify-between items-center bg-black/5">
+                        <div>
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <span className="p-2 bg-fuchsia-500/10 text-fuchsia-400 rounded-lg">🎨</span>
+                                Gerenciador de Cores do Ambiente: {bgManagerContext === 'sala' ? 'Sala (Sofá)' : 'Quarto (Cama)'}
+                            </h2>
+                            <p className="text-xs text-gray-400 mt-1">Veja, exclua ou gere novamente imagens individuais para cada cor de tecido disponível.</p>
+                        </div>
+                        <button 
+                            type="button" 
+                            onClick={() => setBgManagerContext(null)} 
+                            className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/15 text-gray-300' : 'hover:bg-gray-150 text-gray-600'}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div className="p-6 overflow-y-auto flex-grow">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                            {sofaColors.map(color => {
+                                const imagesObj = (formData.backgroundImages?.[bgManagerContext] as Record<string, string>) || {};
+                                const imgUrl = imagesObj[color.name];
+                                const isGenerating = isGeneratingSingleColor === color.name;
+
+                                return (
+                                    <div 
+                                        key={color.name} 
+                                        className={`flex flex-col items-center p-3 rounded-2xl border transition-all ${isDark ? 'bg-black/20 border-white/5' : 'bg-gray-50 border-gray-100'}`}
+                                    >
+                                        <div 
+                                            className="w-full aspect-square rounded-xl overflow-hidden relative border flex items-center justify-center bg-black/10"
+                                            style={{ borderColor: color.hex }}
+                                        >
+                                            {isGenerating ? (
+                                                <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2 z-10">
+                                                    <ButtonSpinner />
+                                                    <span className="text-[10px] text-white font-bold animate-pulse">Gerando...</span>
+                                                </div>
+                                            ) : imgUrl ? (
+                                                <img src={imgUrl} alt={`${color.name} background`} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center p-3 text-center">
+                                                    <span className="w-3.5 h-3.5 rounded-full mb-1 border border-white/20" style={{ backgroundColor: color.hex }} />
+                                                    <span className="text-[10px] opacity-60">Sem fundo gerado</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="w-full mt-3 text-center">
+                                            <span className="text-xs font-bold block truncate" style={{ color: isDark ? '#ddd' : '#333' }}>
+                                                {color.name}
+                                            </span>
+
+                                            <div className="mt-2 flex flex-col gap-1.5 w-full">
+                                                {imgUrl ? (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            disabled={!!isGeneratingSingleColor || isGeneratingColors}
+                                                            onClick={() => handleGenerateSingleColoredBackground(bgManagerContext, color.name)}
+                                                            className={`w-full py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all border ${isDark ? 'bg-purple-950/40 border-purple-800/40 text-purple-300 hover:bg-purple-900/50' : 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'}`}
+                                                        >
+                                                            Gerar Novamente
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={!!isGeneratingSingleColor || isGeneratingColors}
+                                                            onClick={() => handleDeleteSingleColoredBackground(bgManagerContext, color.name)}
+                                                            className={`w-full py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all border ${isDark ? 'bg-red-950/40 border-red-900/40 text-red-300 hover:bg-red-900/50' : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'}`}
+                                                        >
+                                                            Excluir
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        disabled={!!isGeneratingSingleColor || isGeneratingColors}
+                                                        onClick={() => handleGenerateSingleColoredBackground(bgManagerContext, color.name)}
+                                                        className={`w-full py-2 px-2 rounded-lg text-[11px] font-black transition-all ${isDark ? 'bg-fuchsia-600 hover:bg-fuchsia-700 text-white' : 'bg-fuchsia-500 hover:bg-fuchsia-600 text-white'}`}
+                                                    >
+                                                        Gerar Imagem IA
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="p-5 border-t bg-black/10 flex justify-end">
+                        <button 
+                            type="button" 
+                            onClick={() => setBgManagerContext(null)} 
+                            className={`py-2.5 px-6 rounded-lg text-sm font-semibold transition-transform transform active:scale-95 ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`}
+                        >
+                            Fechar
+                        </button>
                     </div>
                 </div>
             </div>

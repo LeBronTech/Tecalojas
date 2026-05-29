@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, User, Product, CartItem, SavedComposition, ThemeContext, Theme, CushionSize, Variation, StoreName, SaleRequest, CardFees, CategoryItem, DynamicBrand, CatalogPDF, ProductFamily } from './types';
+import { View, User, Product, CartItem, SavedComposition, ThemeContext, Theme, CushionSize, Variation, StoreName, SaleRequest, CardFees, CategoryItem, DynamicBrand, CatalogPDF, ProductFamily, Banner } from './types';
 import * as api from './firebase';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
@@ -22,6 +22,7 @@ import GenerateKeysScreen from './views/GenerateKeysScreen';
 import SignUpModal from './SignUpModal';
 import AddEditProductModal from './components/AddEditProductModal';
 import ConfirmationModal from './components/ConfirmationModal';
+import { BannerEditorModal } from './components/BannerEditorModal';
 import { ProductCreationWizard } from './views/ProductCreationWizard';
 import { PREDEFINED_SOFA_COLORS } from './constants';
 
@@ -42,6 +43,7 @@ const App: React.FC = () => {
   const [catalogs, setCatalogs] = useState<CatalogPDF[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [saleRequests, setSaleRequests] = useState<SaleRequest[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [settings, setSettings] = useState<{ cardFees: CardFees, weeklyGoal: number, colors?: {name:string, hex:string}[], sofaColors?: {name:string, hex:string}[], productFamilies?: ProductFamily[] }>({
       cardFees: { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 },
       weeklyGoal: 0,
@@ -63,6 +65,8 @@ const App: React.FC = () => {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [lastCreatedProductId, setLastCreatedProductId] = useState<string | null>(null);
   const [initialProductId, setInitialProductId] = useState<string | undefined>();
+  const [showBannerModal, setShowBannerModal] = useState(false);
+  const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -86,6 +90,7 @@ const App: React.FC = () => {
     const unsubBrands = api.onBrandsUpdate(setBrands, console.error);
     const unsubCatalogs = api.onCatalogsUpdate(setCatalogs, console.error);
     const unsubCategories = api.onCategoriesUpdate(setCategories, console.error);
+    const unsubBanners = api.onBannersUpdate(setBanners, console.error);
     const unsubSettings = api.onSettingsUpdate(setSettings, console.error);
     let unsubCompositions: () => void;
     if (currentUser) {
@@ -101,7 +106,7 @@ const App: React.FC = () => {
         unsubAuth(); 
         unsubProducts();
         unsubBrands(); unsubCatalogs();
-        unsubCategories(); unsubSettings();
+        unsubCategories(); unsubBanners(); unsubSettings();
         if (unsubCompositions) unsubCompositions();
     };
   }, []);
@@ -191,7 +196,7 @@ const App: React.FC = () => {
       await api.updateProductData(pid, { variations });
   };
 
-  const activeSofaColors = useMemo(() => settings.sofaColors || PREDEFINED_SOFA_COLORS, [settings.sofaColors]);
+  const activeSofaColors = useMemo(() => (settings.sofaColors && settings.sofaColors.length > 0) ? settings.sofaColors : PREDEFINED_SOFA_COLORS, [settings.sofaColors]);
 
   const renderView = () => {
       if (!currentUser && [View.STOCK, View.SETTINGS, View.ASSISTANT, View.SALES, View.QR_CODES].includes(view)) {
@@ -224,6 +229,7 @@ const App: React.FC = () => {
                   searchQuery={searchQuery}
                   setSearchQuery={setSearchQuery}
                   setSearchIconOpacity={setSearchIconOpacity}
+                  banners={banners}
               />;
           case View.STOCK:
               return <StockManagementScreen 
@@ -313,6 +319,17 @@ const App: React.FC = () => {
                 }}
                 products={products}
                 onUpdateProduct={(id, data) => api.updateProductData(id, data)}
+                banners={banners}
+                onAddBanner={(b) => api.addBanner(b)}
+                onDeleteBanner={(id) => api.deleteBanner(id)}
+                onAddBannerClick={() => {
+                    setEditingBanner(null);
+                    setShowBannerModal(true);
+                }}
+                onEditBannerClick={(banner) => {
+                    setEditingBanner(banner);
+                    setShowBannerModal(true);
+                }}
               />;
           case View.CATALOG:
               return <CatalogScreen 
@@ -381,8 +398,8 @@ const App: React.FC = () => {
               <div className="w-64 h-2 bg-fuchsia-200 dark:bg-fuchsia-900 rounded-full overflow-hidden">
                   <div className="h-full bg-fuchsia-500 animate-loading-bar"></div>
               </div>
-              <p className={`mt-4 font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Bem vindo a <span className="font-semibold text-purple-700 dark:text-purple-400">Têca Decorações</span>
+              <p className={`mt-4 font-medium text-sm sm:text-base ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Bem vindo a <span className="font-semibold text-purple-700 dark:text-purple-400 whitespace-nowrap">Têca Decorações</span>
               </p>
           </div>
       ) : (
@@ -423,6 +440,31 @@ const App: React.FC = () => {
         />
 
         {isSignUpModalOpen && <SignUpModal onClose={() => setIsSignUpModalOpen(false)} onSignUp={handleSignUp} />}
+        
+        {showBannerModal && (
+            <BannerEditorModal 
+                onClose={() => {
+                    setShowBannerModal(false);
+                    setEditingBanner(null);
+                }} 
+                onSave={async (b) => {
+                    if (b.id) {
+                        await api.updateBanner(b.id, {
+                            name: b.name,
+                            cushionProductIds: b.cushionProductIds,
+                            imageUrl: b.imageUrl,
+                            objectPositionX: b.objectPositionX,
+                            objectPositionY: b.objectPositionY,
+                            zoomScale: b.zoomScale
+                        });
+                    } else {
+                        await api.addBanner(b);
+                    }
+                }} 
+                products={products} 
+                banner={editingBanner || undefined}
+            />
+        )}
         
         {editingProduct && (
             <AddEditProductModal 

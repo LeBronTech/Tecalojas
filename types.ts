@@ -37,12 +37,22 @@ export interface CategoryItem {
   name: string;
   type: 'category' | 'subcategory';
 }
-
 export interface CatalogPDF {
     id: string;
     brandName: string;
     fileName: string;
     pdfUrl: string;
+}
+
+export interface Banner {
+  id: string;
+  name: string;
+  imageUrl: string;
+  cushionProductIds: string[];
+  createdAt: number;
+  objectPositionX?: number;
+  objectPositionY?: number;
+  zoomScale?: number;
 }
 
 export enum WaterResistanceLevel {

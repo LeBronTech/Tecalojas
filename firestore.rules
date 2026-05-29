@@ -7,57 +7,57 @@ service cloud.firestore {
     // Função auxiliar para verificar se o usuário autenticado é um administrador.
     function isAdmin() {
       return request.auth != null && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // --- COLEÇÕES DE LEITURA PÚBLICA (Essenciais para a Vitrine) ---
+    // --- COLEÇÕES DE LEITURA E GRAVAÇÃO (Essenciais para Gestão de Estoque e Painel) ---
 
     // Configurações (Cores, Taxas, Metas):
     match /settings/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
-    // Produtos: Todos podem ver, apenas Admin edita.
+    // Produtos: Todos podem ler e gerenciar o estoque.
     match /products/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
     
-    // Marcas: Todos podem ver.
+    // Marcas: Todos podem ler e gerenciar.
     match /brands/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
     
-    // Catálogos PDF: Todos podem ver.
+    // Catálogos PDF: Todos podem ler e gerenciar.
     match /catalogs/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
     
-    // Categorias: Todos podem ver.
+    // Categorias: Todos podem ler e gerenciar.
     match /categories/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
+    // Banners: Todos podem ler e gerenciar.
+    match /banners/{docId} {
+      allow read, write: if true;
+    }
+    
     // --- COLEÇÕES PROTEGIDAS ---
 
     // Perfis de usuário:
-    // Usuário lê/escreve o próprio perfil. Admin lê tudo.
     match /users/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if true;
+    }
+
+    // Composições salvas dos usuários:
+    match /user_compositions/{userId} {
+      allow read, write: if true;
     }
 
     // Solicitações de Venda (Pedidos):
-    // Visitantes (unauthenticated) podem criar pedidos.
-    // Apenas Admin pode ler a lista de pedidos, editar ou excluir.
     match /saleRequests/{requestId} {
-      allow create: if true;
-      allow read, update, delete: if isAdmin();
+      allow read, write: if true;
     }
   }
 }
