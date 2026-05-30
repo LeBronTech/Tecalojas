@@ -1670,7 +1670,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
       )}
       <AnimatePresence>
         {selectedBannerComposition && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8">
             {/* Backdrop wrapper */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -1686,12 +1686,12 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 30 }}
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-              className={`relative w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl border flex flex-col ${
+              className={`relative w-full max-w-xl max-h-[85vh] rounded-3xl overflow-hidden shadow-2xl border flex flex-col ${
                 isDark ? 'bg-zinc-950 border-white/10 text-white' : 'bg-white border-gray-100 text-gray-950'
               }`}
             >
               {/* Header / Environment Image of the Banner at the Top */}
-              <div className="relative w-full h-48 sm:h-56 flex-shrink-0 select-none overflow-hidden">
+              <div className="relative w-full h-44 sm:h-52 flex-shrink-0 select-none overflow-hidden">
                 <img
                   src={selectedBannerComposition.url}
                   alt={selectedBannerComposition.title}
@@ -1716,9 +1716,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
 
                 {/* Title Overlay */}
                 <div className="absolute bottom-4 left-5 right-5">
-                  <span className="bg-fuchsia-605 text-white bg-fuchsia-600 font-bold text-[9px] uppercase tracking-widest px-2.5 py-0.5 rounded-full mb-1 inline-block">
-                    {selectedBannerComposition.emoji} {selectedBannerComposition.badge}
-                  </span>
                   <h2 className="text-white font-black text-lg sm:text-xl drop-shadow">
                     {selectedBannerComposition.title}
                   </h2>
@@ -1726,7 +1723,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
               </div>
 
               {/* List of cushions & Prices below the image */}
-              <div className="p-5 overflow-y-auto max-h-[60vh] flex flex-col gap-4">
+              <div className="p-5 overflow-y-auto flex-grow flex flex-col gap-4 no-scrollbar">
                 <h3 className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   Almofadas da Composição (Selecione para ver detalhes):
                 </h3>
@@ -1819,7 +1816,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
               </div>
 
               {/* Modal Footer / Fast Actions */}
-              <div className={`p-4 border-t flex justify-between items-center bg-gray-50/5 ${
+              <div className={`p-4 border-t flex justify-end items-center bg-gray-50/5 ${
                 isDark ? 'border-white/5 bg-zinc-950/70' : 'border-gray-100 bg-gray-50/30'
               }`}>
                 <button
@@ -1830,11 +1827,6 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
                 >
                   Fechar
                 </button>
-                <div className="flex gap-2">
-                  <span className="text-[11px] font-semibold text-gray-400 flex items-center gap-1.5">
-                    ✨ Imagens Ambientais Reais
-                  </span>
-                </div>
               </div>
             </motion.div>
           </div>
