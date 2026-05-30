@@ -433,7 +433,8 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   
   useEffect(() => {
     setFormData({ ...initialFormState, ...product });
-  }, [product.id]);
+    setImageRotation(product?.imageRotation || 0);
+  }, [product.id, product]);
 
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -450,7 +451,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
   const [selectedNewColors, setSelectedNewColors] = useState<{name: string, hex: string}[]>([]);
   const [isCreatingVariations, setIsCreatingVariations] = useState(false);
   const [isNameAiLoading, setIsNameAiLoading] = useState(false);
-  const [imageRotation, setImageRotation] = useState(0);
+  const [imageRotation, setImageRotation] = useState(product?.imageRotation || 0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isVariationsVisible, setIsVariationsVisible] = useState(() => {
     if (!product.id) return true;
@@ -1237,7 +1238,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
     setSaveError(null);
 
     try {
-        const productToSave = { ...formData };
+        const productToSave = { ...formData, imageRotation: imageRotation };
 
         productToSave.category = pluralize(productToSave.category);
         if(productToSave.subCategory) {

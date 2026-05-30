@@ -30,29 +30,175 @@ const FireIcon = ({ className }: { className: string }) => (
     </svg>
 );
 
-const formatCompositionName = (name: string): string => {
-    if (!name) return "Composição";
-    const cleanName = name.trim();
-    if (cleanName.toLowerCase().startsWith("composição")) {
-        const suffix = cleanName.substring(10).trim();
-        return suffix ? `Composição ${suffix}` : "Composição";
+const formatCollectionName = (name: string): string => {
+    if (!name) return "Coleção";
+    let cleanName = name.trim();
+    
+    // Suprime "pretas" de "jacquard pretas preto"
+    cleanName = cleanName.replace(/jacquard pretas preto/gi, "Jacquard Preto");
+    cleanName = cleanName.replace(/jacquard pretas/gi, "Jacquard Preto");
+    cleanName = cleanName.replace(/pretas preto/gi, "Preto");
+    cleanName = cleanName.replace(/pretas/gi, "Preto"); // caso isolado em minúsculas/maiúsculas
+
+    let withoutPrefix = cleanName;
+    if (withoutPrefix.toLowerCase().startsWith("coleção")) {
+        withoutPrefix = withoutPrefix.substring(7).trim();
+    } else if (withoutPrefix.toLowerCase().startsWith("composição")) {
+        withoutPrefix = withoutPrefix.substring(10).trim();
+    } else if (withoutPrefix.toLowerCase().startsWith("colecao")) {
+        withoutPrefix = withoutPrefix.substring(7).trim();
     }
-    return `Composição ${cleanName}`;
+    return withoutPrefix ? `Coleção ${withoutPrefix}` : "Coleção";
+};
+
+const formatCompositionName = formatCollectionName; // backward compatibility fallback if any file references it
+
+const splitCollectionName = (familyName: string, colorName: string): { main: string; sub: string } => {
+    let main = formatCollectionName(familyName);
+    let sub = colorName || '';
+
+    // Se já temos a cor explícita e ela não está no nome da coleção
+    if (sub && sub !== 'Mix' && !main.toLowerCase().includes(sub.toLowerCase())) {
+        return { main, sub };
+    }
+
+    const lowerMain = main.toLowerCase();
+    
+    // Primeiro tenta remover sub se ele estiver no fim de main
+    if (sub && sub !== 'Mix') {
+        const subLower = sub.toLowerCase();
+        if (lowerMain.endsWith(subLower)) {
+            const idx = lowerMain.lastIndexOf(subLower);
+            if (idx > 0) {
+                const prefix = main.substring(0, idx).trim();
+                if (prefix.toLowerCase() !== 'coleção' && prefix.toLowerCase() !== 'composição') {
+                    return { main: prefix, sub: main.substring(idx).trim() };
+                }
+            }
+        }
+    }
+
+    // Se não batia com sub exatamente, mas termina com alguma cor comum
+    const COMMON_COLOR_SAMPLES = [
+        'preto', 'pretas', 'preta', 'pretos',
+        'vinho', 'vinhos',
+        'azul', 'azuis',
+        'marrom', 'marrons',
+        'verde', 'verdes',
+        'rosa', 'rosas',
+        'bege', 'beges',
+        'ocre', 'ocres',
+        'amarelo', 'amarelos',
+        'cinza', 'cinzas',
+        'branco', 'brancos',
+        'mostarda', 'mostardas',
+        'terracota', 'terracotas',
+        'tiffany',
+        'marsala',
+        'rose', 'rosê',
+        'laranja', 'laranjas'
+    ];
+
+    const words = main.split(/\s+/);
+    if (words.length > 2) {
+        const lastWord = words[words.length - 1];
+        const lastWordLower = lastWord.toLowerCase();
+        if (COMMON_COLOR_SAMPLES.includes(lastWordLower)) {
+            const index = main.lastIndexOf(lastWord);
+            if (index > 0) {
+                const prefix = main.substring(0, index).trim();
+                if (prefix.toLowerCase() !== 'coleção' && prefix.toLowerCase() !== 'composição') {
+                    return { main: prefix, sub: lastWord };
+                }
+            }
+        }
+    }
+
+    return { main, sub: sub === 'Mix' ? '' : sub };
 };
 
 const getFullNameWithColor = (familyName: string, colorName: string): string => {
-    const formattedFamily = formatCompositionName(familyName);
-    if (!colorName || colorName === 'Mix') return formattedFamily;
+    const { main, sub } = splitCollectionName(familyName, colorName);
+    if (sub) {
+        return `${main} ${sub}`;
+    }
+    return main;
+};
+
+const renderCollectionNameWithSubname = (familyName: string, colorName: string, textClasses: string) => {
+    const { main, sub } = splitCollectionName(familyName, colorName);
     
-    const lowerFamily = formattedFamily.toLowerCase();
-    const lowerColor = colorName.toLowerCase();
-    
-    // Se a composição já possui o nome da cor no próprio nome (ex: "Jacquard Vinho" com cor "Vinho")
-    if (lowerFamily.includes(lowerColor)) {
-        return formattedFamily;
+    if (!sub) {
+        return (
+            <h3 className={`font-bold text-xs leading-tight h-9 flex flex-col justify-center items-center ${textClasses}`}>
+                <span>{main}</span>
+            </h3>
+        );
     }
     
-    return `${formattedFamily} ${colorName}`;
+    return (
+        <h3 className={`leading-tight h-9 flex flex-col justify-center items-center ${textClasses}`}>
+            <span className="font-bold text-xs">{main}</span>
+            <span className="text-[10px] text-gray-500 font-semibold dark:text-gray-400 mt-0.5">{sub}</span>
+        </h3>
+    );
+};
+
+const splitProductName = (name: string): { main: string; sub: string } => {
+    if (!name) return { main: '', sub: '' };
+    
+    const COMMON_COLOR_SAMPLES = [
+        'preto', 'pretas', 'preta', 'pretos',
+        'vinho', 'vinhos',
+        'azul', 'azuis',
+        'marrom', 'marrons',
+        'verde', 'verdes',
+        'rosa', 'rosas',
+        'bege', 'beges',
+        'ocre', 'ocres',
+        'amarelo', 'amarelos',
+        'cinza', 'cinzas',
+        'branco', 'brancos',
+        'mostarda', 'mostardas',
+        'terracota', 'terracotas',
+        'tiffany',
+        'marsala',
+        'rose', 'rosê',
+        'laranja', 'laranjas'
+    ];
+
+    const words = name.trim().split(/\s+/);
+    if (words.length > 1) {
+        const lastWord = words[words.length - 1];
+        const lastWordLower = lastWord.toLowerCase();
+        if (COMMON_COLOR_SAMPLES.includes(lastWordLower)) {
+            const index = name.lastIndexOf(lastWord);
+            if (index > 0) {
+                const prefix = name.substring(0, index).trim();
+                return { main: prefix, sub: lastWord };
+            }
+        }
+    }
+    return { main: name, sub: '' };
+};
+
+const renderProductNameWithSubname = (name: string, textClasses: string) => {
+    const { main, sub } = splitProductName(name);
+    
+    if (!sub) {
+        return (
+            <h3 className={`font-bold text-xs leading-tight h-9 flex items-center justify-center text-center ${textClasses}`}>
+                <span>{main}</span>
+            </h3>
+        );
+    }
+    
+    return (
+        <h3 className={`leading-tight h-9 flex flex-col justify-center items-center text-center ${textClasses}`}>
+            <span className="font-bold text-xs">{main}</span>
+            <span className="text-[10px] text-gray-500 font-semibold dark:text-gray-400 mt-0.5">{sub}</span>
+        </h3>
+    );
 };
 
 const SkeletonCard = () => {
@@ -68,6 +214,67 @@ const SkeletonCard = () => {
             <div className={`h-4 w-1/3 ${bgClass} rounded`}></div>
         </div>
     );
+};
+
+const getCardBgAndBorderStyle = (
+    colors: { name: string; hex: string }[],
+    isDark: boolean,
+    isExpanded: boolean = false
+) => {
+    const bgOpacity = isExpanded
+        ? (isDark ? '33' : '22')
+        : (isDark ? '1c' : '10');
+    const borderOpacity = isDark ? '44' : '26';
+
+    const hexWithOpacity = (hex: string, op: string) => {
+        let cleanHex = hex.trim();
+        if (cleanHex.startsWith('#')) {
+            cleanHex = cleanHex.substring(1);
+        }
+        if (cleanHex.length === 3) {
+            cleanHex = cleanHex.split('').map(x => x + x).join('');
+        }
+        return `#${cleanHex}${op}`;
+    };
+
+    // Filter out 'Mix' or generic colors for gradient/single purposes if possible
+    const validColors = colors.filter(c => c.name && c.hex && c.name !== 'Mix');
+    const finalColors = validColors.length > 0 ? validColors : colors.filter(c => c.hex);
+
+    if (finalColors.length === 0) {
+        return {
+            background: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.95)',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+            borderWidth: '1px',
+            borderStyle: 'solid' as const,
+        };
+    }
+
+    if (finalColors.length === 2) {
+        // Gradient between the 2 colors
+        const col1 = hexWithOpacity(finalColors[0].hex, bgOpacity);
+        const col2 = hexWithOpacity(finalColors[1].hex, bgOpacity);
+        const borderCol = hexWithOpacity(finalColors[0].hex, borderOpacity);
+
+        return {
+            background: `linear-gradient(135deg, ${col1}, ${col2})`,
+            borderColor: borderCol,
+            borderWidth: '1px',
+            borderStyle: 'solid' as const,
+        };
+    }
+
+    // Single color, or more than 2 colors
+    const primaryColor = finalColors[0];
+    const col = hexWithOpacity(primaryColor.hex, bgOpacity);
+    const borderCol = hexWithOpacity(primaryColor.hex, borderOpacity);
+
+    return {
+        background: col,
+        borderColor: borderCol,
+        borderWidth: '1px',
+        borderStyle: 'solid' as const,
+    };
 };
 
 const ProductCard: React.FC<{ product: Product, index: number, onClick: () => void, sofaColors: { name: string; hex: string }[] }> = ({ product, index, onClick, sofaColors }) => {
@@ -92,7 +299,7 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
   
   const textNameClasses = isDark ? "text-purple-200" : "text-gray-800";
   const textMetaClasses = isDark ? "text-purple-300" : "text-gray-500";
-  const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
+  const imageBgClasses = isDark ? "bg-black/10" : "bg-gray-100/10";
   
   const waterResistanceDetails = WATER_RESISTANCE_INFO[product.waterResistance];
   
@@ -122,6 +329,10 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
     return product.backImageUrl && showBack ? product.backImageUrl : (product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png");
   }, [showBack, product]);
 
+  const cardStyle = useMemo(() => {
+    return getCardBgAndBorderStyle(product.colors, isDark, false);
+  }, [product.colors, isDark]);
+
   return (
     <div 
         role="button"
@@ -129,11 +340,14 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
         onClick={onClick}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
         className={`flex flex-col items-center text-center transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 rounded-3xl overflow-visible cursor-pointer ${isDark ? 'focus:ring-offset-black' : 'focus:ring-offset-white'}`}
-        style={shouldAnimate ? { 
-             animation: 'float-in 0.5s ease-out forwards',
-             animationDelay: `${index * 50}ms`,
-             opacity: 0 
-          } : {}}
+        style={{
+            ...cardStyle,
+            ...shouldAnimate ? { 
+                 animation: 'float-in 0.5s ease-out forwards',
+                 animationDelay: `${index * 50}ms`,
+                 opacity: 0 
+              } : {}
+        }}
     >
         <div className={`w-full aspect-square ${imageBgClasses} rounded-3xl flex items-center justify-center overflow-hidden relative shadow-xl z-20`}>
              {(product.fabricImageUrl || product.baseImageUrl) ? (
@@ -182,7 +396,7 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
                                 key={colorName}
                                 title={colorName}
                                 onClick={() => setSelectedSofaColor(colorName)}
-                                className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${isSelected ? 'border-fuchsia-500 scale-110' : 'border-white/40'}`}
+                                className={`w-2.5 h-2.5 rounded-full border transition-all ${isSelected ? 'border-fuchsia-500 scale-110' : 'border-white/40'}`}
                                 style={{ backgroundColor: colorObj.hex }}
                             />
                         );
@@ -190,24 +404,24 @@ const ProductCard: React.FC<{ product: Product, index: number, onClick: () => vo
                 </div>
              )}
         </div>
-        <div className={`w-full flex-grow flex flex-col items-center justify-center p-3 pb-5 -mt-5 pt-8 rounded-b-3xl shadow-xl z-10 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-50/90 border-t border-fuchsia-100 shadow-gray-300/40'}`}>
-            <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{product.name}</h3>
-            <div className={`flex items-center justify-center flex-wrap gap-x-3 gap-y-2 text-xs mt-2`}>
+        <div className={`w-full flex-grow flex flex-col items-center justify-center p-3 pb-5 -mt-5 pt-8 rounded-b-3xl shadow-xl z-10 ${isDark ? 'bg-black/20 border-t border-white/5 shadow-black/40' : 'bg-white/20 border-t border-fuchsia-100/40 shadow-gray-200/20'}`}>
+            {renderProductNameWithSubname(product.name, textNameClasses)}
+            <div className={`flex items-center justify-center flex-wrap gap-x-2 gap-y-1.5 text-[10px] mt-2`}>
                 {product.unitsSold >= 5 && (
-                    <div className={`flex items-center space-x-1 ${textMetaClasses}`}>
-                        <FireIcon className="w-4 h-4 text-orange-400" />
+                    <div className={`flex items-center space-x-0.5 ${textMetaClasses}`}>
+                        <FireIcon className="w-3.5 h-3.5 text-orange-400" />
                         <span>{product.unitsSold} vendidos</span>
                     </div>
                 )}
                 <div className={`flex items-center gap-1 ${textMetaClasses}`}>
-                    <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px shadow-sm" />
+                    <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-3.5 h-3.5 rounded-full object-contain bg-white p-px shadow-sm" />
                     <span className="font-semibold">{product.brand === 'Marca Própia' ? 'Têca' : product.brand}</span>
                 </div>
-                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
+                <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-full whitespace-nowrap ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
                     {product.fabricType}
                 </span>
             </div>
-            <span className={`font-bold text-fuchsia-500 mt-2 ${isRange ? 'text-xs' : 'text-md'}`}>{getPriceRange()}</span>
+            <span className="font-bold text-fuchsia-500 mt-1.5 text-xs">{getPriceRange()}</span>
         </div>
     </div>
   );
@@ -235,7 +449,7 @@ const CollectionCard: React.FC<{
             const timer = setTimeout(() => {
                 const scrollContainer = cardRef.current?.closest('main');
                 if (scrollContainer) {
-                    const offset = cardRef.current.offsetTop - 80; // 80px para compensar o header fixo
+                    const offset = cardRef.current.offsetTop - 80; // 85px para compensar o header fixo
                     scrollContainer.scrollTo({ top: offset, behavior: 'smooth' });
                 }
             }, 80); 
@@ -274,17 +488,40 @@ const CollectionCard: React.FC<{
 
     const cardClasses = isDark ? "bg-black/20 backdrop-blur-xl border-white/10" : "bg-white border-gray-200/80 shadow-md";
     const textNameClasses = isDark ? "text-purple-200" : "text-gray-800";
-    const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
+    const imageBgClasses = isDark ? "bg-black/10" : "bg-gray-100/10";
     
     // Optimization: Only animate the first few items
     const shouldAnimate = index < 4;
 
-    const bgOpacity = isDark ? '22' : '15'; // Hex opacidade
-    const bgOpacityExpanded = isDark ? '33' : '22';
-    const borderOpacity = isDark ? '55' : '33';
-    
-    const cardBgColor = `${color.hex}${isExpanded ? bgOpacityExpanded : bgOpacity}`;
-    const cardBorderColor = `${color.hex}${borderOpacity}`;
+    const collectionUniqueColors = useMemo(() => {
+        const seen = new Set<string>();
+        const list: { name: string; hex: string }[] = [];
+        collectionProducts.forEach(p => {
+            p.colors.forEach(c => {
+                const key = c.name.toLowerCase();
+                if (c.name && c.hex && !seen.has(key)) {
+                    seen.add(key);
+                    list.push(c);
+                }
+            });
+        });
+        return list.length > 0 ? list : [color];
+    }, [collectionProducts, color]);
+
+    const distinctColorNames = useMemo(() => {
+        const names = collectionProducts.flatMap(p => p.colors.map(c => c.name));
+        return Array.from(new Set(names)).filter(Boolean);
+    }, [collectionProducts]);
+
+    const allHaveSameColor = useMemo(() => {
+        return distinctColorNames.length === 1 && distinctColorNames[0] !== 'Mix';
+    }, [distinctColorNames]);
+
+    const displayedColorSubname = allHaveSameColor ? distinctColorNames[0] : '';
+
+    const cardBgStyle = useMemo(() => {
+        return getCardBgAndBorderStyle(collectionUniqueColors, isDark, isExpanded);
+    }, [collectionUniqueColors, isDark, isExpanded]);
 
     return (
         <motion.div 
@@ -294,11 +531,8 @@ const CollectionCard: React.FC<{
             transition={{ type: "spring", stiffness: 800, damping: 52, mass: 1 }}
             className={`flex flex-col overflow-visible scroll-mt-20 ${isExpanded ? `col-span-2 row-span-2 z-40 backdrop-blur-md rounded-3xl p-4 shadow-2xl` : 'rounded-3xl'}`}
             style={{
-                ...shouldAnimate && !isExpanded ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms` } : {},
-                backgroundColor: cardBgColor,
-                borderColor: cardBorderColor,
-                borderWidth: '1px',
-                borderStyle: 'solid'
+                ...cardBgStyle,
+                ...shouldAnimate && !isExpanded ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms` } : {}
             }}
         >
             <AnimatePresence mode="wait" initial={false}>
@@ -317,7 +551,7 @@ const CollectionCard: React.FC<{
                                 className="w-4 h-4 rounded-full border shadow-sm"
                                 style={{ backgroundColor: color.hex }}
                             />
-                            {getFullNameWithColor(familyName, color.name)}
+                            {getFullNameWithColor(familyName, displayedColorSubname)}
                         </h3>
                         <button onClick={() => setIsExpanded(false)} className="text-gray-500 hover:text-fuchsia-500 p-1 rounded-full transition-colors focus:outline-none">
                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -342,7 +576,20 @@ const CollectionCard: React.FC<{
                                         <div className="absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-black/10 to-transparent z-20 pointer-events-none" />
                                     </div>
                                     <div className={`w-full p-2 -mt-4 pt-6 rounded-b-2xl shadow-xl z-0 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-5/95 border-t border-fuchsia-100 shadow-fuchsia-200/50'}`}>
-                                        <span className={`text-[10px] font-bold ${textNameClasses} truncate block w-full text-center px-1`}>{product.name}</span>
+                                        <div className="h-9 flex flex-col justify-center items-center text-center px-1 overflow-hidden">
+                                            {(() => {
+                                                const { main, sub } = splitProductName(product.name);
+                                                if (!sub) {
+                                                    return <span className={`text-[10px] font-bold ${textNameClasses} truncate block w-full text-center`}>{main}</span>;
+                                                }
+                                                return (
+                                                    <>
+                                                        <span className={`text-[10px] font-bold ${textNameClasses} truncate block w-full text-center`}>{main}</span>
+                                                        <span className="text-[8.5px] text-gray-500 font-semibold dark:text-gray-400 block text-center line-clamp-1 mt-0.5">{sub}</span>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
                                         <div className={`flex items-center justify-center gap-1 mt-1 ${isDark ? 'text-purple-300' : 'text-gray-500'}`}>
                                             <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-3 h-3 rounded-full object-contain bg-white p-px shadow-sm" />
                                             <span className="text-[9px] font-semibold">{product.brand === 'Marca Própia' ? 'Têca' : product.brand}</span>
@@ -378,7 +625,7 @@ const CollectionCard: React.FC<{
                                     <>
                                         <img 
                                             src={getProductImage(validProducts[0])} 
-                                            alt={`${formatCompositionName(familyName)} main`}
+                                            alt={`${formatCollectionName(familyName)} main`}
                                             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${activeImageIndex === 0 ? 'opacity-100' : 'opacity-0'}`}
                                             loading="lazy"
                                             decoding="async"
@@ -387,11 +634,11 @@ const CollectionCard: React.FC<{
                                              <img 
                                                 key={idx + 1}
                                                 src={getProductImage(prod)} 
-                                                alt={`${formatCompositionName(familyName)} variation`}
+                                                alt={`${formatCollectionName(familyName)} variation`}
                                                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${(idx + 1) === activeImageIndex ? 'opacity-100' : 'opacity-0'}`}
                                                 loading="lazy"
                                                 decoding="async"
-                                            />
+                                             />
                                         ))}
                                     </>
                                 ) : (
@@ -402,21 +649,24 @@ const CollectionCard: React.FC<{
                                             className="w-1/2 h-1/2 object-contain opacity-20" 
                                         />
                                      </div>
-                                )}
+                                 )}
                                 {/* Sombreamento inferior na imagem para efeito de profundidade sobre a info com tom cinza claro */}
                                 <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-gray-400/15 to-transparent z-30 pointer-events-none" />
                             </div>
-                            <div className={`w-full flex-grow pt-8 pb-5 px-3 -mt-5 flex flex-col items-center justify-center rounded-b-3xl shadow-xl z-10 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-50/90 border-t border-fuchsia-100 shadow-gray-300/40'}`}>
-                                <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{getFullNameWithColor(familyName, color.name)}</h3>
-                                <div className="text-[10px] text-fuchsia-500 font-medium pb-2">
-                                    {collectionProducts.length} itens | Clique e veja
+                            <div className={`w-full flex-grow pt-8 pb-5 px-3 -mt-5 flex flex-col items-center justify-center rounded-b-3xl shadow-xl z-10 ${isDark ? 'bg-black/20 border-t border-white/5 shadow-black/40' : 'bg-white/20 border-t border-fuchsia-100/50 shadow-gray-300/20'}`}>
+                                {renderCollectionNameWithSubname(familyName, displayedColorSubname, textNameClasses)}
+                                <div className="text-[9px] text-fuchsia-500 font-medium pb-1.5">
+                                    Clique e veja
                                 </div>
                                 <div className="flex flex-wrap items-center justify-center gap-1.5 px-2">
-                                    <div 
-                                        className={`w-3.5 h-3.5 rounded-full border shadow-sm ${isDark ? 'border-white/20' : 'border-black/10'}`}
-                                        style={{ backgroundColor: color.hex }}
-                                        title={color.name}
-                                    />
+                                    {collectionUniqueColors.map((col, colIdx) => (
+                                        <div 
+                                            key={colIdx}
+                                            className={`w-2.5 h-2.5 rounded-full border shadow-sm ${isDark ? 'border-white/20' : 'border-black/10'}`}
+                                            style={{ backgroundColor: col.hex }}
+                                            title={col.name}
+                                        />
+                                    ))}
                                 </div>
                             </div>
                         </div>
@@ -500,10 +750,29 @@ const ProductGroupCard: React.FC<{
 
     const cardClasses = isDark ? "bg-black/20 backdrop-blur-xl border-white/10" : "bg-white border-gray-200/80 shadow-md";
     const textNameClasses = isDark ? "text-purple-200" : "text-gray-800";
-    const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
+    const imageBgClasses = isDark ? "bg-black/10" : "bg-gray-100/10";
     
     // Optimization: Only animate the first few items
     const shouldAnimate = index < 4;
+
+    const groupUniqueColors = useMemo(() => {
+        const seen = new Set<string>();
+        const list: { name: string; hex: string }[] = [];
+        group.forEach(p => {
+            p.colors.forEach(c => {
+                const key = c.name.toLowerCase();
+                if (c.name && c.hex && !seen.has(key)) {
+                    seen.add(key);
+                    list.push(c);
+                }
+            });
+        });
+        return list;
+    }, [group]);
+
+    const cardBgStyle = useMemo(() => {
+        return getCardBgAndBorderStyle(groupUniqueColors, isDark, isExpanded);
+    }, [groupUniqueColors, isDark, isExpanded]);
 
     return (
         <motion.div 
@@ -511,8 +780,11 @@ const ProductGroupCard: React.FC<{
             layout
             layoutId={familyId}
             transition={{ type: "spring", stiffness: 800, damping: 52, mass: 1 }}
-            className={`flex flex-col overflow-visible scroll-mt-20 ${isExpanded ? `col-span-2 row-span-2 z-40 backdrop-blur-md ${isDark ? "bg-fuchsia-950/60 border border-fuchsia-900/50" : "bg-fuchsia-5/90 border border-fuchsia-200"} rounded-3xl p-4 shadow-2xl` : 'rounded-3xl'}`}
-            style={shouldAnimate && !isExpanded ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms` } : {}}
+            className={`flex flex-col overflow-visible scroll-mt-20 ${isExpanded ? `col-span-2 row-span-2 z-40 backdrop-blur-md rounded-3xl p-4 shadow-2xl` : 'rounded-3xl'}`}
+            style={{
+                ...cardBgStyle,
+                ...shouldAnimate && !isExpanded ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms` } : {}
+            }}
         >
             <AnimatePresence mode="wait" initial={false}>
             {isExpanded ? (
@@ -525,7 +797,7 @@ const ProductGroupCard: React.FC<{
                         className="w-full h-full"
                     >
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className={`font-bold text-base ${textNameClasses}`}>{(familyId || explicitName) ? formatCompositionName(familyName) : familyName}</h3>
+                        <h3 className={`font-bold text-sm sm:text-base ${textNameClasses}`}>{(familyId || explicitName) ? formatCollectionName(familyName) : familyName}</h3>
                         <button onClick={() => setIsExpanded(false)} className="text-gray-500 hover:text-fuchsia-500">
                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -533,24 +805,45 @@ const ProductGroupCard: React.FC<{
                         </button>
                     </div>
                     <div className="grid grid-cols-2 gap-3 mt-2">
-                        {group.map(product => (
-                            <button key={product.id} onClick={() => onClick(product)} className="w-full flex flex-col items-center transition-transform hover:scale-105 group/item">
-                                <div className={`w-full aspect-square ${imageBgClasses} rounded-2xl flex items-center justify-center overflow-hidden relative shadow-md z-10`}>
-                                    <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-full h-full object-cover" />
-                                    <div className="absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-black/10 to-transparent z-20 pointer-events-none" />
-                                </div>
-                                <div className={`w-full p-2 -mt-4 pt-6 rounded-b-2xl shadow-xl z-0 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-5/95 border-t border-fuchsia-100 shadow-fuchsia-200/50'}`}>
-                                    <span className={`text-[10px] font-bold ${textNameClasses} truncate block w-full text-center px-1`}>{product.name}</span>
-                                    <div className={`flex items-center justify-center gap-1 mt-1 ${isDark ? 'text-purple-300' : 'text-gray-500'}`}>
-                                        <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-3 h-3 rounded-full object-contain bg-white p-px shadow-sm" />
-                                        <span className="text-[9px] font-semibold">{product.brand === 'Marca Própia' ? 'Têca' : product.brand}</span>
+                        {group.map(product => {
+                            const productCardStyle = getCardBgAndBorderStyle(product.colors, isDark, false);
+                            return (
+                                <button 
+                                    key={product.id} 
+                                    onClick={() => onClick(product)} 
+                                    className="w-full flex flex-col items-center transition-transform hover:scale-105 group/item rounded-3xl"
+                                    style={productCardStyle}
+                                >
+                                    <div className={`w-full aspect-square ${imageBgClasses} rounded-2xl flex items-center justify-center overflow-hidden relative shadow-md z-10`}>
+                                        <img src={product.baseImageUrl || "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"} alt={product.name} className="w-full h-full object-cover" />
+                                        <div className="absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-black/10 to-transparent z-20 pointer-events-none" />
                                     </div>
-                                    <span className="text-[10px] font-black text-fuchsia-600 block mt-1 text-center">
-                                        {(product.variations[0]?.priceFull || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                    </span>
-                                </div>
-                            </button>
-                        ))}
+                                    <div className={`w-full p-2 -mt-4 pt-6 rounded-b-2xl shadow-xl z-0 ${isDark ? 'bg-black/25 border-t border-white/5 shadow-black/40' : 'bg-white/25 border-t border-fuchsia-100/50 shadow-fuchsia-200/20'}`}>
+                                        <div className="h-9 flex flex-col justify-center items-center text-center px-1 overflow-hidden">
+                                            {(() => {
+                                                const { main, sub } = splitProductName(product.name);
+                                                if (!sub) {
+                                                    return <span className={`text-[10px] font-bold ${textNameClasses} truncate block w-full text-center`}>{main}</span>;
+                                                }
+                                                return (
+                                                    <>
+                                                        <span className={`text-[10px] font-bold ${textNameClasses} truncate block w-full text-center`}>{main}</span>
+                                                        <span className="text-[8.5px] text-gray-500 font-semibold dark:text-gray-400 block text-center line-clamp-1 mt-0.5">{sub}</span>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                        <div className={`flex items-center justify-center gap-1 mt-1 ${isDark ? 'text-purple-300' : 'text-gray-500'}`}>
+                                            <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-3 h-3 rounded-full object-contain bg-white p-px shadow-sm" />
+                                            <span className="text-[9px] font-semibold">{product.brand === 'Marca Própia' ? 'Têca' : product.brand}</span>
+                                        </div>
+                                        <span className="text-[10px] font-black text-fuchsia-600 block mt-1 text-center">
+                                            {(product.variations[0]?.priceFull || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                        </span>
+                                    </div>
+                                </button>
+                            );
+                        })}
                     </div>
                 </motion.div>
             ) : (
@@ -598,33 +891,33 @@ const ProductGroupCard: React.FC<{
                                         alt="Sem Imagem" 
                                         className="w-1/2 h-1/2 object-contain opacity-20" 
                                     />
-                                </div>
+                                 </div>
                             )}
                             {/* Sombreamento inferior na imagem para efeito de profundidade sobre a info com tom cinza claro */}
                             <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-gray-400/15 to-transparent z-30 pointer-events-none" />
                         </div>
                     </div>
-                        <div className={`w-full flex-grow pt-8 pb-5 px-3 -mt-5 flex flex-col items-center justify-center rounded-b-3xl shadow-xl z-10 ${isDark ? 'bg-fuchsia-950/40 border-t border-white/5 shadow-black/40' : 'bg-fuchsia-50/90 border-t border-fuchsia-100 shadow-gray-300/40'}`}>
-                            <h3 className={`font-bold text-sm leading-tight h-10 flex items-center justify-center ${textNameClasses}`}>{(familyId || explicitName) ? formatCompositionName(familyName) : familyName}</h3>
-                            <div className="text-[10px] text-fuchsia-500 font-medium pb-2">
-                                {group.length} cores | Clique e veja
+                        <div className={`w-full flex-grow pt-8 pb-5 px-3 -mt-5 flex flex-col items-center justify-center rounded-b-3xl shadow-xl z-10 ${isDark ? 'bg-black/20 border-t border-white/5 shadow-black/40' : 'bg-white/20 border-t border-fuchsia-100/50 shadow-gray-300/20'}`}>
+                            <h3 className={`font-bold text-xs leading-tight h-9 flex items-center justify-center ${textNameClasses}`}>{(familyId || explicitName) ? formatCollectionName(familyName) : familyName}</h3>
+                            <div className="text-[9px] text-fuchsia-500 font-medium pb-1.5">
+                                Clique e veja
                             </div>
-                            <div className="flex flex-wrap items-center justify-center gap-1.5 px-2">
+                            <div className="flex flex-wrap items-center justify-center gap-1 px-2">
                                 {group.slice(0, 7).map((p, idx) => (
                                     <div 
                                         key={idx}
-                                        className={`w-3 h-3 rounded-full border shadow-sm ${isDark ? 'border-white/20' : 'border-black/10'}`}
+                                        className={`w-2 h-2 rounded-full border shadow-xs ${isDark ? 'border-white/20' : 'border-black/10'}`}
                                         style={{ backgroundColor: p.colors?.[0]?.hex || '#ccc' }}
                                         title={p.colors?.[0]?.name}
                                     />
                                 ))}
                                 {group.length > 7 && (
-                                    <span className={`text-[10px] font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>+{group.length - 7}</span>
+                                    <span className={`text-[9px] font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{`+${group.length - 7}`}</span>
                                 )}
                             </div>
                         </div>
                     </div>
-                    </motion.div>
+                </motion.div>
             )}
             </AnimatePresence>
         </motion.div>
@@ -712,7 +1005,7 @@ const FloatingActionButtons = ({ onNavigate, isSearchOpen, scrollTop }: { onNavi
 const customBannerSlides = [
   {
     id: 'slide-jacquard-vinho',
-    title: 'Composição Jacquard Vinho',
+    title: 'Coleção Jacquard Vinho',
     subtitle: 'Toque clássico e aconchegante em tons carmim',
     emoji: '🛋️',
     url: 'https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=1200',
@@ -751,11 +1044,11 @@ const customBannerSlides = [
   },
   {
     id: 'slide-jacquard-preto',
-    title: 'Composição Jacquard Preto',
+    title: 'Coleção Jacquard',
     subtitle: 'Minimalismo requintado em contrastes profundos',
     emoji: '✨',
     url: 'https://images.unsplash.com/photo-1544030288-e6e6108867f8?auto=format&fit=crop&q=80&w=1200',
-    badge: 'Jacquard Preto',
+    badge: 'Jacquard',
     colorKey: 'Preto',
     fabricKey: 'Jacquard',
     items: [
@@ -776,21 +1069,12 @@ const customBannerSlides = [
         priceCover: 40.00,
         priceFull: 50.00,
         imgUrl: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=400'
-      },
-      {
-        id: 'mock-preto-3',
-        name: 'Almofada Anatômica Trança Preta',
-        fabric: 'Tricot',
-        color: 'Preto',
-        priceCover: 35.00,
-        priceFull: 45.00,
-        imgUrl: 'https://images.unsplash.com/photo-1512211546317-a53edf5f54cc?auto=format&fit=crop&q=80&w=400'
       }
     ]
   },
   {
     id: 'slide-costela-tranca',
-    title: 'Composição Costela de Adão & Trança Bege',
+    title: 'Coleção Costela de Adão & Trança Bege',
     subtitle: 'Harmonia botânica e moderna com trança acolhedora',
     emoji: '🎨',
     url: 'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&q=80&w=1200',
@@ -852,11 +1136,24 @@ interface ShowcaseScreenProps {
   banners?: Banner[];
 }
 
+const isBelizeOrWaterblock = (slide: any) => {
+  if (!slide) return false;
+  const titleLower = (slide.title || '').toLowerCase();
+  
+  const hasBelize = titleLower.includes('belize') || titleLower.includes('verde') || titleLower.includes('bélize') || titleLower.includes('waterblock') || slide.items?.some((it: any) => {
+    const fLower = (it.fabric || '').toLowerCase();
+    const nLower = (it.name || '').toLowerCase();
+    return fLower.includes('belize') || nLower.includes('belize') || fLower.includes('bélize') || nLower.includes('bélize') || fLower.includes('waterblock') || nLower.includes('waterblock') || fLower.includes('impermea') || nLower.includes('impermea');
+  });
+
+  return hasBelize;
+};
+
 const getCompositionDescription = (slide: any) => {
   if (!slide) return '';
   const titleLower = (slide.title || '').toLowerCase();
   
-  if (titleLower.includes('belize') || titleLower.includes('verde') || titleLower.includes('bélize') || slide.items?.some((it: any) => (it.fabric || '').toLowerCase().includes('belize') || (it.name || '').toLowerCase().includes('belize'))) {
+  if (isBelizeOrWaterblock(slide)) {
     return 'Confeccionada no legítimo Tecido Belize (Döhler), com tratamento de proteção contra água, sujeira e manchas, ideal para áreas de destaque.';
   }
   
@@ -878,15 +1175,8 @@ const getCompositionDescription = (slide: any) => {
 
 const getBrandForSlide = (slide: any) => {
   if (!slide) return null;
-  const titleLower = (slide.title || '').toLowerCase();
   
-  const hasBelize = titleLower.includes('belize') || titleLower.includes('bélize') || titleLower.includes('verde') || slide.items?.some((it: any) => {
-    const fLower = (it.fabric || '').toLowerCase();
-    const nLower = (it.name || '').toLowerCase();
-    return fLower.includes('belize') || nLower.includes('belize') || fLower.includes('dohler') || fLower.includes('döhler');
-  });
-  
-  if (hasBelize) {
+  if (isBelizeOrWaterblock(slide)) {
     return {
       name: 'Döhler',
       logo: 'https://i.postimg.cc/G3k2G58y/image.png'
@@ -929,7 +1219,15 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
   }, [productFamilies]);
 
   const [selectedCategory, setSelectedCategory] = useState<string>(() => localStorage.getItem('showcase_category') || 'Todas');
+  const [selectedBrand, setSelectedBrand] = useState<string>(() => localStorage.getItem('showcase_brand') || 'Todas');
   const [selectedFabric, setSelectedFabric] = useState<string>(() => localStorage.getItem('showcase_fabric') || 'Todos os Tecidos');
+  const [subFilterWaterblock, setSubFilterWaterblock] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!selectedFabric.toLowerCase().includes('belize')) {
+      setSubFilterWaterblock(false);
+    }
+  }, [selectedFabric]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -1186,9 +1484,10 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
   // --- SAVE FILTERS TO LOCALSTORAGE ---
   useEffect(() => {
     localStorage.setItem('showcase_category', selectedCategory);
+    localStorage.setItem('showcase_brand', selectedBrand);
     localStorage.setItem('showcase_fabric', selectedFabric);
     localStorage.setItem('showcase_colors', JSON.stringify(selectedColors));
-  }, [selectedCategory, selectedFabric, selectedColors]);
+  }, [selectedCategory, selectedBrand, selectedFabric, selectedColors]);
 
   // --- INFINITE SCROLL STATE ---
   const [visibleCount, setVisibleCount] = useState(4); // Match App.tsx initial limit
@@ -1312,8 +1611,41 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
         const searchQueryLower = searchQuery.toLowerCase();
         const nameMatch = p.name.toLowerCase().includes(searchQueryLower);
         const categoryMatch = selectedCategory === 'Todas' || p.category === selectedCategory || p.subCategory === selectedCategory;
-        const fabricMatch = selectedFabric === 'Todos os Tecidos' || p.fabricType === selectedFabric;
+        let fabricMatch = selectedFabric === 'Todos os Tecidos';
+        if (!fabricMatch) {
+            if (selectedFabric.toLowerCase().includes('belize')) {
+                if (subFilterWaterblock) {
+                    fabricMatch = p.waterResistance === WaterResistanceLevel.FULL || 
+                                  p.fabricType.toLowerCase().includes('waterblock') || 
+                                  p.fabricType.toLowerCase().includes('impermea');
+                } else {
+                    fabricMatch = p.fabricType.toLowerCase().includes('belize') || 
+                                  p.fabricType.toLowerCase().includes('bélize') || 
+                                  p.waterResistance === WaterResistanceLevel.FULL || 
+                                  p.fabricType.toLowerCase().includes('waterblock') || 
+                                  p.fabricType.toLowerCase().includes('impermea');
+                }
+            } else {
+                fabricMatch = p.fabricType === selectedFabric;
+            }
+        }
         
+        let brandMatch = true;
+        if (selectedBrand !== 'Todas') {
+            const cleanSelected = selectedBrand.toLowerCase().replace('®', '').trim();
+            if (cleanSelected === 'döhler' || cleanSelected === 'dohler') {
+                const fType = (p.fabricType || '').toLowerCase();
+                const pName = (p.name || '').toLowerCase();
+                const isDohlerBrand = !!(p.brand && p.brand.toLowerCase().includes('döhler'));
+                const isBelizeFabric = fType.includes('belize') || pName.includes('belize') || fType.includes('bélize') || pName.includes('bélize') ||
+                                       fType.includes('waterblock') || pName.includes('waterblock') ||
+                                       p.waterResistance === WaterResistanceLevel.FULL;
+                brandMatch = isDohlerBrand || isBelizeFabric;
+            } else {
+                brandMatch = !!(p.brand && p.brand.toLowerCase().includes(cleanSelected));
+            }
+        }
+
         let colorMatch = true;
         if (selectedColors.length > 0) {
             const productColors = p.colors.map(c => c.name);
@@ -1324,12 +1656,12 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
                           p.brand.toLowerCase().includes(searchQueryLower) ||
                           p.category.toLowerCase().includes(searchQueryLower);
 
-        return (nameMatch || tagsMatch) && categoryMatch && fabricMatch && colorMatch;
+        return (nameMatch || tagsMatch) && categoryMatch && fabricMatch && colorMatch && brandMatch;
     });
 
     const grouped: ShowcaseItem[] = [];
 
-    if (selectedFabric !== 'Todos os Tecidos' || selectedColors.length > 0) {
+    if (selectedBrand !== 'Todas' || selectedFabric !== 'Todos os Tecidos' || selectedColors.length > 0) {
         if (selectedColors.length > 0) {
             const collections: ShowcaseItem[] = [];
             const nonCollectionProducts: Product[] = [];
@@ -1374,7 +1706,39 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
 
             grouped.push(...collections, ...nonCollectionProducts.map(p => ({ type: 'single' as const, product: p })));
         } else {
-            grouped.push(...filtered.map(p => ({ type: 'single' as const, product: p })));
+            if (selectedFabric.toLowerCase().includes('belize') && !subFilterWaterblock) {
+                const waterblockProducts = filtered.filter(p => 
+                    p.waterResistance === WaterResistanceLevel.FULL || 
+                    p.fabricType.toLowerCase().includes('waterblock') || 
+                    p.fabricType.toLowerCase().includes('impermea')
+                );
+                const otherBelizeProducts = filtered.filter(p => 
+                    !(p.waterResistance === WaterResistanceLevel.FULL || 
+                      p.fabricType.toLowerCase().includes('waterblock') || 
+                      p.fabricType.toLowerCase().includes('impermea'))
+                );
+
+                if (waterblockProducts.length > 0) {
+                    const sortedWaterblock = [...waterblockProducts].sort((a, b) => {
+                        if (sortOrder === 'alpha') {
+                            return a.name.localeCompare(b.name);
+                        }
+                        return 0;
+                    });
+
+                    grouped.push({
+                        type: 'collection',
+                        products: sortedWaterblock,
+                        familyId: 'waterblock_collection',
+                        familyName: 'Coleção Waterblock',
+                        color: { name: 'Azul', hex: '#3B82F6' }
+                    });
+                }
+
+                grouped.push(...otherBelizeProducts.map(p => ({ type: 'single' as const, product: p })));
+            } else {
+                grouped.push(...filtered.map(p => ({ type: 'single' as const, product: p })));
+            }
         }
     } else {
         const familyMap = new Map<string, Product[]>();
@@ -1451,12 +1815,12 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
             return getTime(itemB) - getTime(itemA);
         }
     });
-  }, [products, selectedCategory, selectedFabric, selectedColors, sortOrder, getProductFamilyKey, searchQuery, modifiedProductFamilies]);
+  }, [products, selectedCategory, selectedBrand, selectedFabric, selectedColors, sortOrder, getProductFamilyKey, searchQuery, modifiedProductFamilies]);
 
   // Reset pagination when filters change
   useEffect(() => {
       setVisibleCount(4);
-  }, [selectedCategory, selectedFabric, selectedColors, sortOrder, products.length]);
+  }, [selectedCategory, selectedBrand, selectedFabric, selectedColors, sortOrder, products.length]);
 
   // Intersection Observer for Infinite Scroll
   useEffect(() => {
@@ -1531,6 +1895,10 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
           setIsFiltersExpanded={setIsFiltersExpanded}
           isColorFilterOpen={isColorFilterOpen}
           setIsColorFilterOpen={setIsColorFilterOpen}
+          selectedBrand={selectedBrand}
+          setSelectedBrand={setSelectedBrand}
+          subFilterWaterblock={subFilterWaterblock}
+          setSubFilterWaterblock={setSubFilterWaterblock}
         />
 
         <div className="absolute inset-0 z-0 opacity-80 overflow-hidden">
@@ -1583,6 +1951,10 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
                 setIsFiltersExpanded={setIsFiltersExpanded}
                 isColorFilterOpen={isColorFilterOpen}
                 setIsColorFilterOpen={setIsColorFilterOpen}
+                selectedBrand={selectedBrand}
+                setSelectedBrand={setSelectedBrand}
+                subFilterWaterblock={subFilterWaterblock}
+                setSubFilterWaterblock={setSubFilterWaterblock}
               />
 
               {/* --- PREMIUM IA ENVIRONMENT BANNER CAROUSEL --- */}
@@ -1639,18 +2011,27 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
                       {/* Perfectly smooth, full-bleed corner vignette overlay with zero visible borders */}
                       {(() => {
                         const slide = activeBanners[activeBannerIndex];
-                        const titleLower = (slide?.title || '').toLowerCase();
-                        const isBelizeVerdes = titleLower.includes('belize') || titleLower.includes('verde') || titleLower.includes('bélize') || slide?.items?.some((it: any) => (it.fabric || '').toLowerCase().includes('belize') || (it.name || '').toLowerCase().includes('belize'));
+                        const isBelizeVerdes = isBelizeOrWaterblock(slide);
                         
                         if (isBelizeVerdes) {
-                          // Top-right aligned smooth full-bleed vignette transition
+                          // Vinheta radial suave no canto superior direito para Belize Verdes (sem bordas visíveis)
                           return (
-                            <div className="absolute inset-0 bg-gradient-to-bl from-black/85 via-black/25 via-45% to-transparent pointer-events-none z-10" />
+                            <div 
+                              className="absolute inset-0 pointer-events-none z-10" 
+                              style={{
+                                background: 'radial-gradient(circle at 100% 0%, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.6) 25%, rgba(0, 0, 0, 0.2) 60%, rgba(0, 0, 0, 0) 100%)'
+                              }}
+                            />
                           );
                         } else {
-                          // Bottom-left aligned smooth full-bleed vignette transition
+                          // Vinheta radial suave no canto inferior esquerdo para os outros slides (sem bordas visíveis)
                           return (
-                            <div className="absolute inset-0 bg-gradient-to-tr from-black/85 via-black/25 via-45% to-transparent pointer-events-none z-10" />
+                            <div 
+                              className="absolute inset-0 pointer-events-none z-10" 
+                              style={{
+                                background: 'radial-gradient(circle at 0% 100%, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.6) 25%, rgba(0, 0, 0, 0.2) 60%, rgba(0, 0, 0, 0) 100%)'
+                              }}
+                            />
                           );
                         }
                       })()}
@@ -1658,8 +2039,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
                       {/* Content - Title and Description */}
                       {(() => {
                         const slide = activeBanners[activeBannerIndex];
-                        const titleLower = (slide?.title || '').toLowerCase();
-                        const isBelizeVerdes = titleLower.includes('belize') || titleLower.includes('verde') || titleLower.includes('bélize') || slide?.items?.some((it: any) => (it.fabric || '').toLowerCase().includes('belize') || (it.name || '').toLowerCase().includes('belize'));
+                        const isBelizeVerdes = isBelizeOrWaterblock(slide);
                         
                         return (
                           <div className={`absolute z-20 select-none flex flex-col max-w-[76%] sm:max-w-[65%] ${
@@ -1672,20 +2052,20 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
                               const brand = getBrandForSlide(slide);
                               return (
                                 <>
-                                  <div className={`flex items-center gap-1.5 flex-wrap mb-0.5 ${isBelizeVerdes ? 'flex-row-reverse' : ''}`}>
-                                    <h3 className="text-white font-black text-xs sm:text-[13px] md:text-sm tracking-tight drop-shadow-md">
+                                  <div className={`flex items-center gap-1 flex-wrap mb-0.5 ${isBelizeVerdes ? 'flex-row-reverse' : ''}`}>
+                                    <h3 className="text-white font-black text-[10px] sm:text-[11.5px] md:text-sm tracking-tight drop-shadow-md">
                                       {slide?.title}
                                     </h3>
                                     {brand && (
-                                      <div className="flex items-center gap-0.5 bg-black/45 backdrop-blur-xs border border-white/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                                        <img src={brand.logo} alt={brand.name} className="w-2.5 h-2.5 rounded-full object-contain bg-white p-px shadow-xs" />
-                                        <span className="text-[6px] font-extrabold tracking-wider text-rose-300 uppercase leading-none">
+                                      <div className="flex items-center gap-0.5 bg-black/45 backdrop-blur-xs border border-white/10 px-1 py-0.5 rounded-full flex-shrink-0">
+                                        <img src={brand.logo} alt={brand.name} className="w-2 h-2 rounded-full object-contain bg-white p-px shadow-xs" />
+                                        <span className="text-[5.5px] font-extrabold tracking-wider text-rose-300 uppercase leading-none">
                                           {brand.name}
                                         </span>
                                       </div>
                                     )}
                                   </div>
-                                  <p className="text-[8px] sm:text-[9.5px] text-rose-100/85 font-medium leading-normal max-w-[95%] drop-shadow-sm select-none">
+                                  <p className="text-[7.5px] sm:text-[8.5px] md:text-[9px] text-rose-100/85 font-medium leading-normal max-w-[95%] drop-shadow-sm select-none">
                                     {desc}
                                   </p>
                                 </>
@@ -1699,12 +2079,12 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
 
                   {/* Pagination Dots at bottom */}
                   {activeBanners.length > 1 && (
-                    <div className="absolute bottom-2.5 right-3 flex items-center gap-1 z-20 bg-rose-950/30 backdrop-blur-md border border-rose-300/10 px-1.5 py-1 rounded-full shadow-lg">
+                    <div className="absolute bottom-2 right-2.5 flex items-center gap-0.5 z-20 bg-rose-950/30 backdrop-blur-md border border-rose-300/10 px-1 py-0.5 rounded-full shadow-lg">
                       {activeBanners.map((_, dotIdx) => (
                         <button
                           key={dotIdx}
                           onClick={(e) => { e.stopPropagation(); setActiveBannerIndex(dotIdx); }}
-                          className={`h-1 rounded-full transition-all duration-300 cursor-pointer ${dotIdx === activeBannerIndex ? 'w-3.5 bg-rose-400 shadow-[0_0_5px_rgba(244,63,94,0.5)]' : 'w-1 bg-white/45 hover:bg-white/70'}`}
+                          className={`h-[3px] rounded-full transition-all duration-300 cursor-pointer ${dotIdx === activeBannerIndex ? 'w-2.5 bg-rose-400 shadow-[0_0_3px_rgba(244,63,94,0.5)]' : 'w-[3px] bg-white/45 hover:bg-white/70'}`}
                           aria-label={`Slide ${dotIdx + 1}`}
                         />
                       ))}

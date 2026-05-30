@@ -299,7 +299,16 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                             <div 
                                 className="relative w-full aspect-square rounded-2xl overflow-hidden mb-2"
                             >
-                                <img src={currentImageUrl} alt={activeEnvKey} className="w-full h-full object-cover" />
+                                <img 
+                                    src={currentImageUrl} 
+                                    alt={activeEnvKey} 
+                                    className="w-full h-full object-cover transition-transform duration-300" 
+                                    style={{ 
+                                        transform: (activeEnvKey === 'front' || !activeEnvKey) 
+                                            ? `rotate(${product.imageRotation || 0}deg)` 
+                                            : 'none' 
+                                    }} 
+                                />
                                 
 
 
@@ -376,7 +385,12 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, produc
                                     if (!thumbUrl) return null;
                                     return (
                                     <button key={key} onClick={() => setActiveEnvIndex(index)} className={`w-12 h-12 rounded-lg overflow-hidden border-2 ${activeEnvIndex === index ? 'border-fuchsia-500' : 'border-transparent'}`}>
-                                        <img src={thumbUrl} alt={key} className="w-full h-full object-cover" />
+                                        <img 
+                                            src={thumbUrl} 
+                                            alt={key} 
+                                            className="w-full h-full object-cover transition-transform duration-300" 
+                                            style={{ transform: key === 'front' ? `rotate(${product.imageRotation || 0}deg)` : 'none' }}
+                                        />
                                     </button>
                                     )
                                 })}

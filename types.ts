@@ -103,6 +103,7 @@ export interface Product {
   fabricImageUrl?: string;
   isAiImageGenerated?: boolean;
   isAiBackgroundGenerated?: boolean;
+  imageRotation?: number;
   updatedAt?: number;
 }
 

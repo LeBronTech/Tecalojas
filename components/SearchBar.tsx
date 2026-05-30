@@ -2,6 +2,19 @@ import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PREDEFINED_COLORS } from '../constants';
 
+const getPluralFabricName = (fabric: string): string => {
+    if (!fabric || fabric === 'Todos os Tecidos') return 'Todos os Tecidos';
+    const lower = fabric.toLowerCase();
+    if (lower.includes('belize')) return 'Todas as Belizes';
+    if (lower.includes('jacquard')) return 'Todas as Jacquards';
+    if (lower.includes('gorgurinho')) return 'Todas as Gorgurinhas';
+    if (lower.includes('gorgurao') || lower.includes('gorgurão')) return 'Todas as Gorgurões';
+    if (lower.includes('linho')) return 'Todos os Linhos';
+    if (lower.includes('suede')) return 'Todas as Suedes';
+    if (lower.includes('tricot') || lower.includes('tricô')) return 'Todos os Tricôs';
+    return `Todas as ${fabric}s`;
+};
+
 interface SearchBarProps {
     isFloating?: boolean;
     isSearchOpen: boolean;
@@ -30,6 +43,10 @@ interface SearchBarProps {
     setIsFiltersExpanded: (e: boolean) => void;
     isColorFilterOpen: boolean;
     setIsColorFilterOpen: (e: boolean) => void;
+    selectedBrand?: string;
+    setSelectedBrand?: (brand: string) => void;
+    subFilterWaterblock?: boolean;
+    setSubFilterWaterblock?: (w: boolean) => void;
 }
 
 const SearchBar: React.FC<SearchBarProps> = ({
@@ -53,7 +70,11 @@ const SearchBar: React.FC<SearchBarProps> = ({
     isFiltersExpanded,
     setIsFiltersExpanded,
     isColorFilterOpen,
-    setIsColorFilterOpen
+    setIsColorFilterOpen,
+    selectedBrand = 'Todas',
+    setSelectedBrand,
+    subFilterWaterblock = false,
+    setSubFilterWaterblock = () => {}
 }) => {
     const isCategorySelected = selectedCategory !== 'Todas';
     const inputRef = useRef<HTMLInputElement>(null);
@@ -81,7 +102,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
       ? "bg-black/40 backdrop-blur-sm border-white/10 text-white placeholder:text-gray-400 focus:border-fuchsia-500"
       : "bg-white border-gray-300 text-gray-900 placeholder:text-gray-500 shadow-sm focus:border-purple-500";
 
-    const hasActiveFilters = selectedCategory !== 'Todas' || selectedFabric !== 'Todos os Tecidos' || selectedColors.length > 0;
+    const hasActiveFilters = selectedCategory !== 'Todas' || selectedFabric !== 'Todos os Tecidos' || selectedColors.length > 0 || selectedBrand !== 'Todas';
 
     const content = (
         <div className={`w-full ${isFloating ? '' : 'max-w-md mx-auto mb-1'}`}>
@@ -134,10 +155,19 @@ const SearchBar: React.FC<SearchBarProps> = ({
                 {/* Botão de Filtro Rápido */}
                 <button 
                     onClick={() => {
-                        const nextState = !isFiltersExpanded;
-                        setIsFiltersExpanded(nextState);
-                        if (nextState) {
+                        if (!isFiltersExpanded) {
+                            setIsFiltersExpanded(true);
                             setIsColorFilterOpen(true);
+                        } else {
+                            // Se o painel está aberto, decide se volta pro início ou apenas recolhe
+                            const hasSubViewActive = selectedCategory !== 'Todas' || selectedFabric !== 'Todos os Tecidos';
+                            if (hasSubViewActive) {
+                                setSelectedCategory('Todas');
+                                setSelectedFabric('Todos os Tecidos');
+                                setSubFilterWaterblock(false);
+                            } else {
+                                setIsFiltersExpanded(false);
+                            }
                         }
                     }}
                     className={`h-8 w-8 flex items-center justify-center rounded-full border shadow-sm transition-all focus:outline-none ${
@@ -170,7 +200,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
 
             {/* Painel de Filtros e Categorias Expandido */}
             <AnimatePresence>
-                {(isFiltersExpanded || isCategorySelected) && (
+                {isFiltersExpanded && (
                     <motion.div 
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -254,7 +284,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
                                             <button
                                                 key={color.name}
                                                 onClick={() => handleColorToggle(color.name)}
-                                                className={`flex-shrink-0 w-11 h-11 rounded-full border-2 transition-all transform hover:scale-110 active:scale-95 flex items-center justify-center snap-start ${
+                                                className={`flex-shrink-0 w-9 h-9 rounded-full border-2 transition-all transform hover:scale-110 active:scale-95 flex items-center justify-center snap-start ${
                                                     isSelected 
                                                         ? (isDark ? 'border-fuchsia-400 ring-4 ring-fuchsia-500/35 scale-105 shadow-lg shadow-fuchsia-500/35' : 'border-purple-600 ring-4 ring-purple-500/30 scale-105 shadow-md shadow-purple-500/25') 
                                                         : (isDark ? 'border-white/25 hover:border-white/50' : 'border-gray-200 hover:border-gray-400')
@@ -263,7 +293,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
                                                 title={color.name}
                                             >
                                                 {isSelected && (
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${['Branco', 'Bege', 'Amarelo'].includes(color.name) ? 'text-black' : 'text-white'}`} viewBox="0 0 20 20" fill="currentColor">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${['Branco', 'Bege', 'Amarelo'].includes(color.name) ? 'text-black' : 'text-white'}`} viewBox="0 0 20 20" fill="currentColor">
                                                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                     </svg>
                                                 )}
@@ -277,15 +307,41 @@ const SearchBar: React.FC<SearchBarProps> = ({
                         {/* 2. CATEGORY BUTTONS LIST */}
                         {!isCategorySelected && (
                             <div className="mb-3">
-                                <span className={`text-[10px] font-black uppercase tracking-wider mb-2 block ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Filtrar por Categoria</span>
+                                <span className={`text-[10px] font-black uppercase tracking-wider mb-2 block ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Filtrar por Marca ou Categoria</span>
                                 <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto no-scrollbar py-1">
+                                    {/* Botão de Filtro Döhler (Primeiro da Lista) */}
+                                    <button
+                                        onClick={() => {
+                                            if (selectedBrand === 'Döhler®') {
+                                                setSelectedBrand?.('Todas');
+                                            } else {
+                                                setSelectedBrand?.('Döhler®');
+                                                setSelectedCategory('Todas');
+                                                setSelectedFabric('Todos os Tecidos');
+                                            }
+                                        }}
+                                        className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+                                            selectedBrand === 'Döhler®'
+                                                ? (isDark ? 'bg-rose-600/90 hover:bg-rose-700 text-white border-transparent shadow-md shadow-rose-900/35' : 'bg-rose-100 hover:bg-rose-205 text-rose-800 border-rose-300 shadow-sm')
+                                                : (isDark ? 'bg-white/5 text-gray-300 border-white/5 hover:bg-white/15' : 'bg-white text-gray-650 border-gray-200 hover:bg-gray-100')
+                                        }`}
+                                    >
+                                        <img 
+                                            src="https://i.postimg.cc/G3k2G58y/image.png" 
+                                            alt="Döhler Logo" 
+                                            className="w-4 h-4 rounded-full object-contain bg-white p-px border border-black/10" 
+                                            referrerPolicy="no-referrer"
+                                        />
+                                        <span>Döhler</span>
+                                    </button>
+
                                     {categories.map(category => {
                                         if (category === 'Todas') return null;
 
                                         const categoryActive = selectedCategory === category;
                                         const categoryBtnClasses = categoryActive
                                             ? (isDark ? 'bg-fuchsia-600 text-white shadow-md border-transparent' : 'bg-purple-600 text-white shadow-md border-transparent')
-                                            : (isDark ? 'bg-white/5 text-gray-300 border-white/5 hover:bg-white/15' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100');
+                                            : (isDark ? 'bg-white/5 text-gray-300 border-white/5 hover:bg-white/15' : 'bg-white text-gray-650 border-gray-200 hover:bg-gray-100');
 
                                         return (
                                             <button
@@ -293,8 +349,9 @@ const SearchBar: React.FC<SearchBarProps> = ({
                                                 onClick={() => {
                                                     setSelectedCategory(category);
                                                     setSelectedFabric('Todos os Tecidos');
+                                                    setSelectedBrand?.('Todas'); // limpa a marca ao selecionar uma categoria
                                                 }}
-                                                className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all border ${categoryBtnClasses}`}
+                                                className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all border cursor-pointer ${categoryBtnClasses}`}
                                             >
                                                 {category}
                                             </button>
@@ -303,8 +360,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
                                 </div>
                             </div>
                         )}
-
-                        {/* 3. FABRIC SELECTOR EXPANDED */}
+                          {/* 3. FABRIC SELECTOR EXPANDED */}
                         {(isCategorySelected || isFiltersExpanded) && availableFabrics.length > 0 && (
                             <div className={`mt-2 ${!isCategorySelected ? `pt-3 border-t border-dashed ${isDark ? 'border-white/10' : 'border-gray-200'}` : ''}`}>
                                 <span className={`text-[10px] font-black uppercase tracking-wider mb-2 block ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Refinar por Tecido</span>
@@ -313,19 +369,56 @@ const SearchBar: React.FC<SearchBarProps> = ({
                                         const isFabricActive = selectedFabric === fabric;
                                         const fabricBtnClasses = isFabricActive
                                             ? (isDark ? 'bg-cyan-600 text-white border-transparent' : 'bg-teal-500 text-white border-transparent')
-                                            : (isDark ? 'bg-white/5 text-gray-300 border-white/5 hover:bg-white/10' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100');
+                                            : (isDark ? 'bg-white/5 text-gray-300 border-white/5 hover:bg-white/10' : 'bg-white text-gray-650 border-gray-200 hover:bg-gray-100');
 
                                         return (
                                             <button
                                                 key={fabric}
-                                                onClick={() => setSelectedFabric(fabric)}
+                                                onClick={() => {
+                                                    setSelectedFabric(fabric);
+                                                }}
                                                 className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all border ${fabricBtnClasses}`}
                                             >
-                                                {fabric}
+                                                {fabric === 'Todos os Tecidos' && selectedFabric !== 'Todos os Tecidos'
+                                                    ? getPluralFabricName(selectedFabric)
+                                                    : fabric}
                                             </button>
                                         );
                                     })}
                                 </div>
+
+                                {/* Subfiltro Waterblock para o tecido Belize */}
+                                {selectedFabric.toLowerCase().includes('belize') && (
+                                    <div className={`mt-3 pt-2.5 border-t border-dashed ${isDark ? 'border-white/5' : 'border-gray-200'} flex flex-col gap-1.5`}>
+                                        <span className={`text-[9px] font-extrabold uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Subfiltro Belize</span>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => setSubFilterWaterblock(false)}
+                                                className={`px-3 py-1 rounded-full text-[9px] font-bold transition-all border ${
+                                                    !subFilterWaterblock 
+                                                        ? (isDark ? 'bg-cyan-600 text-white border-transparent shadow shadow-cyan-900/30' : 'bg-teal-500 text-white border-transparent shadow shadow-teal-700/20')
+                                                        : (isDark ? 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200')
+                                                }`}
+                                            >
+                                                Todos os Belizes
+                                            </button>
+                                            <button 
+                                                onClick={() => setSubFilterWaterblock(true)}
+                                                className={`px-3 py-1 rounded-full text-[9px] font-bold transition-all border flex items-center gap-1 ${
+                                                    subFilterWaterblock 
+                                                        ? (isDark ? 'bg-fuchsia-600 text-white border-transparent shadow shadow-fuchsia-900/30' : 'bg-purple-600 text-white border-transparent shadow shadow-purple-700/20')
+                                                        : (isDark ? 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200')
+                                                }`}
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M6.267 3.455a.75.75 0 00-.75-.75H3.75a.75.75 0 00-.75.75v1.767c0 .907.36 1.777 1.002 2.418L10 13.626l5.998-5.998c.642-.641 1.002-1.511 1.002-2.418V3.455a.75.75 0 00-.75-.75h-1.767a.75.75 0 00-.75.75v1.767c0 .509-.202.998-.563 1.359L10 11.503l-3.17-3.172a1.922 1.922 0 01-.563-1.359V3.455z" clipRule="evenodd" />
+                                                    <path d="M10 13.626l-1.077 1.077a2.25 2.25 0 000 3.182c.422.422.986.655 1.577.655s1.155-.233 1.577-.655l-2.077-4.259z" />
+                                                </svg>
+                                                Waterblock (100% Impermeável)
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </motion.div>

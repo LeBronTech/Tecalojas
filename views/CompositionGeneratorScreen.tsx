@@ -158,6 +158,54 @@ const getBase64FromImageUrl = async (imageUrl: string): Promise<{ data: string; 
     }
 };
 
+const getRotatedBase64FromImageUrl = async (imageUrl: string, rotationAngle: number): Promise<{ data: string; mimeType: string }> => {
+    if (!rotationAngle || rotationAngle === 0) {
+        return getBase64FromImageUrl(imageUrl);
+    }
+    
+    return new Promise<{ data: string; mimeType: string }>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    reject(new Error('Falha ao obter o contexto do canvas.'));
+                    return;
+                }
+                
+                const angleRad = (rotationAngle * Math.PI) / 180;
+                const sin = Math.abs(Math.sin(angleRad));
+                const cos = Math.abs(Math.cos(angleRad));
+                const newWidth = Math.round(img.width * cos + img.height * sin);
+                const newHeight = Math.round(img.width * sin + img.height * cos);
+                
+                canvas.width = newWidth;
+                canvas.height = newHeight;
+                
+                // Translada e rotaciona
+                ctx.translate(newWidth / 2, newHeight / 2);
+                ctx.rotate(angleRad);
+                
+                // Desenha centralizado
+                ctx.drawImage(img, -img.width / 2, -img.height / 2);
+                
+                const dataUrl = canvas.toDataURL('image/png');
+                const parts = dataUrl.split(',');
+                const data = parts[1];
+                resolve({ mimeType: 'image/png', data });
+            } catch (err) {
+                reject(err);
+            }
+        };
+        img.onerror = () => {
+            getBase64FromImageUrl(imageUrl).then(resolve).catch(reject);
+        };
+        img.src = imageUrl;
+    });
+};
+
 const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({ products, onNavigate, savedCompositions, onSaveComposition }) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
@@ -697,6 +745,12 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                     const centerY = posY + drawH / 2;
                     ctx.translate(centerX, centerY);
 
+                    // Aplica rotação salva da almofada
+                    const rotationDeg = item.product.imageRotation || 0;
+                    if (rotationDeg !== 0) {
+                        ctx.rotate(rotationDeg * Math.PI / 180);
+                    }
+
                     // Apply zoom (from slots state)
                     const zoomVal = item.zoom ?? 140;
                     const zoomFactor = zoomVal / 100;
@@ -839,8 +893,29 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
             const nameRes = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: namePrompt });
             setGeneratedName(nameRes.text?.trim() || 'Nova Coleção');
 
-            const imageParts = await Promise.all(compItems.map(i => getBase64FromImageUrl(i.product.baseImageUrl).then(img => ({ inlineData: img }))));
-            const imagePrompt = `Crie uma foto de revista de decoração. Almofadas organizadas realisticamente em um sofá de ${selectedSofaFabric.name.toLowerCase()} cor ${selectedSofaColor.name.toLowerCase()}. Use estas almofadas: ${compItems.map(i => `${i.product.name} no tamanho ${i.size}`).join(', ')}. Iluminação quente de fim de tarde. Foco na textura do ${selectedSofaFabric.name}.`;
+            // Passa as imagens rotacionadas para a IA baseado na rotação atualizada do produto
+            const imageParts = await Promise.all(
+                compItems.map(i => 
+                    getRotatedBase64FromImageUrl(i.product.baseImageUrl, i.product.imageRotation || 0)
+                        .then(img => ({ inlineData: img }))
+                )
+            );
+
+            // Constrói descrição detalhada do alinhamento/orientação de estampas de cada almofada para o prompt da IA
+            const cushionsDesc = compItems.map(i => {
+                const rotation = i.product.imageRotation || 0;
+                let orientation = '';
+                if (rotation === 90 || rotation === 270) {
+                    orientation = ' (com estampa perfeitamente deitada/listras horizontais)';
+                } else if (rotation === 180) {
+                    orientation = ' (invertida de cabeça para baixo)';
+                } else {
+                    orientation = ' (com estampa em pé/sentido vertical padrão)';
+                }
+                return `${i.product.name} no tamanho ${i.size}${orientation}`;
+            }).join(', ');
+
+            const imagePrompt = `Crie uma foto de revista de decoração de alto padrão. Almofadas organizadas realisticamente e perfeitamente dispostas sobre um sofá de ${selectedSofaFabric.name.toLowerCase()} de cor ${selectedSofaColor.name.toLowerCase()}. Use estas almofadas na composição: ${cushionsDesc}. Preste extrema atenção à rotação e orientação do desenho das almofadas enviadas que foram rotacionadas (se enviamos a imagem deitada ou horizontal, o sofá deve conter a almofada exatamente com aquela estampa deitada/horizontal). Iluminação aconchegante de fim de tarde. Foco na textura luxuosa dos tecidos.`;
             
             const imgRes = await ai.models.generateContent({
                 model: 'gemini-2.5-flash-image',
@@ -1190,7 +1265,7 @@ const CompositionGeneratorScreen: React.FC<CompositionGeneratorScreenProps> = ({
                                                             height="100" 
                                                             preserveAspectRatio="xMidYMid slice"
                                                             style={{
-                                                                transform: `scale(${zoomPercent / 100}) translate(${offsetXPercent}%, ${offsetYPercent}%)`,
+                                                                transform: `scale(${zoomPercent / 100}) translate(${offsetXPercent}%, ${offsetYPercent}%) rotate(${slot.assignedProduct!.imageRotation || 0}deg)`,
                                                                 transformOrigin: 'center',
                                                                 transformBox: 'fill-box'
                                                             }}
