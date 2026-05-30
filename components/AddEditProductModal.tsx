@@ -1489,7 +1489,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                     </button>
                 </div>
 
-                <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar pr-2 -mr-2 space-y-6 pb-24">
+                <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar pr-2 -mr-2 space-y-6 pb-36">
                     {/* Main Image Section */}
                     <div className="flex flex-col gap-4">
                         <div className="flex items-start gap-4 justify-center">
@@ -1798,7 +1798,7 @@ const AddEditProductModal: React.FC<AddEditProductModalProps> = ({ product, prod
                                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isVariationsVisible ? 'rotate-180' : ''} ${isDark ? 'text-gray-400' : 'text-gray-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                             </button>
                         </div>
-                        <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isVariationsVisible ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                        <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isVariationsVisible ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'}`}>
                             <div className="space-y-3 pt-2">
                                 {formData.variations.map((v, i) => (
                                     <div key={v.size} className={`p-4 rounded-xl border ${cardClasses}`}>
