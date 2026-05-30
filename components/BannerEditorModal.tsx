@@ -224,7 +224,7 @@ export const BannerEditorModal: React.FC<BannerEditorModalProps> = ({ onClose, o
       <div className="absolute inset-0 cursor-default" onClick={onClose} />
       
       {/* Scroll-safe dialog box */}
-      <div className="bg-white dark:bg-zinc-900 rounded-3xl w-full max-w-2xl shadow-2xl relative border dark:border-white/10 flex flex-col max-h-[85vh] z-10 animate-fade-in-scale">
+      <div className="bg-white dark:bg-zinc-900 rounded-3xl w-full max-w-2xl shadow-2xl relative border dark:border-white/10 flex flex-col max-h-[75vh] z-10 animate-fade-in-scale">
         
         {/* Title Header - Fixed */}
         <div className="px-6 py-5 border-b border-gray-100 dark:border-white/10 flex justify-between items-center bg-gray-50/50 dark:bg-zinc-900/50 rounded-t-3xl">
