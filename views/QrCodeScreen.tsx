@@ -93,6 +93,7 @@ const PrintPreviewModal: React.FC<{
     const totalPages = Math.ceil(labels.length / LABELS_PER_PAGE);
     const [currentPageIndex, setCurrentPageIndex] = useState(0);
     const [activeSide, setActiveSide] = useState<'front' | 'back'>('front');
+    const [zoom, setZoom] = useState(0.55);
 
     const pageLabels = labels.slice(currentPageIndex * LABELS_PER_PAGE, (currentPageIndex + 1) * LABELS_PER_PAGE);
 
@@ -112,8 +113,30 @@ const PrintPreviewModal: React.FC<{
                         </p>
                     </div>
                     
-                    {/* Controles para Alternar Frente / Verso */}
+                    {/* Controles para Alternar Frente / Verso e Ajustar Zoom */}
                     <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+                        {/* Controle de Zoom */}
+                        <div className="flex items-center gap-1.5 border border-gray-200 dark:border-white/10 p-1.5 rounded-xl bg-black/5 dark:bg-white/5 mr-1">
+                            <span className={`text-[10px] font-black px-1.5 ${isDark ? 'text-gray-400' : 'text-gray-650'}`}>Zoom:</span>
+                            <button 
+                                onClick={() => setZoom(z => Math.max(0.35, z - 0.05))} 
+                                className={`p-1 w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center transition-all ${isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-gray-150 hover:bg-gray-250 text-gray-750'}`}
+                                title="Diminuir zoom"
+                            >
+                                -
+                            </button>
+                            <span className={`text-xs font-mono font-black min-w-[36px] text-center ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                {Math.round(zoom * 100)}%
+                            </span>
+                            <button 
+                                onClick={() => setZoom(z => Math.min(1.0, z + 0.05))} 
+                                className={`p-1 w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center transition-all ${isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-gray-150 hover:bg-gray-250 text-gray-755'}`}
+                                title="Aumentar zoom"
+                            >
+                                +
+                            </button>
+                        </div>
+
                         <button 
                             onClick={() => setActiveSide('front')}
                             className={`px-3 py-1 rounded-xl text-xs font-black transition-all ${
@@ -161,57 +184,70 @@ const PrintPreviewModal: React.FC<{
                 {/* Visualizador de Folha A4 em Escala Real Centrado */}
                 <div className="flex-grow overflow-auto p-4 md:p-6 rounded-2xl flex justify-start md:justify-center items-start border border-gray-100 dark:border-white/5 bg-gray-100 dark:bg-black/50 purple-scrollbar">
                     <div 
-                        className="relative bg-white shadow-2xl border border-gray-300 mx-auto transition-all flex-shrink-0"
-                        style={{
-                            width: '21cm',
-                            height: '29.7cm',
-                            padding: '0.85cm 0.5cm',
-                            boxSizing: 'border-box',
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            alignContent: 'flex-start',
-                            justifyContent: 'flex-start',
-                            gap: '0px'
+                        style={{ 
+                            width: `${21 * zoom}cm`, 
+                            height: `${29.7 * zoom}cm`, 
+                            overflow: 'hidden', 
+                            flexShrink: 0, 
+                            transition: 'all 0.15s ease-out' 
                         }}
                     >
-                        {Array.from({ length: 35 }).map((_, slotIdx) => {
-                            const label = pageLabels[slotIdx];
-                            return (
-                                <div 
-                                    key={slotIdx} 
-                                    style={{
-                                        width: '4cm',
-                                        height: '4cm',
-                                        boxSizing: 'border-box',
-                                        border: '1px dashed rgba(236, 72, 153, 0.15)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        overflow: 'hidden',
-                                        backgroundColor: '#fafafa',
-                                        position: 'relative'
-                                    }}
-                                >
-                                    {label ? (
-                                        activeSide === 'back' ? (
-                                            <PrintBackLabel isPreview={true} isDark={false} />
+                        <div 
+                            className="relative bg-white shadow-2xl border border-gray-300 mx-auto"
+                            style={{
+                                width: '21cm',
+                                height: '29.7cm',
+                                padding: '0.85cm 0.5cm',
+                                boxSizing: 'border-box',
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                alignContent: 'flex-start',
+                                justifyContent: 'flex-start',
+                                gap: '0px',
+                                transform: `scale(${zoom})`,
+                                transformOrigin: 'top left',
+                                transition: 'transform 0.15s ease-out'
+                            }}
+                        >
+                            {Array.from({ length: 35 }).map((_, slotIdx) => {
+                                const label = pageLabels[slotIdx];
+                                return (
+                                    <div 
+                                        key={slotIdx} 
+                                        style={{
+                                            width: '4cm',
+                                            height: '4cm',
+                                            boxSizing: 'border-box',
+                                            border: '1px dashed rgba(236, 72, 153, 0.15)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            overflow: 'hidden',
+                                            backgroundColor: '#fafafa',
+                                            position: 'relative'
+                                        }}
+                                    >
+                                        {label ? (
+                                            activeSide === 'back' ? (
+                                                <PrintBackLabel isPreview={true} isDark={false} />
+                                            ) : (
+                                                <PrintLabel 
+                                                    product={label.product} 
+                                                    size={label.size} 
+                                                    qrCodeUrl={label.qrCodeUrl} 
+                                                    isPreview={false}
+                                                    showPrice={label.showPrice}
+                                                />
+                                            )
                                         ) : (
-                                            <PrintLabel 
-                                                product={label.product} 
-                                                size={label.size} 
-                                                qrCodeUrl={label.qrCodeUrl} 
-                                                isPreview={false}
-                                                showPrice={label.showPrice}
-                                            />
-                                        )
-                                    ) : (
-                                        <div className="text-[9px] text-gray-300/80 font-bold font-mono text-center select-none">
-                                            {slotIdx + 1}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                            <div className="text-[9px] text-gray-300/80 font-bold font-mono text-center select-none">
+                                                {slotIdx + 1}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
@@ -318,21 +354,21 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
         <>
             <div className="h-full w-full flex flex-col relative overflow-hidden">
                 {/* Área de Rolagem Unificada */}
-                <main className="flex-grow overflow-y-auto px-6 pt-24 pb-52 md:pb-52 no-scrollbar z-10 w-full animate-fadeIn">
-                    <div className="max-w-4xl mx-auto">
+                <main className="flex-grow overflow-y-auto px-4 md:px-8 pt-24 pb-52 md:pb-52 no-scrollbar z-10 w-full animate-fadeIn">
+                    <div className="max-w-7xl mx-auto">
                         {/* Título e Descrição que agora rolam para cima */}
-                        <div className="mb-3.5">
-                            <h1 className={`text-lg font-black tracking-tight mb-0.5 ${titleClasses}`}>Etiquetas QR Code</h1>
-                            <p className={`text-[11px] ml-0.5 mb-1 ${subtitleClasses}`}>Gere e imprima etiquetas em rolo ou páginas oficiais para os seus produtos.</p>
+                        <div className="mb-3.5 md:mb-5">
+                            <h1 className={`text-lg md:text-2xl font-black tracking-tight mb-0.5 md:mb-1 ${titleClasses}`}>Etiquetas QR Code</h1>
+                            <p className={`text-[11px] md:text-sm ml-0.5 mb-1 ${subtitleClasses}`}>Gere e imprima etiquetas em rolo ou páginas oficiais para os seus produtos.</p>
                         </div>
                         
                         {/* Barra Unificada de Pesquisa e Fila que fica FIXA (Sticky) no topo correto abaixo do Header global */}
-                        <div className={`sticky top-[0.1px] z-30 flex flex-row items-center justify-between gap-3 mb-4 py-2 px-3 rounded-2xl shadow-lg border backdrop-blur-md transition-all duration-300 ${isDark ? 'bg-black/85 border-white/10 shadow-black/40' : 'bg-white/95 border-fuchsia-100/40 shadow-fuchsia-200/10'}`}>
+                        <div className={`sticky top-[0.1px] z-30 flex flex-row items-center justify-between gap-3 mb-4 md:mb-6 py-2 px-3 md:py-3 md:px-4 rounded-2xl shadow-lg border backdrop-blur-md transition-all duration-300 ${isDark ? 'bg-black/85 border-white/10 shadow-black/40' : 'bg-white/95 border-fuchsia-100/40 shadow-fuchsia-200/10'}`}>
                             
                             {/* Campo de Pesquisa Unificado */}
                             <div className={`relative transition-all duration-300 ${isSearchFocused ? 'w-full' : 'w-[45%] md:w-[40%]'}`}>
-                                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none text-gray-450 dark:text-gray-500">
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 md:pl-3.5 pointer-events-none text-gray-450 dark:text-gray-500">
+                                    <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                     </svg>
                                 </span>
@@ -346,7 +382,7 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                         // Pequeno timeout para permitir cliques em botões (ex: limpar pesquisa)
                                         setTimeout(() => setIsSearchFocused(false), 200);
                                     }}
-                                    className={`w-full pl-8 pr-8 py-1.5 text-xs rounded-xl focus:outline-none transition-all ${
+                                    className={`w-full pl-8 md:pl-11 pr-8 py-1.5 md:py-2.5 text-xs md:text-sm rounded-xl focus:outline-none transition-all ${
                                         isDark 
                                             ? 'bg-black/30 placeholder-gray-500 text-white focus:bg-black/45 border border-white/5 focus:border-fuchsia-500/50' 
                                             : 'bg-gray-50 placeholder-gray-400 text-black shadow-inner border border-gray-150 focus:border-purple-500/50'
@@ -355,9 +391,9 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                 {searchQuery && (
                                     <button 
                                         onClick={() => setSearchQuery('')}
-                                        className="absolute inset-y-0 right-0 flex items-center pr-2 text-gray-450 hover:text-gray-650 transition-colors"
+                                        className="absolute inset-y-0 right-0 flex items-center pr-2 md:pr-3 text-gray-450 hover:text-gray-650 transition-colors"
                                     >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                         </svg>
                                     </button>
@@ -366,18 +402,18 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
 
                             {/* Fila de Impressão (Fica oculta se focado, de forma super suave) */}
                             {!isSearchFocused && (
-                                <div className="flex flex-row items-center justify-end gap-1.5 md:gap-3 flex-grow transition-all duration-300">
-                                    <div className="flex items-center gap-1">
-                                        <span className={`font-black text-[10px] md:text-xs whitespace-nowrap ${titleClasses}`}>Fila</span>
-                                        <span className="bg-fuchsia-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full shadow-sm animate-pulse">
+                                <div className="flex flex-row items-center justify-end gap-1.5 md:gap-4 flex-grow transition-all duration-300">
+                                    <div className="flex items-center gap-1 md:gap-2">
+                                        <span className={`font-black text-[10px] md:text-[13px] whitespace-nowrap ${titleClasses}`}>Fila</span>
+                                        <span className="bg-fuchsia-500 text-white font-black text-[9px] md:text-xs px-1.5 py-0.5 md:px-2.5 md:py-1 rounded-full shadow-sm animate-pulse">
                                             {printQueue.length}
                                         </span>
                                     </div>
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-1.5 md:gap-2.5">
                                         {printQueue.length > 0 && (
                                             <button 
                                                 onClick={() => { setPrintQueue([]); setQuantities({})}} 
-                                                className="bg-red-500/10 hover:bg-red-500/20 text-red-500 dark:text-red-400 font-extrabold py-1 px-1.5 rounded-lg text-[9px] transition-colors"
+                                                className="bg-red-500/10 hover:bg-red-500/20 text-red-500 dark:text-red-400 font-extrabold py-1 px-1.5 md:px-3 md:py-1.5 rounded-lg md:rounded-xl text-[9px] md:text-[11px] transition-colors"
                                             >
                                                 Limpar
                                             </button>
@@ -385,7 +421,7 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                         <button 
                                             onClick={() => setIsPreviewing(true)} 
                                             disabled={printQueue.length === 0} 
-                                            className="bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-400 text-white font-extrabold py-1 px-2 md:px-3 rounded-lg text-[9px] transition-all disabled:cursor-not-allowed shadow-md"
+                                            className="bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-400 text-white font-extrabold py-1 px-2 md:px-4 md:py-1.5 rounded-lg md:rounded-xl text-[9px] md:text-[11px] transition-all disabled:cursor-not-allowed shadow-md"
                                         >
                                             Ver e Imprimir
                                         </button>
@@ -395,7 +431,7 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                         </div>
 
                         {/* Listagem em Grid Lado a Lado (Otimizada para menos espaço e alta densidade) */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 md:gap-5">
                             {filteredProductsWithQr.map((product, index) => {
                                 const isEven = index % 2 === 0;
                                 const customCardBg = isDark
@@ -403,12 +439,12 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                     : (isEven ? 'bg-pink-50/70 border-pink-100 shadow-sm shadow-pink-100/10' : 'bg-white border-gray-200 shadow-sm');
                                 
                                 return (
-                                    <div key={product.id} className={`p-3 rounded-2xl flex flex-col ${customCardBg} border transition-all duration-300 hover:shadow-md`}>
+                                    <div key={product.id} className={`p-3 md:p-4 rounded-2xl flex flex-col ${customCardBg} border transition-all duration-300 hover:shadow-md`}>
                                         <div className="flex items-center gap-3 mb-2.5 pb-2 border-b border-gray-100 dark:border-white/5">
-                                            <img src={product.baseImageUrl} alt={product.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-                                            <h3 className={`font-extrabold text-xs leading-tight line-clamp-2 ${titleClasses}`}>{product.name}</h3>
+                                            <img src={product.baseImageUrl} alt={product.name} className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl object-cover flex-shrink-0" />
+                                            <h3 className={`font-extrabold text-xs md:text-sm leading-tight line-clamp-2 ${titleClasses}`}>{product.name}</h3>
                                         </div>
-                                        <div className="space-y-1.5 flex-grow">
+                                        <div className="space-y-1.5 md:space-y-2.5 flex-grow">
                                             {product.variations.map(variation => {
                                                 const key = `${product.id}-${variation.size}`;
                                                 const quantity = Number(quantities[key] || 0);
@@ -416,17 +452,17 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                                 const showPriceForVar = priceSelections[key] !== false;
                                                 
                                                 return (
-                                                    <div key={key} className={`flex items-center justify-between gap-2 p-1.5 rounded-xl ${isDark ? 'bg-black/25' : 'bg-gray-50'}`}>
+                                                    <div key={key} className={`flex items-center justify-between gap-2 p-1.5 md:p-2 rounded-xl ${isDark ? 'bg-black/25' : 'bg-gray-50'}`}>
                                                         <div className="flex items-center gap-2">
                                                             <div className="p-0.5 bg-white rounded flex-shrink-0">
-                                                              <img src={variation.qrCodeUrl} alt="QR" className="w-7 h-7"/>
+                                                              <img src={variation.qrCodeUrl} alt="QR" className="w-7 h-7 md:w-9 md:h-9"/>
                                                             </div>
-                                                            <span className={`font-black text-xs ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>{variation.size}</span>
+                                                            <span className={`font-black text-xs md:text-sm ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>{variation.size}</span>
                                                         </div>
                                                         
-                                                        <div className="flex items-center gap-1.5">
+                                                        <div className="flex items-center gap-1.5 md:gap-2">
                                                             {/* Seletor de Quantidade Incremental (- e +) */}
-                                                            <div className="flex items-center border border-gray-300 dark:border-white/10 rounded-lg overflow-hidden bg-white/50 dark:bg-black/20 h-7">
+                                                            <div className="flex items-center border border-gray-300 dark:border-white/10 rounded-lg overflow-hidden bg-white/50 dark:bg-black/20 h-7 md:h-9">
                                                                 <button 
                                                                     onClick={() => {
                                                                         const currentVal = Number(quantities[key] || 0);
@@ -435,7 +471,7 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                                                         }
                                                                     }}
                                                                     type="button"
-                                                                    className={`w-6 h-full flex items-center justify-center font-black text-xs transition-colors ${isDark ? 'hover:bg-white/10 text-white' : 'hover:bg-black/5 text-gray-700'}`}
+                                                                    className={`w-6 md:w-8 h-full flex items-center justify-center font-black text-xs md:text-sm transition-colors ${isDark ? 'hover:bg-white/10 text-white' : 'hover:bg-black/5 text-gray-700'}`}
                                                                 >
                                                                     -
                                                                 </button>
@@ -453,7 +489,7 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                                                             handleQuantityChange(key, val);
                                                                         }
                                                                     }}
-                                                                    className="w-7 text-center font-extrabold text-[11px] bg-transparent border-none outline-none focus:ring-0 p-0"
+                                                                    className="w-7 md:w-10 text-center font-extrabold md:font-black text-[11px] md:text-sm bg-transparent border-none outline-none focus:ring-0 p-0"
                                                                 />
                                                                 <button 
                                                                     onClick={() => {
@@ -461,22 +497,22 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                                                         handleQuantityChange(key, String(currentVal + 1));
                                                                     }}
                                                                     type="button"
-                                                                    className={`w-6 h-full flex items-center justify-center font-black text-xs transition-colors ${isDark ? 'hover:bg-white/10 text-white' : 'hover:bg-black/5 text-gray-700'}`}
+                                                                    className={`w-6 md:w-8 h-full flex items-center justify-center font-black text-xs md:text-sm transition-colors ${isDark ? 'hover:bg-white/10 text-white' : 'hover:bg-black/5 text-gray-700'}`}
                                                                 >
                                                                     +
                                                                 </button>
                                                             </div>
-    
+     
                                                             {addConfirmation[key] ? (
-                                                                 <div className="flex items-center justify-center w-14 h-7 bg-green-500/25 rounded-lg border border-green-500/30">
-                                                                    <svg className="h-4 w-4 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                 <div className="flex items-center justify-center w-14 md:w-20 h-7 md:h-9 bg-green-500/25 rounded-lg border border-green-500/30">
+                                                                    <svg className="h-4 w-4 md:h-5 md:w-5 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                                                     </svg>
                                                                 </div>
                                                             ) : (
                                                                  <>
                                                                     {isButtonActive && (
-                                                                        <label className="flex items-center gap-1 cursor-pointer select-none py-1 px-2 rounded-lg border border-gray-300 dark:border-white/10 bg-white/50 dark:bg-black/20 hover:bg-white/80 dark:hover:bg-white/10 transition-all text-[10px] font-black h-7 shrink-0 animate-fadeIn">
+                                                                        <label className="flex items-center gap-1 cursor-pointer select-none py-1 px-2 rounded-lg border border-gray-300 dark:border-white/10 bg-white/50 dark:bg-black/20 hover:bg-white/80 dark:hover:bg-white/10 transition-all text-[10px] md:text-xs font-black h-7 md:h-9 shrink-0 animate-fadeIn">
                                                                             <input 
                                                                                 type="checkbox"
                                                                                 checked={showPriceForVar}
@@ -489,7 +525,7 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                                                     <button
                                                                         onClick={() => handleAddToQueue(product, variation)}
                                                                         disabled={!isButtonActive}
-                                                                        className={`font-black rounded-lg text-[10px] transition-all duration-200 w-14 h-7 flex items-center justify-center shrink-0 ${
+                                                                        className={`font-black rounded-lg text-[10px] md:text-xs transition-all duration-200 w-14 md:w-20 h-7 md:h-9 flex items-center justify-center shrink-0 ${
                                                                             isButtonActive
                                                                             ? 'bg-purple-600 hover:bg-purple-700 text-white shadow shadow-purple-600/20'
                                                                             : (isDark ? 'bg-black/10 text-gray-600' : 'bg-gray-200 text-gray-400')
@@ -498,7 +534,7 @@ const QrCodeScreen: React.FC<{ products: Product[] }> = ({ products }) => {
                                                                         Add
                                                                     </button>
                                                                  </>
-                                                            )}
+                                                             )}
                                                         </div>
                                                     </div>
                                                 );
