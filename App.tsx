@@ -59,6 +59,9 @@ const App: React.FC = () => {
   const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
+  const lastReceivedCompositionsRef = React.useRef<string>("");
+  const lastSavedCompositionsRef = React.useRef<string>("");
+  
   // Modals & Editing
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
@@ -92,10 +95,6 @@ const App: React.FC = () => {
     const unsubCategories = api.onCategoriesUpdate(setCategories, console.error);
     const unsubBanners = api.onBannersUpdate(setBanners, console.error);
     const unsubSettings = api.onSettingsUpdate(setSettings, console.error);
-    let unsubCompositions: () => void;
-    if (currentUser) {
-      unsubCompositions = api.onSavedCompositionsUpdate(currentUser.uid, setSavedCompositions, console.error);
-    }
 
     // Deep Link
     const params = new URLSearchParams(window.location.search);
@@ -107,13 +106,41 @@ const App: React.FC = () => {
         unsubProducts();
         unsubBrands(); unsubCatalogs();
         unsubCategories(); unsubBanners(); unsubSettings();
-        if (unsubCompositions) unsubCompositions();
     };
   }, []);
 
-  // Load Data (Admin Only) - Prevents permission denied errors for guests
+  // Monitor e carrega as composições salvas do usuário atual baseado no estado de login
+  useEffect(() => {
+    if (!currentUser) {
+      setSavedCompositions([]);
+      lastReceivedCompositionsRef.current = "";
+      lastSavedCompositionsRef.current = "";
+      return;
+    }
+
+    const unsubCompositions = api.onSavedCompositionsUpdate(
+      currentUser.uid, 
+      (data) => {
+        const strVal = JSON.stringify(data);
+        lastReceivedCompositionsRef.current = strVal;
+        setSavedCompositions(data);
+      }, 
+      console.error
+    );
+
+    return () => {
+      unsubCompositions();
+    };
+  }, [currentUser]);
+
+  // Salva alterações de composições no banco de dados de forma segura (previne loop infinito)
   useEffect(() => {
     if (currentUser && savedCompositions.length > 0) {
+      const strVal = JSON.stringify(savedCompositions);
+      if (strVal === lastReceivedCompositionsRef.current || strVal === lastSavedCompositionsRef.current) {
+        return;
+      }
+      lastSavedCompositionsRef.current = strVal;
       api.saveUserCompositions(currentUser.uid, savedCompositions);
     }
   }, [savedCompositions, currentUser]);
