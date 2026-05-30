@@ -852,6 +852,50 @@ interface ShowcaseScreenProps {
   banners?: Banner[];
 }
 
+const getCompositionDescription = (slide: any) => {
+  if (!slide) return '';
+  const titleLower = (slide.title || '').toLowerCase();
+  
+  if (titleLower.includes('belize') || titleLower.includes('verde') || titleLower.includes('bélize') || slide.items?.some((it: any) => (it.fabric || '').toLowerCase().includes('belize') || (it.name || '').toLowerCase().includes('belize'))) {
+    return 'Confeccionada no legítimo Tecido Belize (Döhler), com tratamento de proteção contra água, sujeira e manchas, ideal para áreas de destaque.';
+  }
+  
+  if (titleLower.includes('vinho') || titleLower.includes('jacquard')) {
+    return 'Composição em tecido Jacquard e Linho com toque ricamente texturizado e acabamento de alto padrão, ideal para salas de estar elegantes.';
+  }
+  
+  if (titleLower.includes('costela') || titleLower.includes('trança') || titleLower.includes('bege')) {
+    return 'Harmonia com folhagens e detalhes em trança de algodão sobre linho rústico encorpado, criando um clima fresco, aconchegante e natural.';
+  }
+  
+  if (slide.items && slide.items.length > 0) {
+    const fabrics = Array.from(new Set(slide.items.map((it: any) => it.fabric || 'Tecido')));
+    return `Composição de alto padrão desenvolvida pela Lojas Têca, elaborada com tecidos premium de alta gramatura (${fabrics.join(' e ')}).`;
+  }
+  
+  return 'Desenvolvida por Lojas Têca com tecidos de alta qualidade e design planejado para harmonizar seu ambiente.';
+};
+
+const getBrandForSlide = (slide: any) => {
+  if (!slide) return null;
+  const titleLower = (slide.title || '').toLowerCase();
+  
+  const hasBelize = titleLower.includes('belize') || titleLower.includes('bélize') || titleLower.includes('verde') || slide.items?.some((it: any) => {
+    const fLower = (it.fabric || '').toLowerCase();
+    const nLower = (it.name || '').toLowerCase();
+    return fLower.includes('belize') || nLower.includes('belize') || fLower.includes('dohler') || fLower.includes('döhler');
+  });
+  
+  if (hasBelize) {
+    return {
+      name: 'Döhler',
+      logo: 'https://i.postimg.cc/G3k2G58y/image.png'
+    };
+  }
+  
+  return null;
+};
+
 const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({ 
     isSearchOpen, 
     setIsSearchOpen,
@@ -1544,6 +1588,10 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
               {/* --- PREMIUM IA ENVIRONMENT BANNER CAROUSEL --- */}
               {activeBanners.length > 0 && (
                 <div className="relative mt-1 mb-4 w-full h-36 sm:h-44 md:h-52 flex-shrink-0 border border-fuchsia-400/80 dark:border-fuchsia-500/40 rounded-3xl flex flex-col items-center justify-center overflow-hidden bg-fuchsia-500/5 dark:bg-fuchsia-950/5 select-none touch-pan-y shadow-md">
+                  
+                  {/* Top Elegant Rose Accent Line ("Top Rosado") */}
+                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-pink-400 via-fuchsia-500 to-rose-400 z-30 pointer-events-none" />
+
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={activeBannerIndex}
@@ -1564,7 +1612,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ duration: 0.6, ease: [0.25, 1, 0.5, 1] }}
-                      className="absolute inset-0 w-full h-full cursor-pointer flex flex-col justify-end p-4 items-center transition-all"
+                      className="absolute inset-0 w-full h-full cursor-pointer flex flex-col justify-end p-3.5 sm:p-4 items-start transition-all bg-black/10"
                     >
                       {/* Background Slide Image with Cinematic Ken Burns Zoom-Out (Afastamento) */}
                       <motion.img 
@@ -1588,26 +1636,75 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
                         }}
                       />
                       
-                      {/* Subtle shadow overlay gradient */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent pointer-events-none" />
+                      {/* Perfectly smooth, full-bleed corner vignette overlay with zero visible borders */}
+                      {(() => {
+                        const slide = activeBanners[activeBannerIndex];
+                        const titleLower = (slide?.title || '').toLowerCase();
+                        const isBelizeVerdes = titleLower.includes('belize') || titleLower.includes('verde') || titleLower.includes('bélize') || slide?.items?.some((it: any) => (it.fabric || '').toLowerCase().includes('belize') || (it.name || '').toLowerCase().includes('belize'));
+                        
+                        if (isBelizeVerdes) {
+                          // Top-right aligned smooth full-bleed vignette transition
+                          return (
+                            <div className="absolute inset-0 bg-gradient-to-bl from-black/85 via-black/25 via-45% to-transparent pointer-events-none z-10" />
+                          );
+                        } else {
+                          // Bottom-left aligned smooth full-bleed vignette transition
+                          return (
+                            <div className="absolute inset-0 bg-gradient-to-tr from-black/85 via-black/25 via-45% to-transparent pointer-events-none z-10" />
+                          );
+                        }
+                      })()}
 
-                      {/* Content - Just the title */}
-                      <div className="relative z-10 pb-4 text-center">
-                        <h3 className="text-white font-medium text-lg sm:text-xl tracking-tight">
-                          {activeBanners[activeBannerIndex]?.title}
-                        </h3>
-                      </div>
+                      {/* Content - Title and Description */}
+                      {(() => {
+                        const slide = activeBanners[activeBannerIndex];
+                        const titleLower = (slide?.title || '').toLowerCase();
+                        const isBelizeVerdes = titleLower.includes('belize') || titleLower.includes('verde') || titleLower.includes('bélize') || slide?.items?.some((it: any) => (it.fabric || '').toLowerCase().includes('belize') || (it.name || '').toLowerCase().includes('belize'));
+                        
+                        return (
+                          <div className={`absolute z-20 select-none flex flex-col max-w-[76%] sm:max-w-[65%] ${
+                            isBelizeVerdes 
+                              ? 'top-4 sm:top-5 right-3.5 sm:right-5 items-end text-right' 
+                              : 'bottom-3 sm:bottom-4 left-3.5 sm:left-4 items-start text-left'
+                          }`}>
+                            {(() => {
+                              const desc = getCompositionDescription(slide);
+                              const brand = getBrandForSlide(slide);
+                              return (
+                                <>
+                                  <div className={`flex items-center gap-1.5 flex-wrap mb-0.5 ${isBelizeVerdes ? 'flex-row-reverse' : ''}`}>
+                                    <h3 className="text-white font-black text-xs sm:text-[13px] md:text-sm tracking-tight drop-shadow-md">
+                                      {slide?.title}
+                                    </h3>
+                                    {brand && (
+                                      <div className="flex items-center gap-0.5 bg-black/45 backdrop-blur-xs border border-white/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                                        <img src={brand.logo} alt={brand.name} className="w-2.5 h-2.5 rounded-full object-contain bg-white p-px shadow-xs" />
+                                        <span className="text-[6px] font-extrabold tracking-wider text-rose-300 uppercase leading-none">
+                                          {brand.name}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <p className="text-[8px] sm:text-[9.5px] text-rose-100/85 font-medium leading-normal max-w-[95%] drop-shadow-sm select-none">
+                                    {desc}
+                                  </p>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        );
+                      })()}
                     </motion.div>
                   </AnimatePresence>
 
                   {/* Pagination Dots at bottom */}
                   {activeBanners.length > 1 && (
-                    <div className="absolute bottom-3 right-5 flex items-center gap-1.5 z-20">
+                    <div className="absolute bottom-2.5 right-3 flex items-center gap-1 z-20 bg-rose-950/30 backdrop-blur-md border border-rose-300/10 px-1.5 py-1 rounded-full shadow-lg">
                       {activeBanners.map((_, dotIdx) => (
                         <button
                           key={dotIdx}
                           onClick={(e) => { e.stopPropagation(); setActiveBannerIndex(dotIdx); }}
-                          className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${dotIdx === activeBannerIndex ? 'w-4.5 bg-fuchsia-500' : 'w-1.5 bg-white/40 hover:bg-white/60'}`}
+                          className={`h-1 rounded-full transition-all duration-300 cursor-pointer ${dotIdx === activeBannerIndex ? 'w-3.5 bg-rose-400 shadow-[0_0_5px_rgba(244,63,94,0.5)]' : 'w-1 bg-white/45 hover:bg-white/70'}`}
                           aria-label={`Slide ${dotIdx + 1}`}
                         />
                       ))}
@@ -1642,7 +1739,9 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
               </div>
           </main>
       </div>
-      <FloatingActionButtons onNavigate={onNavigate} isSearchOpen={isSearchOpen || isSearchFocused || searchQuery.trim() !== ''} scrollTop={scrollTop} />
+      {!selectedBannerComposition && (
+        <FloatingActionButtons onNavigate={onNavigate} isSearchOpen={isSearchOpen || isSearchFocused || searchQuery.trim() !== ''} scrollTop={scrollTop} />
+      )}
       {selectedProduct && (
           <ProductDetailModal
               product={selectedProduct}
@@ -1724,6 +1823,36 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
 
               {/* List of cushions & Prices below the image */}
               <div className="p-5 overflow-y-auto flex-grow flex flex-col gap-4 no-scrollbar">
+                
+                {/* Dynamically show the composition fine-print & brand if defined */}
+                {(() => {
+                  const desc = getCompositionDescription(selectedBannerComposition);
+                  const brand = getBrandForSlide(selectedBannerComposition);
+                  if (!desc && !brand) return null;
+                  return (
+                    <div className={`p-4 rounded-2xl border flex flex-col gap-2 ${
+                      isDark ? 'bg-zinc-900/40 border-white/5 text-gray-300' : 'bg-rose-50/40 border-rose-100/30 text-gray-700'
+                    }`}>
+                      {brand && (
+                        <div className="flex items-center gap-2 mb-0.5 select-none">
+                          <img src={brand.logo} alt={brand.name} className="w-5 h-5 rounded-full object-contain bg-white p-0.5 border shadow-sm" />
+                          <div className="flex flex-col">
+                            <span className="text-[10px] uppercase font-black tracking-widest text-rose-600 dark:text-rose-400">
+                              Tecidos {brand.name}
+                            </span>
+                            <span className="text-[9px] text-gray-400 font-semibold">Parceiro de Alta Durabilidade</span>
+                          </div>
+                        </div>
+                      )}
+                      {desc && (
+                        <p className="text-xs font-semibold leading-relaxed italic text-gray-500 dark:text-gray-400">
+                          "{desc}"
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <h3 className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   Almofadas da Composição (Selecione para ver detalhes):
                 </h3>
