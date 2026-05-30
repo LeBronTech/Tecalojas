@@ -952,13 +952,6 @@ export const saveUserCompositions = async (userId: string, compositions: SavedCo
   // Clone profundo para evitar efeitos colaterais reativos no estado do React
   const sanitizedCompositions: SavedComposition[] = JSON.parse(JSON.stringify(compositions));
   
-  const base64UploadTasks: {
-    compositionId: string;
-    field: 'imageUrl' | 'imageUrls';
-    index?: number;
-    base64Str: string;
-  }[] = [];
-  
   // 1. Limpa todas as informações pesadas redundantes dos objetos de produtos internos das composições (reduz tamanho em até 98%)
   for (const c of sanitizedCompositions) {
     if (c.products && Array.isArray(c.products)) {
@@ -977,75 +970,12 @@ export const saveUserCompositions = async (userId: string, compositions: SavedCo
         };
       });
     }
-
-    // 2. Identifica todas as strings Base64 gigantescas e substitui por uma URL placeholder para gravação imediata leve
-    if (c.imageUrl && c.imageUrl.startsWith('data:')) {
-      const b64 = c.imageUrl;
-      c.imageUrl = "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"; // Placeholder provisório leve
-      base64UploadTasks.push({
-        compositionId: c.id,
-        field: 'imageUrl',
-        base64Str: b64
-      });
-    }
-    
-    if (c.imageUrls && Array.isArray(c.imageUrls)) {
-      for (let i = 0; i < c.imageUrls.length; i++) {
-        const url = c.imageUrls[i];
-        if (url && url.startsWith('data:')) {
-          c.imageUrls[i] = "https://i.postimg.cc/CKhft4jg/Logo-lojas-teca-20251017-210317-0000.png"; // Placeholder provisório leve
-          base64UploadTasks.push({
-            compositionId: c.id,
-            field: 'imageUrls',
-            index: i,
-            base64Str: url
-          });
-        }
-      }
-    }
   }
   
-  // 3. Grava imediatamente o documento limpo (extremamente leve - menos de 5KB) para desbloquear o usuário e sumir com o erro do Firestore
+  // 2. Grava imediatamente o documento limpo preservando a imagem base64 na área de dados do Firestore
   try {
       await setDoc(userCompositionsDoc, { compositions: sanitizedCompositions });
   } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'user_compositions/' + userId);
-  }
-  
-  // 4. Se houver uploads pendentes, executa o upload em segundo plano para o Storage e depois atualiza o doc com as URLs finais
-  if (base64UploadTasks.length > 0) {
-    console.log(`[saveUserCompositions] Detectadas ${base64UploadTasks.length} imagens em Base64. Iniciando upload em segundo plano para o Storage...`);
-    
-    (async () => {
-      try {
-        const updatedCompositions = [...sanitizedCompositions];
-        
-        for (const task of base64UploadTasks) {
-          const storagePath = `user_compositions/${userId}/${task.compositionId}/${task.field}_${task.index !== undefined ? task.index : 'main'}_${Date.now()}.jpg`;
-          try {
-            const { promise } = uploadBase64Image(storagePath, task.base64Str);
-            const downloadUrl = await promise;
-            
-            // Localiza a composição para atualizar seu campo de imagem
-            const compIndex = updatedCompositions.findIndex(c => c.id === task.compositionId);
-            if (compIndex !== -1) {
-              if (task.field === 'imageUrl') {
-                updatedCompositions[compIndex].imageUrl = downloadUrl;
-              } else if (task.field === 'imageUrls' && task.index !== undefined && updatedCompositions[compIndex].imageUrls) {
-                updatedCompositions[compIndex].imageUrls![task.index] = downloadUrl;
-              }
-            }
-          } catch (uploadErr) {
-            console.error(`[saveUserCompositions] Falha ao fazer upload da imagem ${storagePath}:`, uploadErr);
-          }
-        }
-        
-        // Grava de volta no Firestore com as URLs otimizadas do Firebase Storage
-        await setDoc(userCompositionsDoc, { compositions: updatedCompositions });
-        console.log(`[saveUserCompositions] Todos os uploads de background concluídos! Documento atualizado.`);
-      } catch (err) {
-        console.error("[saveUserCompositions] Falha geral no processamento assíncrono das imagens:", err);
-      }
-    })();
   }
 };

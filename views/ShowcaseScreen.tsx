@@ -1512,7 +1512,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
                 </div>
               )}
                <div className="mt-4 mb-6">
-                  <h1 className="text-xl sm:text-2xl font-light text-purple-900/85 dark:text-purple-300/85">
+                  <h1 className="text-xl sm:text-2xl font-light text-purple-900/85 dark:text-purple-300/85 text-center">
                     Bem vindo a <span className="font-semibold text-purple-700 dark:text-purple-400 whitespace-nowrap">Têca Decorações</span>
                   </h1>
               </div>

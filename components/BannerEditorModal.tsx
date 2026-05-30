@@ -175,122 +175,35 @@ export const BannerEditorModal: React.FC<BannerEditorModalProps> = ({ onClose, o
     }
 
     let finalImageUrl = imageUrl;
-    let fileToUpload: File | null = null;
 
     if (bgType === 'gallery') {
       if (uploadFileObj) {
-        fileToUpload = uploadFileObj;
+        setIsUploading(true);
+        setUploadProgress(30);
+        try {
+          finalImageUrl = await fileToBase64(uploadFileObj);
+          setUploadProgress(100);
+        } catch (e) {
+          console.error("Erro ao converter arquivo para base64:", e);
+          alert("Falha ao processar arquivo de imagem");
+          setIsUploading(false);
+          return;
+        }
+        setIsUploading(false);
       } else if (!imageUrl) {
         alert('Selecione uma foto da galeria ou insira uma URL para a imagem final');
         return;
       }
-    } else if (bgType === 'ai') {
+    } else {
       if (!imageUrl) {
-        alert('Por favor, clique em "Gerar Imagem com IA" para criar o cenário do banner antes de salvar!');
-        return;
-      }
-      if (imageUrl.startsWith('data:')) {
-        try {
-          const blob = base64ToBlob(imageUrl, 'image/jpeg');
-          fileToUpload = new File([blob], `ai_banner_${Date.now()}.jpg`, { type: 'image/jpeg' });
-        } catch (e) {
-          console.error("Erro ao converter imagem de IA para arquivo:", e);
+        if (bgType === 'ai') {
+          alert('Por favor, clique em "Gerar Imagem com IA" para criar o cenário do banner antes de salvar!');
+        } else {
+          alert('Por favor, insira uma URL de imagem válida');
         }
-      }
-    } else if (bgType === 'url') {
-      if (!imageUrl) {
-        alert('Por favor, insira uma URL de imagem válida');
         return;
       }
-      if (imageUrl.startsWith('data:')) {
-        try {
-          const blob = base64ToBlob(imageUrl, 'image/jpeg');
-          fileToUpload = new File([blob], `url_banner_${Date.now()}.jpg`, { type: 'image/jpeg' });
-        } catch (e) {
-          console.error("Erro ao converter imagem base64 para arquivo:", e);
-        }
-      }
-    }
-
-    if (fileToUpload) {
-      setIsUploading(true);
-      setUploadProgress(0);
-
-      const targetFile = fileToUpload;
-
-      const uploadWithFallback = async (): Promise<string> => {
-        return new Promise<string>(async (resolve, reject) => {
-          let progressIsAdvancing = false;
-          let active = true;
-
-          // Tentativa de upload no Firebase Storage normal
-          const { promise, cancel } = uploadFile(`banners/${Date.now()}_${targetFile.name}`, targetFile, (progress) => {
-            if (active) {
-              const roundedProgress = Math.round(progress);
-              setUploadProgress(roundedProgress);
-              if (roundedProgress > 0) {
-                progressIsAdvancing = true;
-              }
-            }
-          });
-
-          // Se após 2.5 segundos em 0% ou se houver travamento, aborta e vai para a nossa API Express local
-          const watchdogId = setTimeout(async () => {
-            if (!progressIsAdvancing && active) {
-              active = false;
-              try {
-                cancel();
-              } catch (e) {
-                console.warn("Could not cancel firebase upload:", e);
-              }
-              console.warn("[Upload Resiliente] Firebase Storage travou em 0%. Utilizando upload local seguro...");
-              try {
-                setUploadProgress(50);
-                const base64Str = await fileToBase64(targetFile);
-                const localUrl = await uploadToExpressAPI(targetFile.name, base64Str);
-                setUploadProgress(100);
-                resolve(localUrl);
-              } catch (fallbackError: any) {
-                reject(new Error("Falha ao salvar imagem do banner no servidor local de mídias: " + (fallbackError.message || fallbackError)));
-              }
-            }
-          }, 2500);
-
-          try {
-            const url = await promise;
-            clearTimeout(watchdogId);
-            if (active) {
-              active = false;
-              resolve(url);
-            }
-          } catch (err: any) {
-            clearTimeout(watchdogId);
-            if (active) {
-              active = false;
-              console.warn("[Upload Resiliente] Firebase Storage falhou ou deu erro de acesso. Utilizando upload local no Express...");
-              try {
-                setUploadProgress(50);
-                const base64Str = await fileToBase64(targetFile);
-                const localUrl = await uploadToExpressAPI(targetFile.name, base64Str);
-                setUploadProgress(100);
-                resolve(localUrl);
-              } catch (fallbackError: any) {
-                reject(new Error("Falha no upload local Express: " + (fallbackError.message || fallbackError) + " (Original Storage: " + (err.message || err) + ")"));
-              }
-            }
-          }
-        });
-      };
-
-      try {
-        finalImageUrl = await uploadWithFallback();
-      } catch (error: any) {
-        console.error('Erro geral ao realizar upload do banner:', error);
-        alert('Erro ao enviar imagem: ' + (error.message || error));
-        setIsUploading(false);
-        return;
-      }
-      setIsUploading(false);
+      finalImageUrl = imageUrl;
     }
 
     onSave({ 

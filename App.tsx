@@ -283,7 +283,14 @@ const App: React.FC = () => {
                 onAddNewBrand={async (name, file, url) => {
                     let finalUrl = url || '';
                     if (file) {
-                        const { promise } = api.uploadFile(`brands/${file.name}`, file);
+                        const { promise } = { promise: (async () => {
+                             return new Promise<string>((resolve, reject) => {
+                                 const r = new FileReader();
+                                 r.onload = () => resolve(r.result as string);
+                                 r.onerror = reject;
+                                 r.readAsDataURL(file);
+                             });
+                         })() };
                         finalUrl = await promise;
                     }
                     await api.addBrand({name, logoUrl: finalUrl});
@@ -362,7 +369,19 @@ const App: React.FC = () => {
               return <CatalogScreen 
                 catalogs={catalogs} 
                 onUploadCatalog={async (brand, file, progress) => {
-                    const upload = api.uploadFile(`catalogs/${file.name}`, file, progress);
+                    const upload = {
+                         promise: new Promise<string>((resolve, reject) => {
+                             const r = new FileReader();
+                             r.onload = () => {
+                                 if (progress) progress(100);
+                                 resolve(r.result as string);
+                             };
+                             r.onerror = reject;
+                             if (progress) progress(20);
+                             r.readAsDataURL(file);
+                         }),
+                         cancel: () => {}
+                     };
                     const flowPromise = upload.promise.then(async (url) => {
                         await api.addCatalog({ brandName: brand, fileName: file.name, pdfUrl: url });
                     });

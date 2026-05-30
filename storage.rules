@@ -17,8 +17,24 @@ service firebase.storage {
     }
 
     // Regras de escrita (Upload/Delete):
-    // Permitir escrita livre de mídias (como banners, produtos, catálogos e marcas) para evitar bloqueios de CORS/Auth no ambiente sandbox
-    match /(products|brands|catalogs|banners)/{allPaths=**} {
+    // Permitir escrita livre de mídias para evitar bloqueios de CORS/Auth no ambiente sandbox
+    match /products/{allPaths=**} {
+      allow write: if true;
+    }
+
+    match /brands/{allPaths=**} {
+      allow write: if true;
+    }
+
+    match /catalogs/{allPaths=**} {
+      allow write: if true;
+    }
+
+    match /banners/{allPaths=**} {
+      allow write: if true;
+    }
+
+    match /user_compositions/{allPaths=**} {
       allow write: if true;
     }
   }
