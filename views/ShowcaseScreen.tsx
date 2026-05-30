@@ -1490,7 +1490,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
   }, [selectedCategory, selectedBrand, selectedFabric, selectedColors]);
 
   // --- INFINITE SCROLL STATE ---
-  const [visibleCount, setVisibleCount] = useState(4); // Match App.tsx initial limit
+  const [visibleCount, setVisibleCount] = useState(12); // Match App.tsx initial limit
   const [scrollTop, setScrollTop] = useState(0);
   
   const scrollContainerRef = useRef<HTMLElement>(null);
@@ -1819,16 +1819,16 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
 
   // Reset pagination when filters change
   useEffect(() => {
-      setVisibleCount(4);
+      setVisibleCount(12);
   }, [selectedCategory, selectedBrand, selectedFabric, selectedColors, sortOrder, products.length]);
 
   // Intersection Observer for Infinite Scroll
   useEffect(() => {
       const observer = new IntersectionObserver((entries) => {
           if (entries[0].isIntersecting) {
-              setVisibleCount(prev => prev + 4);
+              setVisibleCount(prev => prev + 12);
           }
-      }, { rootMargin: '100px' }); // Load when within 100px of bottom
+      }, { rootMargin: '450px' }); // Load when within 450px of bottom
 
       if (loadMoreRef.current) {
           observer.observe(loadMoreRef.current);
@@ -1839,7 +1839,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
               observer.unobserve(loadMoreRef.current);
           }
       };
-  }, [allFilteredProducts.length]);
+  }, [allFilteredProducts.length, visibleCount]);
 
   const displayedProducts = useMemo(() => {
       return allFilteredProducts.slice(0, visibleCount);
