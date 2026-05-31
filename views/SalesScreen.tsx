@@ -4,6 +4,7 @@ import { SaleRequest, Product, CardFees, ThemeContext, PosCartItem, StoreName, V
 import { finalizePosSale, deleteSaleRequest } from '../firebase';
 import ConfirmationModal from '../components/ConfirmationModal';
 import ProductSelectModal from '../components/ProductSelectModal';
+import { Camera, QrCode, Banknote, CreditCard, Zap, ChevronLeft, Trash2, Percent } from 'lucide-react';
 
 interface SalesScreenProps {
   saleRequests: SaleRequest[];
@@ -12,6 +13,8 @@ interface SalesScreenProps {
   onMenuClick: () => void;
   error: string | null;
   cardFees: CardFees;
+  activeTab?: 'pos' | 'history' | 'pending' | 'preorders';
+  onTabChange?: (tab: 'pos' | 'history' | 'pending' | 'preorders') => void;
 }
 
 type ScanMode = 'none' | 'camera';
@@ -25,13 +28,10 @@ const ProductConfigModal: React.FC<{
     onCancel: () => void;
     isDark: boolean;
 }> = ({ product, onConfirm, onCancel, isDark }) => {
-    const [selectedSize, setSelectedSize] = useState<CushionSize>(
-        product.variations.length > 0 ? product.variations[0].size : CushionSize.SQUARE_45
-    );
     const [itemType, setItemType] = useState<'cover' | 'full'>('cover');
     const [quantity, setQuantity] = useState(1);
 
-    const variation = product.variations.find(v => v.size === selectedSize) || product.variations[0];
+    const variation = product.variations[0];
     const price = variation ? (itemType === 'cover' ? variation.priceCover : variation.priceFull) : 0;
 
     const modalBg = isDark ? "bg-[#1A1129] border-white/10" : "bg-white border-gray-200";
@@ -49,36 +49,17 @@ const ProductConfigModal: React.FC<{
 
                 <div className="space-y-4">
                     <div>
-                        <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${textColor}`}>Tamanho</label>
-                        <div className="flex flex-wrap gap-2">
-                            {product.variations.map(v => (
-                                <button
-                                    key={v.size}
-                                    onClick={() => setSelectedSize(v.size)}
-                                    className={`px-3 py-2 rounded-lg text-sm font-bold border transition-all ${
-                                        selectedSize === v.size 
-                                        ? 'bg-fuchsia-600 text-white border-fuchsia-600' 
-                                        : `${inputBg}`
-                                    }`}
-                                >
-                                    {v.size}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${textColor}`}>Tipo</label>
+                        <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${textColor}`}>Opção de Almofada</label>
                         <div className="flex bg-black/20 rounded-lg p-1">
                             <button 
                                 onClick={() => setItemType('cover')}
-                                className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${itemType === 'cover' ? 'bg-white text-black shadow' : 'text-gray-400'}`}
+                                className={`flex-1 py-2 rounded-md text-sm font-bold transition-all cursor-pointer ${itemType === 'cover' ? 'bg-white text-black shadow' : 'text-gray-400'}`}
                             >
                                 Capa
                             </button>
                             <button 
                                 onClick={() => setItemType('full')}
-                                className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${itemType === 'full' ? 'bg-white text-black shadow' : 'text-gray-400'}`}
+                                className={`flex-1 py-2 rounded-md text-sm font-bold transition-all cursor-pointer ${itemType === 'full' ? 'bg-white text-black shadow' : 'text-gray-400'}`}
                             >
                                 Cheia
                             </button>
@@ -89,9 +70,9 @@ const ProductConfigModal: React.FC<{
                         <div>
                             <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${textColor}`}>Quantidade</label>
                             <div className="flex items-center gap-3">
-                                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className={`w-10 h-10 rounded-lg font-bold text-lg ${inputBg}`}>-</button>
+                                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className={`w-10 h-10 rounded-lg font-bold text-lg cursor-pointer ${inputBg}`}>-</button>
                                 <span className={`text-xl font-bold ${titleColor}`}>{quantity}</span>
-                                <button onClick={() => setQuantity(quantity + 1)} className={`w-10 h-10 rounded-lg font-bold text-lg ${inputBg}`}>+</button>
+                                <button onClick={() => setQuantity(quantity + 1)} className={`w-10 h-10 rounded-lg font-bold text-lg cursor-pointer ${inputBg}`}>+</button>
                             </div>
                         </div>
                         <div className="text-right">
@@ -101,8 +82,8 @@ const ProductConfigModal: React.FC<{
                     </div>
 
                     <div className="flex gap-3 mt-6">
-                        <button onClick={onCancel} className={`flex-1 py-3 rounded-xl font-bold ${isDark ? 'bg-white/10 text-white' : 'bg-gray-200 text-gray-800'}`}>Cancelar</button>
-                        <button onClick={() => onConfirm(variation, itemType, price, quantity)} className="flex-1 py-3 rounded-xl font-bold bg-fuchsia-600 text-white shadow-lg hover:bg-fuchsia-700">Adicionar</button>
+                        <button onClick={onCancel} className={`flex-1 py-3 rounded-xl font-bold cursor-pointer ${isDark ? 'bg-white/10 text-white' : 'bg-gray-200 text-gray-800'}`}>Cancelar</button>
+                        <button onClick={() => onConfirm(variation, itemType, price, quantity)} className="flex-1 py-3 rounded-xl font-bold bg-fuchsia-600 text-white shadow-lg hover:bg-fuchsia-700 cursor-pointer">Adicionar</button>
                     </div>
                 </div>
             </div>
@@ -130,34 +111,63 @@ const StatusBadge = ({ status, type }: { status: string, type: 'sale' | 'preorde
 };
 
 const Calculator: React.FC<{ onAdd: (value: number) => void }> = ({ onAdd }) => {
-    const [display, setDisplay] = useState('0');
+    const [cents, setCents] = useState(0);
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
 
     const handlePress = (char: string) => {
-        if (display === '0' && char !== '.') {
-            setDisplay(char);
-        } else {
-            if (char === '.' && display.includes('.')) return;
-            if (display.replace('.', '').length >= 8) return;
-            setDisplay(display + char);
+        if (char === '.') {
+            // Adiciona dois zeros (ex: digitar 5 e apertar virgula vira 500 centavos = R$ 5,00)
+            setCents(prev => {
+                if (prev >= 99999) return prev;
+                return prev * 100;
+            });
+            return;
         }
+
+        const digit = parseInt(char, 10);
+        if (isNaN(digit)) return;
+
+        setCents(prev => {
+            // Limitar em 99.999,99 para segurança
+            if (prev >= 9999999) return prev;
+            return prev * 10 + digit;
+        });
     };
 
-    const handleClear = () => setDisplay('0');
+    const handleClear = () => setCents(0);
     
     const handleBackspace = () => {
-        if (display.length === 1) setDisplay('0');
-        else setDisplay(display.slice(0, -1));
+        setCents(prev => Math.floor(prev / 10));
     };
 
     const handleSubmit = () => {
-        const val = parseFloat(display);
+        const val = cents / 100;
         if (val > 0) {
             onAdd(val);
-            setDisplay('0');
+            setCents(0);
+            // Dispatch event to scroll top
+            window.dispatchEvent(new CustomEvent('item-added-scroll-top'));
         }
     };
+
+    useEffect(() => {
+        window.dispatchEvent(new CustomEvent('calculator-cents-changed', { detail: { cents } }));
+    }, [cents]);
+
+    useEffect(() => {
+        const handleAddFromNav = () => {
+            const val = cents / 100;
+            if (val > 0) {
+                onAdd(val);
+                setCents(0);
+                // Dispatch event to scroll top
+                window.dispatchEvent(new CustomEvent('item-added-scroll-top'));
+            }
+        };
+        window.addEventListener('add-calculator-value', handleAddFromNav);
+        return () => window.removeEventListener('add-calculator-value', handleAddFromNav);
+    }, [cents, onAdd]);
 
     const btnClass = `flex-1 h-14 rounded-xl text-xl font-bold transition-all active:scale-95 ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`;
     const actionBtnClass = `flex-1 h-14 rounded-xl text-xl font-bold transition-all active:scale-95 text-white shadow-lg ${isDark ? 'bg-fuchsia-600 hover:bg-fuchsia-700' : 'bg-purple-600 hover:bg-purple-700'}`;
@@ -169,19 +179,35 @@ const Calculator: React.FC<{ onAdd: (value: number) => void }> = ({ onAdd }) => 
                 .animate-fade-in-scale { animation: fade-in-scale 0.2s forwards; }
             `}</style>
             <div className={`mb-4 text-right text-3xl font-mono font-bold p-3 rounded-xl border-2 ${isDark ? 'bg-black/40 border-white/10 text-green-400' : 'bg-gray-50 border-gray-200 text-green-600'}`}>
-                R$ {parseFloat(display).toFixed(2)}
+                R$ {(cents / 100).toFixed(2)}
             </div>
+            {/* Botões de Ação no Topo: C e Apagar lado a lado */}
+            <div className="flex gap-3 mb-3">
+                <button 
+                    type="button"
+                    onClick={handleClear} 
+                    className="flex-1 h-14 rounded-xl text-lg font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 cursor-pointer transition-all active:scale-95"
+                >
+                    C
+                </button>
+                <button 
+                    type="button"
+                    onClick={handleBackspace} 
+                    className={`flex-1 h-14 rounded-xl font-bold cursor-pointer transition-all active:scale-95 flex items-center justify-center text-lg ${isDark ? 'bg-white/5 text-gray-400 hover:bg-white/10' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+                >
+                    ⌫
+                </button>
+            </div>
+
+            {/* Grid de números e novo botão Adicionar */}
             <div className="grid grid-cols-3 gap-3">
                 {['7','8','9','4','5','6','1','2','3'].map(n => (
-                    <button key={n} onClick={() => handlePress(n)} className={btnClass}>{n}</button>
+                    <button type="button" key={n} onClick={() => handlePress(n)} className={btnClass}>{n}</button>
                 ))}
-                <button onClick={handleClear} className="h-14 rounded-xl text-lg font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20">C</button>
-                <button onClick={() => handlePress('0')} className={btnClass}>0</button>
-                <button onClick={() => handlePress('.')} className={btnClass}>,</button>
-            </div>
-            <div className="flex gap-3 mt-3">
-                <button onClick={handleBackspace} className={`flex-1 h-14 rounded-xl font-bold ${isDark ? 'bg-white/5 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>⌫</button>
-                <button onClick={handleSubmit} className={actionBtnClass}>Adicionar</button>
+                <button type="button" onClick={() => handlePress('0')} className={btnClass}>0</button>
+                <button type="button" onClick={handleSubmit} className={`col-span-2 ${actionBtnClass}`}>
+                    Adicionar
+                </button>
             </div>
         </div>
     );
@@ -329,18 +355,36 @@ const HistoryItem = React.memo<{
     </div>
 ));
 
-const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleRequest, products, onMenuClick, error, cardFees }) => {
+const SalesScreen: React.FC<SalesScreenProps> = ({ 
+    saleRequests, 
+    onCompleteSaleRequest, 
+    products, 
+    onMenuClick, 
+    error, 
+    cardFees,
+    activeTab: activeTabProp,
+    onTabChange: onTabChangeProp
+}) => {
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     
     // Safety check for cardFees
     const safeCardFees = cardFees || { debit: 0, credit1x: 0, credit2x: 0, credit3x: 0 };
 
-    // Default to 'pos' unless there are pending items
-    const [activeTab, setActiveTab] = useState<Tab>(() => {
+    // Support both synced prop and local state fallback to remain robust
+    const [localActiveTab, setLocalActiveTab] = useState<Tab>(() => {
         const hasPending = saleRequests.some(r => r.status === 'pending');
         return hasPending ? 'pending' : 'pos';
     });
+
+    const activeTab = activeTabProp || localActiveTab;
+    const setActiveTab = (tab: Tab) => {
+        if (onTabChangeProp) {
+            onTabChangeProp(tab);
+        } else {
+            setLocalActiveTab(tab);
+        }
+    };
     
     // POS State
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -348,14 +392,16 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     const animationFrameId = useRef<number | null>(null);
     const [scanError, setScanError] = useState('');
     const [scannedItems, setScannedItems] = useState<PosCartItem[]>([]);
+    const [posStep, setPosStep] = useState<'cart' | 'payment'>('cart');
     const [scanMode, setScanMode] = useState<ScanMode>('none');
     const [posPaymentMethod, setPosPaymentMethod] = useState<'PIX' | 'Débito' | 'Crédito' | 'Dinheiro'>('Dinheiro');
     const [posInstallments, setPosInstallments] = useState(1);
     const [posDiscount, setPosDiscount] = useState(0);
     const [isFinishingPos, setIsFinishingPos] = useState(false);
-    const [showCalculator, setShowCalculator] = useState(false);
+    const [showCalculator, setShowCalculator] = useState(true);
     const [isProductSelectOpen, setIsProductSelectOpen] = useState(false);
     const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+    const [editingCartIndex, setEditingCartIndex] = useState<number | null>(null);
     const [sessionAddedCount, setSessionAddedCount] = useState(0);
     const [isScanSuccess, setIsScanSuccess] = useState(false);
     const lastScannedRef = useRef<string>('');
@@ -363,6 +409,37 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
     
     // POS Modals & Feedback
     const [showAddedFeedback, setShowAddedFeedback] = useState(false);
+
+    // Scroll & Keyboard controls refs
+    const mainRef = useRef<HTMLElement>(null);
+    const calcContainerRef = useRef<HTMLDivElement>(null);
+    const [showBackToCalc, setShowBackToCalc] = useState(false);
+
+    const scrollToTop = () => {
+        setTimeout(() => {
+            if (mainRef.current) {
+                mainRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }, 120);
+    };
+
+    useEffect(() => {
+        const handleScrollTopMsg = () => {
+            scrollToTop();
+        };
+        window.addEventListener('item-added-scroll-top', handleScrollTopMsg);
+        return () => window.removeEventListener('item-added-scroll-top', handleScrollTopMsg);
+    }, []);
+
+    const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+        const scrollTop = e.currentTarget.scrollTop;
+        const currentLength = scannedItems.length;
+        if (currentLength > 0 && scrollTop > 130) {
+            setShowBackToCalc(true);
+        } else {
+            setShowBackToCalc(false);
+        }
+    };
 
     // Request Management State
     const [selectedRequest, setSelectedRequest] = useState<SaleRequest | null>(null);
@@ -592,6 +669,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                 
                 setShowAddedFeedback(true);
                 setTimeout(() => setShowAddedFeedback(false), 2000);
+                scrollToTop();
             }
         } catch (e) {
             console.error("Invalid QR Code", e);
@@ -627,6 +705,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                     });
                 }
             });
+            scrollToTop();
         }
         setIsProductSelectOpen(false);
     };
@@ -635,6 +714,27 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
         if (!pendingProduct) return;
         const product = pendingProduct;
         
+        if (editingCartIndex !== null) {
+            setScannedItems(prev => {
+                const newArr = [...prev];
+                if (editingCartIndex >= 0 && editingCartIndex < newArr.length) {
+                    newArr[editingCartIndex] = {
+                        ...newArr[editingCartIndex],
+                        variation,
+                        itemType,
+                        price,
+                        quantity,
+                        name: `${product.name} (${variation.size} - ${itemType === 'cover' ? 'Capa' : 'Cheia'})`
+                    };
+                }
+                return newArr;
+            });
+            setEditingCartIndex(null);
+            setPendingProduct(null);
+            scrollToTop();
+            return;
+        }
+
         setScannedItems(prev => {
             const existing = prev.find(i => 
                 i.product?.id === product.id && 
@@ -656,12 +756,13 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
             }];
         });
         setPendingProduct(null);
+        scrollToTop();
     };
 
     const handleAddCustomAmount = (amount: number) => {
         setScannedItems(prev => [...prev, {
             id: `custom-${Date.now()}`,
-            name: 'Venda Avulsa',
+            name: 'Venda PDV',
             price: amount,
             quantity: 1,
             isCustom: true
@@ -673,12 +774,14 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
         if (scannedItems.length === 0) return;
         setIsFinishingPos(true);
         try {
-            let netValue = posFinalTotal;
-            if (posPaymentMethod === 'Débito') netValue -= posFinalTotal * (safeCardFees.debit / 100);
-            else if (posPaymentMethod === 'Crédito') {
+            const finalPrice = Math.max(0, posTotal - posDiscount);
+            let netValue = finalPrice;
+            if (posPaymentMethod === 'Débito') {
+                netValue -= finalPrice * (safeCardFees.debit / 100);
+            } else if (posPaymentMethod === 'Crédito') {
                 const feeKey = posInstallments === 1 ? 'credit1x' : (posInstallments === 2 ? 'credit2x' : 'credit3x');
                 const fee = (safeCardFees as any)[feeKey] || 0;
-                netValue -= posFinalTotal * (fee / 100);
+                netValue -= finalPrice * (fee / 100);
             }
 
             const totalProductionCost = scannedItems.reduce((sum, item) => {
@@ -687,10 +790,10 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                 return sum + (cost * item.quantity);
             }, 0);
 
-            await finalizePosSale(scannedItems, posFinalTotal, posPaymentMethod, {
+            await finalizePosSale(scannedItems, finalPrice, posPaymentMethod, {
                 discount: posDiscount,
-                finalPrice: posFinalTotal,
-                installments: posInstallments,
+                finalPrice,
+                installments: posPaymentMethod === 'Crédito' ? posInstallments : 1,
                 netValue,
                 totalProductionCost
             });
@@ -698,6 +801,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
             setScannedItems([]);
             setPosDiscount(0);
             setPosInstallments(1);
+            setPosStep('cart');
             // Move to pending tab so user can confirm
             setActiveTab('pending');
         } catch (e: any) {
@@ -784,19 +888,20 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
 
     return (
         <div className="h-full w-full flex flex-col relative overflow-hidden">
-            <main className="flex-grow overflow-y-auto px-6 pt-24 pb-52 md:pb-52 no-scrollbar z-10">
+            <main ref={mainRef} onScroll={handleScroll} className="flex-grow overflow-y-auto px-6 pt-24 pb-52 md:pb-52 no-scrollbar z-10">
                 <div className="flex justify-between items-center mb-6">
-                    <h1 className={`text-3xl font-bold ${titleClasses}`}>Central de Vendas</h1>
-                </div>
-
-                <div className="flex flex-col gap-2 mb-6">
-                    <div className="flex gap-2">
-                        <TabButton tab="pos" label="PDV" activeClass="bg-fuchsia-600 text-white shadow-lg" />
-                        <TabButton tab="history" label="Histórico" activeClass="bg-purple-600 text-white shadow-lg" />
-                    </div>
-                    <div className="flex gap-2">
-                        <TabButton tab="pending" label={`Pendentes (${pendingRequests.length})`} activeClass="bg-fuchsia-600 text-white shadow-lg" />
-                        <TabButton tab="preorders" label="Encomendas" activeClass="bg-orange-600 text-white shadow-lg" />
+                    <div>
+                        <h1 className={`text-3xl font-bold ${titleClasses}`}>Central de Vendas</h1>
+                        <p className={`text-xs mt-1 font-semibold uppercase tracking-widest ${
+                            activeTab === 'pos' ? 'text-fuchsia-500' : 
+                            activeTab === 'history' ? 'text-purple-500' : 
+                            activeTab === 'pending' ? 'text-emerald-500' : 'text-orange-500'
+                        }`}>
+                            {activeTab === 'pos' && '• Painel PDV / Caixa'}
+                            {activeTab === 'history' && '• Histórico de Pedidos'}
+                            {activeTab === 'pending' && `• Vendas Pendentes (${pendingRequests.length})`}
+                            {activeTab === 'preorders' && `• Encomendas e Pré-vendas (${preorderRequests.length})`}
+                        </p>
                     </div>
                 </div>
 
@@ -811,162 +916,480 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                             </div>
                         )}
 
-                        <div className={`p-4 rounded-2xl border flex flex-col gap-3 ${cardClasses}`}>
-                            <button 
-                                onClick={() => setIsProductSelectOpen(true)}
-                                className={`w-full py-5 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-transform active:scale-95 shadow-md ${isDark ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-white text-purple-700 border-2 border-purple-200 hover:bg-purple-50'}`}
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                                Adicionar Produto
-                            </button>
-
-                            <button onClick={() => setShowCalculator(!showCalculator)} className={`w-full font-bold py-4 rounded-xl shadow-sm transition-all text-sm uppercase tracking-wide border-2 ${isDark ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                                {showCalculator ? 'Ocultar Calculadora' : 'Venda Avulsa'}
-                            </button>
-                            
-                            <button 
-                                onClick={() => setScanMode('camera')} 
-                                className={`w-full px-4 font-bold py-4 rounded-xl shadow-sm transition-all text-sm uppercase tracking-wide flex items-center justify-center gap-2 bg-[#2E1065] text-white hover:bg-purple-900`}
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                Escanear QR da Almofada
-                            </button>
-                            
-                            {showCalculator && <Calculator onAdd={handleAddCustomAmount} />}
-                            
-                            {scanError && <p className="text-red-500 text-center text-sm mb-4">{scanError}</p>}
-                        </div>
-
                         {scannedItems.length > 0 && (
-                            <div className={`p-4 rounded-2xl border ${cardClasses}`}>
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className={`font-bold text-lg ${titleClasses}`}>Carrinho ({scannedItems.reduce((a,b)=>a+b.quantity,0)} itens)</h3>
-                                    <button onClick={() => setScannedItems([])} className="text-red-500 text-xs font-bold">Limpar</button>
-                                </div>
-                                
-                                <div className="space-y-4 mb-6 max-h-[500px] overflow-y-auto pr-2">
-                                    {scannedItems.map((item, idx) => (
-                                        <div key={idx} className={`relative flex flex-col p-4 rounded-xl border mb-3 ${isDark ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100 shadow-sm'}`}>
-                                            <div className="flex gap-4 mb-3">
-                                                {item.product?.baseImageUrl && (
-                                                    <img src={item.product.baseImageUrl} alt="" className="w-16 h-16 rounded-lg object-cover bg-gray-100 flex-shrink-0" />
-                                                )}
-                                                <div className="flex-grow min-w-0">
-                                                    <p className={`font-bold text-base leading-snug ${titleClasses}`}>
-                                                        {item.product?.name || item.name}
-                                                    </p>
-                                                    {!item.isCustom && (
-                                                        <p className="text-xs opacity-60 mt-1">Preço Unit.: R$ {item.price.toFixed(2)}</p>
-                                                    )}
-                                                </div>
-                                                <button onClick={() => setScannedItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 p-1 self-start">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                                    </svg>
-                                                </button>
+                            <div className="space-y-4">
+                                {/* Barra Duplicada de Escanear e Botão Maiszinho no topo (só se posStep === 'cart') */}
+                                {posStep === 'cart' && (
+                                    <div className="flex gap-2.5 items-center">
+                                        {/* Botão de Scanner Duplicado */}
+                                        <button 
+                                            onClick={() => setScanMode('camera')} 
+                                            className={`flex-grow h-11 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-300 active:scale-95 border relative overflow-hidden cursor-pointer ${
+                                                isDark 
+                                                    ? 'bg-[#22153c]/30 hover:bg-[#2e1d52]/50 border-fuchsia-500/30 text-fuchsia-200 shadow-lg shadow-fuchsia-950/20' 
+                                                    : 'bg-purple-50/70 hover:bg-purple-100/90 border-purple-200 text-purple-750 shadow-sm'
+                                            }`}
+                                        >
+                                            <div className="relative flex items-center justify-center h-5 w-5 mr-1">
+                                                <QrCode className="h-5 w-5 text-fuchsia-500 dark:text-fuchsia-400" />
+                                                <span className="absolute w-5 h-[1.5px] bg-fuchsia-500 dark:bg-fuchsia-400 rounded-full animate-scan-line shadow-[0_0_8px_rgba(217,70,239,1)]"></span>
                                             </div>
-                                            
-                                            <div className="flex flex-col gap-3">
-                                                {!item.isCustom && item.product && item.variation && (
-                                                    <div className="flex flex-wrap items-center gap-3">
-                                                        <div className={`flex rounded-lg p-1 ${isDark ? 'bg-white/10' : 'bg-gray-200'}`}>
-                                                            <button 
-                                                                onClick={() => handleToggleItemType(idx, 'cover')}
-                                                                className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${item.itemType === 'cover' ? 'bg-white text-black shadow-sm' : 'text-gray-500'}`}
-                                                            >
-                                                                Capa
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handleToggleItemType(idx, 'full')}
-                                                                className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${item.itemType === 'full' ? 'bg-white text-black shadow-sm' : 'text-gray-500'}`}
-                                                            >
-                                                                Cheia
-                                                            </button>
+                                            <span className="font-bold tracking-wide text-xs">Escanear Almofada</span>
+                                        </button>
+
+                                        {/* Botão de Adição Manual Duplicado */}
+                                        <button 
+                                            onClick={() => setIsProductSelectOpen(true)}
+                                            className={`h-11 w-11 shrink-0 rounded-xl flex items-center justify-center transition-all duration-300 active:scale-95 shadow-lg border cursor-pointer ${
+                                                isDark 
+                                                    ? 'bg-gradient-to-tr from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white border-fuchsia-400/30' 
+                                                    : 'bg-purple-600 hover:bg-purple-700 text-white border-purple-500'
+                                            }`}
+                                            title="Adicionar Almofada Manual"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Segundo botão de Voltar para a Etapa 1 no Topo, especificamente na Etapa de Pagamento (Etapa 2) */}
+                                {posStep === 'payment' && (
+                                    <button 
+                                        onClick={() => {
+                                            setPosStep('cart');
+                                            scrollToTop();
+                                        }}
+                                        className="w-full h-11 text-xs font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-500/5 cursor-pointer active:scale-95 flex items-center justify-center gap-1.5 bg-purple-500/10 rounded-2xl border border-purple-500/20 shadow-sm transition-all"
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                        Voltar para Lista de Vendas (Etapa 1)
+                                    </button>
+                                )}
+
+                                {/* Botão de Voltar para a Calculadora no topo também (só se posStep === 'cart') */}
+                                {posStep === 'cart' && (
+                                    <button 
+                                        onClick={() => {
+                                            calcContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                                        }}
+                                        className="w-full h-10 text-xs font-bold text-fuchsia-500 hover:underline cursor-pointer active:scale-95 flex items-center justify-center gap-1.5 bg-fuchsia-500/10 rounded-xl border border-fuchsia-500/20 shadow-sm transition-all"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 13l-7 7-7-7m14-6l-7 7-7-7" />
+                                        </svg>
+                                        Voltar para calculadora
+                                    </button>
+                                )}
+
+                                {posStep === 'cart' ? (
+                                    /* --- ETAPA 1: LISTA DE VENDAS --- */
+                                    <div className={`p-4 rounded-3xl border ${cardClasses}`}>
+                                        <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-500/10">
+                                            <h3 className={`font-bold text-sm uppercase tracking-wider ${titleClasses}`}>Lista de Vendas ({scannedItems.reduce((a,b)=>a+b.quantity,0)} itens)</h3>
+                                            <button onClick={() => { setScannedItems([]); setPosStep('cart'); }} className="text-red-500 text-xs font-bold hover:underline cursor-pointer flex items-center gap-1">
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                                Limpar Lista
+                                            </button>
+                                        </div>
+                                        
+                                        <div className="space-y-3 mb-4 max-h-[420px] overflow-y-auto pr-1 no-scrollbar-y">
+                                            {scannedItems.map((item, idx) => (
+                                                <div key={idx} className={`relative flex flex-col p-4 rounded-2xl border gap-3 ${isDark ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100 shadow-sm'}`}>
+                                                    
+                                                    {/* Linha do topo: Imagem + Nome e Opções de forma 100% horizontal */}
+                                                    <div className="flex items-start gap-3 w-full justify-between">
+                                                        <div className="flex items-center gap-3 flex-grow min-w-0">
+                                                            {item.product?.baseImageUrl ? (
+                                                                <img src={item.product.baseImageUrl} alt="" className="w-12 h-12 rounded-xl object-cover bg-gray-100 flex-shrink-0 border border-gray-500/10" />
+                                                            ) : (
+                                                                <div className="w-12 h-12 rounded-xl bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20 flex items-center justify-center font-bold text-xs flex-shrink-0">PDV</div>
+                                                            )}
+                                                            <div className="min-w-0 flex-grow">
+                                                                {/* Nome completo na horizontal com quebra automática, sem truncar */}
+                                                                <h4 className={`font-black text-sm leading-snug tracking-tight ${titleClasses} break-words`}>
+                                                                    {item.product?.name || item.name}
+                                                                </h4>
+                                                                {item.variation && (
+                                                                    <span className="inline-block text-[10px] mt-1 opacity-60 font-mono bg-black/5 dark:bg-white/5 py-0.5 px-2 rounded-full border border-black/10 dark:border-white/10">
+                                                                        Tamanho: {item.variation.size}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                         
-                                                        <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                                                            {item.product.variations.map(v => (
-                                                                <button
-                                                                    key={v.size}
-                                                                    onClick={() => handleChangeItemSize(idx, v.size)}
-                                                                    className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all whitespace-nowrap ${
-                                                                        item.variation?.size === v.size
-                                                                        ? 'bg-fuchsia-600 text-white border-fuchsia-600'
-                                                                        : (isDark ? 'text-gray-400 border-white/20 hover:bg-white/10' : 'text-gray-600 border-gray-300 hover:bg-gray-200')
-                                                                    }`}
+                                                        {/* Botão de Excluir por Completo de uma vez (Lixeira Cinza) */}
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => setScannedItems(prev => prev.filter((_, i) => i !== idx))} 
+                                                            className="text-gray-400 hover:text-red-500 hover:bg-black/5 dark:hover:bg-white/5 p-2 rounded-xl transition-all cursor-pointer flex-shrink-0 active:scale-95" 
+                                                            title="Remover item"
+                                                        >
+                                                            <Trash2 className="h-5 w-5" />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Linha de Baixo: Controles organizados horizontalmente em duas colunas para perfeita simetria */}
+                                                    <div className="flex items-stretch justify-between gap-4 pt-3 border-t border-dashed border-gray-500/15">
+                                                        
+                                                        {/* Coluna da Esquerda: Controle de Quantidade no topo e Tipo (Capa/Cheia) embaixo */}
+                                                        <div className="flex flex-col items-start gap-2.5">
+                                                            
+                                                            {/* Controle de Quantidade - botões maiores e bem sinalizados */}
+                                                            <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-xl p-1 border border-black/10 dark:border-white/10 shadow-inner">
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => setScannedItems(prev => {
+                                                                        const newArr = [...prev];
+                                                                        if (newArr[idx].quantity > 1) newArr[idx].quantity--;
+                                                                        return newArr;
+                                                                    })} 
+                                                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-500/30 hover:bg-fuchsia-500/10 transition-all shadow-sm active:scale-95 cursor-pointer"
                                                                 >
-                                                                    {v.size}
+                                                                    -
                                                                 </button>
-                                                            ))}
+                                                                <span className="w-8 text-center text-sm font-black">{item.quantity}</span>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => setScannedItems(prev => {
+                                                                        const newArr = [...prev];
+                                                                        newArr[idx].quantity++;
+                                                                        return newArr;
+                                                                    })} 
+                                                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-500/30 hover:bg-fuchsia-500/10 transition-all shadow-sm active:scale-95 cursor-pointer"
+                                                                >
+                                                                    +
+                                                                </button>
+                                                            </div>
+
+                                                            {/* Opções de Capa / Cheia abaixo do botão de adicionar */}
+                                                            {!item.isCustom && item.product && item.variation && (
+                                                                <div className="flex rounded-xl p-1 bg-black/10 dark:bg-white/10 border border-black/5 dark:border-white/5 shadow-sm">
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => handleToggleItemType(idx, 'cover')}
+                                                                        className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                                                                            item.itemType === 'cover' 
+                                                                                ? 'bg-fuchsia-600 text-white shadow' 
+                                                                                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                                                        }`}
+                                                                    >
+                                                                        Capa
+                                                                    </button>
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => handleToggleItemType(idx, 'full')}
+                                                                        className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                                                                            item.itemType === 'full' 
+                                                                                ? 'bg-fuchsia-600 text-white shadow' 
+                                                                                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                                                        }`}
+                                                                    >
+                                                                        Cheia
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Coluna da Direita: Botão de Editar no topo e Área de Preço embaixo */}
+                                                        <div className="flex flex-col items-end justify-between gap-2.5 text-right min-w-[120px]">
+                                                            
+                                                            {/* Botão de Editar Tamanho à direita do botão de adicionar */}
+                                                            {!item.isCustom && item.product ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setEditingCartIndex(idx);
+                                                                        setPendingProduct(item.product);
+                                                                    }}
+                                                                    className="text-[10px] font-bold text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-500/30 hover:bg-fuchsia-500/10 px-3 py-1.5 h-10 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                                                >
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                                    </svg>
+                                                                    Editar
+                                                                </button>
+                                                            ) : (
+                                                                <div className="h-10"></div>
+                                                            )}
+
+                                                            {/* Área de Valor abaixo do botão de editar */}
+                                                            <div className="flex flex-col items-end">
+                                                                <span className={`text-base font-black block tracking-tight ${isDark ? 'text-white' : 'text-purple-950'}`}>
+                                                                    Total Itens: R$ {(item.price * item.quantity).toFixed(2)}
+                                                                </span>
+                                                                <span className="text-[10px] opacity-50 block leading-none mt-1">
+                                                                    R$ {item.price.toFixed(2)} / un
+                                                                </span>
+                                                            </div>
+
                                                         </div>
                                                     </div>
-                                                )}
 
-                                                <div className="flex items-end justify-between mt-1 pt-3 border-t border-dashed border-gray-500/20">
-                                                    <div className="flex items-center gap-3">
-                                                        <button onClick={() => setScannedItems(prev => {
-                                                            const newArr = [...prev];
-                                                            if (newArr[idx].quantity > 1) newArr[idx].quantity--;
-                                                            return newArr;
-                                                        })} className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg transition-colors ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'}`}>-</button>
-                                                        <span className={`w-8 text-center font-bold text-lg ${titleClasses}`}>{item.quantity}</span>
-                                                        <button onClick={() => setScannedItems(prev => {
-                                                            const newArr = [...prev];
-                                                            newArr[idx].quantity++;
-                                                            return newArr;
-                                                        })} className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg transition-colors ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'}`}>+</button>
-                                                    </div>
-                                                    
-                                                    <div className="text-right">
-                                                        <span className="text-[10px] font-bold uppercase tracking-wider opacity-60 block mb-0.5">Total</span>
-                                                        <span className={`text-2xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>R$ {(item.price * item.quantity).toFixed(2)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Total e ir para Próxima Etapa */}
+                                        <div className="pt-3 border-t border-dashed border-gray-500/20 flex flex-col gap-3">
+                                            <div className="flex justify-between items-center px-1.5 font-bold">
+                                                <span className={`text-sm ${subtitleClasses}`}>Total da Lista:</span>
+                                                <p className={`text-2xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>R$ {posTotal.toFixed(2)}</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => {
+                                                    setPosStep('payment');
+                                                    scrollToTop();
+                                                }} 
+                                                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition duration-200 flex justify-center items-center cursor-pointer uppercase tracking-wider text-xs"
+                                            >
+                                                Próxima Etapa
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* --- ETAPA 2: FORMAS DE PAGAMENTO, DESCONTO, PARCELAS E FINALIZAR --- */
+                                    <div className={`p-5 rounded-3xl border ${cardClasses} space-y-5`}>
+                                        <div className="flex justify-between items-center pb-2 border-b border-gray-500/10">
+                                            <h3 className={`font-bold text-xs uppercase tracking-wider ${titleClasses}`}>Método de Pagamento</h3>
+                                            <span className="text-[10px] bg-purple-500/10 text-purple-500 font-bold px-2 py-0.5 rounded-full">Etapa 2 de 2</span>
+                                        </div>
+
+                                        {/* Grade de cartões de pagamento coloridos e estilizados */}
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {/* Dinheiro (Verde) */}
+                                            <button
+                                                onClick={() => {
+                                                    setPosPaymentMethod('Dinheiro');
+                                                    setPosInstallments(1);
+                                                }}
+                                                className={`p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                                                    posPaymentMethod === 'Dinheiro'
+                                                        ? 'bg-emerald-500/15 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-md shadow-emerald-500/10'
+                                                        : 'bg-black/5 border-transparent hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400'
+                                                }`}
+                                            >
+                                                <Banknote className={`h-7 w-7 ${posPaymentMethod === 'Dinheiro' ? 'text-emerald-500' : 'text-gray-400'}`} />
+                                                <span className="text-xs font-bold uppercase tracking-wider">Dinheiro</span>
+                                            </button>
+
+                                            {/* PIX (Teal / Turquesa) */}
+                                            <button
+                                                onClick={() => {
+                                                    setPosPaymentMethod('PIX');
+                                                    setPosInstallments(1);
+                                                }}
+                                                className={`p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                                                    posPaymentMethod === 'PIX'
+                                                        ? 'bg-teal-500/15 border-teal-500 text-teal-600 dark:text-teal-400 shadow-md shadow-teal-500/10'
+                                                        : 'bg-black/5 border-transparent hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400'
+                                                }`}
+                                            >
+                                                <Zap className={`h-7 w-7 ${posPaymentMethod === 'PIX' ? 'text-teal-500 animate-pulse' : 'text-gray-400'}`} />
+                                                <span className="text-xs font-bold uppercase tracking-wider">PIX</span>
+                                            </button>
+
+                                            {/* Cartão de Crédito (Fúchsia / Roxo) */}
+                                            <button
+                                                onClick={() => {
+                                                    setPosPaymentMethod('Crédito');
+                                                }}
+                                                className={`p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                                                    posPaymentMethod === 'Crédito'
+                                                        ? 'bg-fuchsia-500/15 border-fuchsia-500 text-fuchsia-600 dark:text-fuchsia-400 shadow-md shadow-fuchsia-500/10'
+                                                        : 'bg-black/5 border-transparent hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400'
+                                                }`}
+                                            >
+                                                <CreditCard className={`h-7 w-7 ${posPaymentMethod === 'Crédito' ? 'text-fuchsia-500' : 'text-gray-400'}`} />
+                                                <span className="text-xs font-bold uppercase tracking-wider">Crédito</span>
+                                            </button>
+
+                                            {/* Cartão de Débito (Azul / Indigo) */}
+                                            <button
+                                                onClick={() => {
+                                                    setPosPaymentMethod('Débito');
+                                                    setPosInstallments(1);
+                                                }}
+                                                className={`p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                                                    posPaymentMethod === 'Débito'
+                                                        ? 'bg-indigo-500/15 border-indigo-500 text-indigo-600 dark:text-indigo-400 shadow-md shadow-indigo-500/10'
+                                                        : 'bg-black/5 border-transparent hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400'
+                                                }`}
+                                            >
+                                                <CreditCard className={`h-7 w-7 ${posPaymentMethod === 'Débito' ? 'text-indigo-500' : 'text-gray-400'}`} />
+                                                <span className="text-xs font-bold uppercase tracking-wider">Débito</span>
+                                            </button>
+                                        </div>
+
+                                        {/* Parcelamento para Crédito as a structured expanding option */}
+                                        {posPaymentMethod === 'Crédito' && (
+                                            <div className="space-y-1.5 animate-fade-in-scale">
+                                                <label className={`text-xs font-bold uppercase tracking-wider block ${subtitleClasses}`}>Número de Parcelas</label>
+                                                <div className="relative">
+                                                    <select
+                                                        value={posInstallments}
+                                                        onChange={e => setPosInstallments(parseInt(e.target.value, 10))}
+                                                        className={`w-full p-3 rounded-xl text-sm border focus:outline-none appearance-none font-semibold ${inputClasses} cursor-pointer`}
+                                                    >
+                                                        {[1, 2, 3, 4, 5, 6].map(x => (
+                                                            <option key={x} value={x}>{x}x sem juros</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none opacity-60">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"></path></svg>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
-                                
-                                <div className="space-y-3 pt-4 border-t border-dashed border-gray-500/30">
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className={`text-xs font-bold block mb-1 ${subtitleClasses}`}>Pagamento</label>
-                                            <select value={posPaymentMethod} onChange={e => setPosPaymentMethod(e.target.value as any)} className={`w-full p-2 rounded-lg text-sm border focus:outline-none ${inputClasses}`}>
-                                                <option>Dinheiro</option>
-                                                <option>PIX</option>
-                                                <option>Débito</option>
-                                                <option>Crédito</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className={`text-xs font-bold block mb-1 ${subtitleClasses}`}>Parcelas</label>
-                                            <select value={posInstallments} onChange={e => setPosInstallments(parseInt(e.target.value))} disabled={posPaymentMethod !== 'Crédito'} className={`w-full p-2 rounded-lg text-sm border focus:outline-none ${inputClasses} disabled:opacity-50`}>
-                                                <option value={1}>1x</option>
-                                                <option value={2}>2x</option>
-                                                <option value={3}>3x</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className={`text-xs font-bold block mb-1 ${subtitleClasses}`}>Desconto (R$)</label>
-                                        <input type="number" value={posDiscount} onChange={e => setPosDiscount(parseFloat(e.target.value) || 0)} className={`w-full p-2 rounded-lg text-sm border focus:outline-none ${inputClasses}`} />
-                                    </div>
-                                </div>
+                                        )}
 
-                                <div className="mt-6 flex flex-col gap-3">
-                                    <div className="flex justify-between items-center px-2">
-                                        <span className={subtitleClasses}>Total Final</span>
-                                        <p className={`text-3xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>R$ {posFinalTotal.toFixed(2)}</p>
+                                        {/* Campo de Desconto digitado desde os centavos até a casa decimal */}
+                                        <div className="space-y-1.5">
+                                            <div className="flex justify-between items-center">
+                                                <label className={`text-xs font-bold uppercase tracking-wider block ${subtitleClasses}`}>Desconto</label>
+                                                {posDiscount > 0 && (
+                                                    <span className="text-[10px] text-fuchsia-500 font-bold">R$ {posDiscount.toFixed(2)} aplicados</span>
+                                                )}
+                                            </div>
+                                            <div className="relative flex items-center">
+                                                <span className="absolute left-3.5 text-sm font-bold opacity-60">R$</span>
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    value={posDiscount === 0 ? '' : (posDiscount).toFixed(2).replace('.', ',')}
+                                                    onChange={(e) => {
+                                                        const digits = e.target.value.replace(/\D/g, '');
+                                                        const cents = digits ? parseInt(digits, 10) : 0;
+                                                        setPosDiscount(cents / 100);
+                                                    }}
+                                                    placeholder="0,00"
+                                                    className={`w-full pl-10 pr-16 py-3 rounded-xl text-sm font-semibold border focus:ring-2 focus:ring-fuchsia-500 focus:outline-none ${inputClasses}`}
+                                                />
+                                                {posDiscount > 0 && (
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setPosDiscount(0)} 
+                                                        className="absolute right-3 text-xs bg-red-500/10 text-red-500 px-2 py-1 rounded-md hover:bg-red-500/20 font-bold transition-all cursor-pointer"
+                                                    >
+                                                        Limpar
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Resumo Final de Valores */}
+                                        <div className="pt-3 border-t border-dashed border-gray-500/20 space-y-2">
+                                            <div className="flex justify-between items-center px-1 text-xs opacity-75">
+                                                <span className={subtitleClasses}>Subtotal:</span>
+                                                <span className={`font-semibold ${titleClasses}`}>R$ {posTotal.toFixed(2)}</span>
+                                            </div>
+                                            {posDiscount > 0 && (
+                                                <div className="flex justify-between items-center px-1 text-xs text-red-500">
+                                                    <span>Desconto:</span>
+                                                    <span className="font-semibold">- R$ {posDiscount.toFixed(2)}</span>
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between items-center px-1.5 pt-2 border-t border-gray-500/10">
+                                                <span className={`text-sm font-bold ${subtitleClasses}`}>Total Líquido Final</span>
+                                                <p className={`text-2xl font-black ${isDark ? 'text-green-400' : 'text-green-600'}`}>R$ {Math.max(0, posTotal - posDiscount).toFixed(2)}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Botões de Decisão: Voltar para Lista vs Finalizar Venda */}
+                                        <div className="flex gap-3 pt-2">
+                                            <button 
+                                                type="button"
+                                                onClick={() => setPosStep('cart')}
+                                                className={`flex-[1] h-12 rounded-xl text-sm font-bold flex items-center justify-center gap-1 transition active:scale-95 border cursor-pointer ${
+                                                    isDark ? 'bg-white/5 border-white/10 hover:bg-white/10 text-white' : 'bg-gray-200 border-gray-300 hover:bg-gray-300 text-gray-800'
+                                                }`}
+                                            >
+                                                <ChevronLeft className="h-4 w-4" />
+                                                Voltar
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={handlePosCheckout} 
+                                                disabled={isFinishingPos} 
+                                                className="flex-[2] bg-green-600 text-white font-bold h-12 rounded-xl shadow-lg hover:bg-green-700 transition disabled:opacity-50 flex justify-center items-center gap-1.5 cursor-pointer text-xs uppercase tracking-wider font-semibold"
+                                            >
+                                                {isFinishingPos ? (
+                                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                ) : (
+                                                    'FINALIZAR VENDA'
+                                                )}
+                                            </button>
+                                        </div>
                                     </div>
-                                    <button onClick={handlePosCheckout} disabled={isFinishingPos} className="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition disabled:opacity-50 flex justify-center">
-                                        {isFinishingPos ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'FINALIZAR VENDA'}
+                                )}
+                            </div>
+                        )}
+
+                        {posStep === 'cart' && (
+                            <div ref={calcContainerRef} className={`p-4 rounded-3xl border flex flex-col gap-3 ${cardClasses}`}>
+                                {/* Stylized buttons row */}
+                                <div className="flex gap-2.5 items-center">
+                                    {/* Stylized QR Scanner button */}
+                                    <button 
+                                        onClick={() => setScanMode('camera')} 
+                                        className={`flex-grow h-11 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-300 active:scale-95 border relative overflow-hidden cursor-pointer ${
+                                            isDark 
+                                                ? 'bg-[#22153c]/30 hover:bg-[#2e1d52]/50 border-fuchsia-500/30 text-fuchsia-200 shadow-lg shadow-fuchsia-950/20' 
+                                                : 'bg-purple-50/70 hover:bg-purple-100/90 border-purple-200 text-purple-750 shadow-sm'
+                                        }`}
+                                    >
+                                        <style>{`
+                                            @keyframes scan-line-pulse {
+                                                0%, 100% { transform: translateY(-8px); opacity: 0.2; }
+                                                50% { transform: translateY(8px); opacity: 1; }
+                                            }
+                                            .animate-scan-line {
+                                                animation: scan-line-pulse 1.8s infinite ease-in-out;
+                                            }
+                                        `}</style>
+                                        
+                                        {/* Scanning laser glow effect */}
+                                        <span className="absolute inset-y-0 left-0 w-1 bg-fuchsia-500"></span>
+                                        
+                                        <div className="relative flex items-center justify-center h-5 w-5 mr-1">
+                                            <QrCode className="h-5 w-5 text-fuchsia-500 dark:text-fuchsia-400" />
+                                            {/* A linha roxa que fica piscando de scanner no ícone */}
+                                            <span className="absolute w-5 h-[1.5px] bg-fuchsia-500 dark:bg-fuchsia-400 rounded-full animate-scan-line shadow-[0_0_8px_rgba(217,70,239,1)]"></span>
+                                        </div>
+                                        
+                                        <span className="font-bold tracking-wide text-xs">Escanear Almofada</span>
+                                    </button>
+
+                                    {/* Manual Add "+" button */}
+                                    <button 
+                                        onClick={() => setIsProductSelectOpen(true)}
+                                        className={`h-11 w-11 shrink-0 rounded-xl flex items-center justify-center transition-all duration-300 active:scale-95 shadow-lg border cursor-pointer ${
+                                            isDark 
+                                                ? 'bg-gradient-to-tr from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white border-fuchsia-400/30' 
+                                                : 'bg-purple-600 hover:bg-purple-700 text-white border-purple-500'
+                                        }`}
+                                        title="Adicionar Almofada Manual"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                        </svg>
                                     </button>
                                 </div>
+
+                                {/* Collapsible toggle for calculator */}
+                                <div className="flex justify-between items-center px-1">
+                                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Calculadora PDV</span>
+                                    <button 
+                                        onClick={() => setShowCalculator(!showCalculator)} 
+                                        className="text-xs font-bold text-fuchsia-500 px-2 py-0.5 rounded-md hover:bg-fuchsia-500/10 transition-colors"
+                                    >
+                                        {showCalculator ? 'Minimizar' : 'Expandir'}
+                                    </button>
+                                </div>
+
+                                {showCalculator && <Calculator onAdd={handleAddCustomAmount} />}
+                                
+                                {scanError && <p className="text-red-500 text-center text-sm mb-4">{scanError}</p>}
                             </div>
                         )}
                     </div>
@@ -1151,7 +1574,10 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ saleRequests, onCompleteSaleR
                 <ProductConfigModal 
                     product={pendingProduct} 
                     onConfirm={handleConfigConfirm}
-                    onCancel={() => setPendingProduct(null)}
+                    onCancel={() => {
+                        setPendingProduct(null);
+                        setEditingCartIndex(null);
+                    }}
                     isDark={isDark}
                 />
             )}

@@ -1490,7 +1490,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
   }, [selectedCategory, selectedBrand, selectedFabric, selectedColors]);
 
   // --- INFINITE SCROLL STATE ---
-  const [visibleCount, setVisibleCount] = useState(12); // Match App.tsx initial limit
+  const [visibleCount, setVisibleCount] = useState(24); // Match App.tsx initial limit
   const [scrollTop, setScrollTop] = useState(0);
   
   const scrollContainerRef = useRef<HTMLElement>(null);
@@ -1819,27 +1819,45 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
 
   // Reset pagination when filters change
   useEffect(() => {
-      setVisibleCount(12);
+      setVisibleCount(24);
   }, [selectedCategory, selectedBrand, selectedFabric, selectedColors, sortOrder, products.length]);
-
+ 
   // Intersection Observer for Infinite Scroll
   useEffect(() => {
       const observer = new IntersectionObserver((entries) => {
           if (entries[0].isIntersecting) {
               setVisibleCount(prev => prev + 12);
           }
-      }, { rootMargin: '450px' }); // Load when within 450px of bottom
-
+      }, { rootMargin: '1000px' }); // Load when within 1000px of bottom (significantly optimized to preload earlier)
+ 
       if (loadMoreRef.current) {
           observer.observe(loadMoreRef.current);
       }
-
+ 
       return () => {
           if (loadMoreRef.current) {
               observer.unobserve(loadMoreRef.current);
           }
       };
   }, [allFilteredProducts.length, visibleCount]);
+ 
+  // Automated screen-fill detection for desktop and scaled viewport heights to prevent scrollbar traps
+  useEffect(() => {
+      if (visibleCount < allFilteredProducts.length) {
+          const checkScrollbar = () => {
+              const el = scrollContainerRef.current;
+              if (el) {
+                  // If the container's content height is less than or equal to its viewport height plus a 100px threshold,
+                  // it means we haven't created a scrollbar yet! We must automatically trigger the next loading phase.
+                  if (el.scrollHeight <= el.clientHeight + 100) {
+                      setVisibleCount(prev => Math.min(prev + 12, allFilteredProducts.length));
+                  }
+              }
+          };
+          const timer = setTimeout(checkScrollbar, 250);
+          return () => clearTimeout(timer);
+      }
+  }, [visibleCount, allFilteredProducts.length]);
 
   const displayedProducts = useMemo(() => {
       return allFilteredProducts.slice(0, visibleCount);

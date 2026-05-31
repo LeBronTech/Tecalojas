@@ -52,6 +52,7 @@ const App: React.FC = () => {
 
   // App State
   const [view, setView] = useState<View>(View.SHOWCASE);
+  const [salesTab, setSalesTab] = useState<'pos' | 'history' | 'pending' | 'preorders'>('pos');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchIconOpacity, setSearchIconOpacity] = useState(0);   
@@ -164,6 +165,9 @@ const App: React.FC = () => {
   
   const handleNavigate = (v: View) => {
       setView(v);
+      if (v === View.SALES) {
+          setSalesTab('pos');
+      }
       setIsMenuOpen(false);
       setSearchIconOpacity(0);
       setIsSearchOpen(false);
@@ -402,7 +406,7 @@ const App: React.FC = () => {
           case View.PAYMENT:
               return <PaymentScreen cart={cart} totalPrice={cart.reduce((a,b)=>a+(b.price*b.quantity),0)} onPlaceOrder={handlePlaceOrder} onNavigate={handleNavigate} onPixClick={() => {}} customerName="" />;
           case View.SALES:
-              return <SalesScreen saleRequests={saleRequests} onCompleteSaleRequest={api.completeSaleRequest} products={products} onMenuClick={() => setIsMenuOpen(true)} error={null} cardFees={settings.cardFees} />;
+              return <SalesScreen saleRequests={saleRequests} onCompleteSaleRequest={api.completeSaleRequest} products={products} onMenuClick={() => setIsMenuOpen(true)} error={null} cardFees={settings.cardFees} activeTab={salesTab} onTabChange={setSalesTab} />;
           case View.QR_CODES:
               return <QrCodeScreen products={products} />;
           case View.GENERATE_KEYS:
@@ -483,6 +487,8 @@ const App: React.FC = () => {
             hasNewSaleRequests={saleRequests.some(r => r.status === 'pending')}
             hasPendingSales={saleRequests.some(r => r.status === 'pending' && r.type !== 'preorder')}
             hasPendingPreorders={saleRequests.some(r => r.status === 'pending' && r.type === 'preorder')}
+            salesTab={salesTab}
+            onSalesTabChange={setSalesTab}
         />
 
         {isSignUpModalOpen && <SignUpModal onClose={() => setIsSignUpModalOpen(false)} onSignUp={handleSignUp} />}
