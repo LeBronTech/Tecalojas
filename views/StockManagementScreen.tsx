@@ -3,6 +3,7 @@ import React, { useContext, useState, useEffect, useMemo, useRef, useCallback } 
 import { Product, StoreName, View, Brand, CushionSize, DynamicBrand, ThemeContext } from '../types';
 import { BRAND_LOGOS, PREDEFINED_COLORS } from '../constants';
 import SearchBar from '../components/SearchBar';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const MultiColorCircle: React.FC<{ colors: { hex: string }[], size?: number }> = ({ colors, size = 4 }) => {
     const className = `w-${size} h-${size}`;
@@ -66,8 +67,8 @@ interface StockItemProps {
     onDelete: (productId: string) => void;
     onUpdateStock: (productId: string, variationSize: CushionSize, store: StoreName, change: number) => void;
     canManageStock: boolean;
-    selectedVariation: CushionSize;
-    onSelectVariation: (productId: string, size: CushionSize) => void;
+    selectedVariation: CushionSize | undefined;
+    onSelectVariation: (productId: string, size: CushionSize | undefined) => void;
     isHighlighted?: boolean;
 }
 
@@ -75,7 +76,7 @@ const StockItemInner: React.FC<StockItemProps> = ({ product, index, onEdit, onDe
     const { theme } = useContext(ThemeContext);
     const isDark = theme === 'dark';
     const [showBack, setShowBack] = useState(false);
-    const [isFlashing, setIsFlashing] = useState(false);
+    const [isSizesExpanded, setIsSizesExpanded] = useState(false);
 
     useEffect(() => {
         if (!product.backImageUrl) return;
@@ -87,47 +88,62 @@ const StockItemInner: React.FC<StockItemProps> = ({ product, index, onEdit, onDe
         return () => clearInterval(interval);
     }, [product.backImageUrl]);
 
-    useEffect(() => {
-        setIsFlashing(true);
-        const timer = setTimeout(() => setIsFlashing(false), 1000);
-        return () => clearTimeout(timer);
-    }, [selectedVariation]);
-
-    const currentVariation = product.variations.find(v => v.size === selectedVariation);
-
-    const tecaStock = currentVariation?.stock[StoreName.TECA] ?? 0;
-    const ioneStock = currentVariation?.stock[StoreName.IONE] ?? 0;
-    const totalStock = tecaStock + ioneStock;
-
     const cardClasses = isDark
         ? "bg-black/20 backdrop-blur-2xl border-white/10 hover:bg-black/30"
         : "bg-white border-gray-200/80 hover:bg-gray-50/80 shadow-md";
     const textNameClasses = isDark ? "text-purple-200" : "text-gray-800";
     const textMetaClasses = isDark ? "text-purple-300/80" : "text-gray-500";
     const imageBgClasses = isDark ? "bg-black/20" : "bg-gray-100";
-    const actionBtnClasses = isDark
-        ? "text-gray-300 hover:text-cyan-400 hover:bg-cyan-500/10"
-        : "text-gray-500 hover:text-blue-600 hover:bg-blue-500/10";
-    const deleteBtnClasses = isDark
-        ? "text-gray-300 hover:text-red-500 hover:bg-red-500/10"
-        : "text-gray-500 hover:text-red-600 hover:bg-red-500/10";
-    const disabledBtnClasses = isDark ? "text-gray-500 opacity-50 cursor-not-allowed" : "text-gray-400 opacity-50 cursor-not-allowed";
-    const selectClasses = isDark ? "bg-gray-700/50 text-gray-200 border-white/10" : "bg-gray-100 text-gray-700 border-gray-200";
 
+    const getStoreLabelClass = (stock: number, store: string) => {
+        if (stock === 0) {
+            return "text-rose-500/95 dark:text-rose-300/95 font-extrabold";
+        }
+        if (stock === 1) {
+            return "text-amber-500/90 dark:text-amber-400/90 font-extrabold";
+        }
+        if (stock >= 3) {
+            return "text-purple-500 dark:text-purple-350 font-extrabold";
+        }
+        return store === "teca" 
+            ? "text-purple-700/85 dark:text-purple-300/85 font-semibold" 
+            : "text-fuchsia-700/85 dark:text-fuchsia-300/85 font-semibold";
+    };
+
+    const getButtonClasses = (tStock: number, iStock: number) => {
+        if (tStock === 0 && iStock === 0) {
+            return isDark
+                ? "bg-rose-500/5 border-rose-500/20 text-rose-300 hover:bg-rose-500/10"
+                : "bg-rose-50/50 border-rose-100 text-rose-500/90 shadow-sm";
+        }
+        if (tStock === 1 && iStock === 1) {
+            return isDark
+                ? "bg-amber-500/5 border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
+                : "bg-amber-50/70 border-amber-200 text-amber-800 shadow-sm";
+        }
+        if (tStock >= 3 && iStock >= 3) {
+            return isDark
+                ? "bg-purple-500/5 border-purple-500/30 text-purple-200 hover:bg-purple-500/10"
+                : "bg-purple-50/70 border-purple-200 text-purple-700 shadow-sm";
+        }
+        return isDark 
+            ? "bg-white/5 border-white/10 text-gray-100 hover:bg-white/10 hover:border-purple-500/40" 
+            : "bg-gray-50 border-gray-200 text-gray-800 hover:bg-gray-100/85 hover:border-purple-300 shadow-sm";
+    };
 
     return (
         <div 
             id={`product-${product.id}`}
             onClick={() => canManageStock && onEdit(product)}
-            className={`rounded-3xl p-5 shadow-lg hover:shadow-xl transition-all duration-300 border ${cardClasses} ${canManageStock ? 'cursor-pointer' : ''} ${isHighlighted ? 'ring-4 ring-fuchsia-500 animate-pulse-pink' : ''}`}
+            className={`rounded-3xl p-5 shadow-lg hover:shadow-xl transition-all duration-300 border ${cardClasses} ${canManageStock ? 'cursor-pointer' : ''} ${isHighlighted ? 'ring-4 ring-fuchsia-500' : ''}`}
             style={{ 
                 animation: isHighlighted ? 'none' : 'float-in 0.3s ease-out forwards',
-                animationDelay: `${index * 50}ms`,
+                animationDelay: `${Math.min(index, 6) * 50}ms`,
                 opacity: isHighlighted ? 1 : 0
             }}
         >
-            <div className="flex items-start gap-4 pr-16 relative">
-                <div className={`w-20 h-20 ${imageBgClasses} rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden shadow-md relative`}>
+            <div className="flex items-center gap-4 relative w-full">
+                <div className={`w-12 h-12 ${imageBgClasses} rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden shadow-md relative`}>
                     {product.baseImageUrl ? (
                         <>
                             <img 
@@ -153,92 +169,236 @@ const StockItemInner: React.FC<StockItemProps> = ({ product, index, onEdit, onDe
                         </div>
                     )}
                 </div>
-                <div className="flex-grow min-w-0">
-                     <h4 className={`font-bold text-lg leading-tight ${textNameClasses}`}>{product.name}</h4>
+                <div className="flex-grow min-w-0 pr-2">
+                     <h4 className={`font-semibold text-sm leading-tight md:text-base break-words ${textNameClasses}`}>{product.name}</h4>
                      
-                     <div className="flex items-center gap-3 mt-1 flex-wrap">
+                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                         <div className="flex items-center gap-1.5">
                             <img src={BRAND_LOGOS[product.brand]} alt={product.brand} className="w-4 h-4 rounded-full object-contain bg-white p-px" />
                             <span className={`text-xs font-semibold ${textMetaClasses}`}>{product.brand}</span>
                         </div>
                         <MultiColorCircle colors={product.colors} size={4} />
-                        <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-100 text-cyan-800'}`}>
-                            {product.fabricType}
-                        </span>
                      </div>
-                </div>
-
-                <div className="absolute top-0 right-0 flex flex-col items-center gap-1">
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onEdit(product); }}
-                        disabled={!canManageStock}
-                        className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? actionBtnClasses : disabledBtnClasses}`}
-                        aria-label={`Editar ${product.name}`}
-                    >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" />
-                        </svg>
-                    </button>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onDelete(product.id); }}
-                        disabled={!canManageStock}
-                        className={`p-2 rounded-full transition-all duration-200 transform hover:scale-110 ${canManageStock ? deleteBtnClasses : disabledBtnClasses}`}
-                        aria-label={`Excluir ${product.name}`}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                    </button>
-                    
-                    <div className="flex items-center justify-center mt-1">
-                        <span className={`text-xl font-black ${totalStock <= 1 ? (isDark ? 'text-red-400' : 'text-red-600') : 'text-fuchsia-500'}`}>{totalStock}</span>
-                        {totalStock <= 1 && <div className="w-2 h-2 bg-red-500 rounded-full blinking-dot ml-1"></div>}
-                        {totalStock === 2 && <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse ml-1"></div>}
-                    </div>
                 </div>
             </div>
             
-            <div className={`mt-4 pt-4 flex flex-row items-start justify-center gap-1 border-t ${isDark ? 'border-white/10' : 'border-gray-200/80'}`}>
-                {/* Size Selection Buttons on the Left */}
-                <div className="flex flex-col gap-2 w-auto min-w-[110px] flex-shrink-0">
-                    <p className={`text-[10px] font-bold uppercase mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Tamanhos</p>
-                    <div className="grid grid-cols-2 gap-2">
-                        {product.variations.map(v => (
-                            <button
-                                key={v.size}
-                                onClick={(e) => { e.stopPropagation(); onSelectVariation(product.id, v.size); }}
-                                className={`px-1 py-1 rounded-lg text-[10px] font-bold transition-all border text-center flex items-center justify-center h-11 ${
-                                    selectedVariation === v.size
-                                        ? (isDark ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-purple-600 border-purple-500 text-white')
-                                        : (isDark ? 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10' : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200')
-                                } ${v.size.toLowerCase().includes('lombar') || v.size.length > 5 ? 'col-span-2' : ''}`}
-                            >
-                                {v.size}
-                            </button>
-                        ))}
-                    </div>
-                </div>
+            <div className={`mt-4 pt-4 border-t ${isDark ? 'border-white/10' : 'border-gray-200/80'}`}>
+                <AnimatePresence mode="wait">
+                    {selectedVariation ? (
+                        // Expanded state for a single variation
+                        (() => {
+                            const v = product.variations.find(va => va.size === selectedVariation);
+                            if (!v) return null;
+                            const tStock = v.stock[StoreName.TECA] ?? 0;
+                            const iStock = v.stock[StoreName.IONE] ?? 0;
 
-                {/* Stock Controls on the Right */}
-                <div className={`flex flex-col items-start justify-center gap-2 pl-2 border-l ${isDark ? 'border-white/5' : 'border-gray-200'}`}>
-                    <p className={`text-[10px] font-bold uppercase mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Estoque: {selectedVariation}</p>
-                    <div className="flex flex-col gap-2">
-                        <StockControl 
-                            store={StoreName.TECA} 
-                            stock={tecaStock} 
-                            onUpdate={(change) => onUpdateStock(product.id, selectedVariation, StoreName.TECA, change)} 
-                            disabled={!canManageStock || !currentVariation}
-                            isFlashing={isFlashing}
-                        />
-                        <StockControl 
-                            store={StoreName.IONE} 
-                            stock={ioneStock} 
-                            onUpdate={(change) => onUpdateStock(product.id, selectedVariation, StoreName.IONE, change)} 
-                            disabled={!canManageStock || !currentVariation}
-                            isFlashing={isFlashing}
-                        />
-                    </div>
-                </div>
+                            let tecaBarClass = "";
+                            if (tStock === 0) {
+                                tecaBarClass = isDark
+                                    ? "border-rose-500/20 text-rose-300 bg-rose-950/10"
+                                    : "border-rose-200 bg-rose-50/65 text-rose-600 shadow-sm";
+                            } else if (tStock === 1) {
+                                tecaBarClass = isDark
+                                    ? "border-amber-500/20 text-amber-300 bg-amber-950/10"
+                                    : "border-amber-200 bg-amber-50/65 text-amber-900 shadow-sm";
+                            } else if (tStock >= 3) {
+                                tecaBarClass = isDark
+                                    ? "border-purple-500/20 text-purple-200 bg-purple-950/10"
+                                    : "border-purple-200 bg-purple-50/65 text-purple-700 shadow-sm";
+                            } else {
+                                tecaBarClass = isDark
+                                    ? "border-white/5 bg-white/5 text-gray-200"
+                                    : "border-gray-200 bg-gray-50/50 text-gray-700 shadow-sm";
+                            }
+
+                            let ioneBarClass = "";
+                            if (iStock === 0) {
+                                ioneBarClass = isDark
+                                    ? "border-rose-500/20 text-rose-300 bg-rose-950/10"
+                                    : "border-rose-200 bg-rose-50/65 text-rose-600 shadow-sm";
+                            } else if (iStock === 1) {
+                                ioneBarClass = isDark
+                                    ? "border-amber-500/20 text-amber-300 bg-amber-950/10"
+                                    : "border-amber-200 bg-amber-50/65 text-amber-900 shadow-sm";
+                            } else if (iStock >= 3) {
+                                ioneBarClass = isDark
+                                    ? "border-purple-500/20 text-purple-200 bg-purple-950/10"
+                                    : "border-purple-200 bg-purple-50/65 text-purple-700 shadow-sm";
+                            } else {
+                                ioneBarClass = isDark
+                                    ? "border-white/5 bg-white/5 text-gray-200"
+                                    : "border-gray-200 bg-gray-50/50 text-gray-700 shadow-sm";
+                            }
+                            
+                            return (
+                                <motion.div 
+                                    key="expanded"
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="flex items-center gap-2 w-full h-[88px]"
+                                >
+                                    {/* Narrow back size button (width: 42px, height: 88px) */}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onSelectVariation(product.id, undefined); }}
+                                        className={`flex flex-col items-center justify-center h-[88px] rounded-2xl border transition-all duration-200 cursor-pointer flex-shrink-0 relative group px-1 ${
+                                            isDark 
+                                                ? 'bg-fuchsia-600/15 border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-600/25' 
+                                                : 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100 shadow-sm'
+                                        }`}
+                                        style={{ width: '42px' }}
+                                        title="Clique para voltar"
+                                    >
+                                        <span className="text-[9px] font-black tracking-tighter leading-none mb-1 text-center whitespace-normal break-all">{v.size.replace(' (25x45)', '')}</span>
+                                        <span className="text-[12px] font-black leading-none text-purple-500 dark:text-purple-300">←</span>
+                                        <span className="text-[7px] font-bold opacity-75 uppercase tracking-tighter mt-1 text-center">Voltar</span>
+                                    </button>
+
+                                    {/* Stock Adjustments: stacked one below the other */}
+                                    <div className="flex flex-col gap-1.5 flex-grow" onClick={(e) => e.stopPropagation()}>
+                                        {/* Têca stock adjustment row */}
+                                        <div className={`flex items-center justify-between h-[40px] px-3 rounded-xl border ${tecaBarClass} transition-all duration-200`}>
+                                            <span className="text-[11px] font-black uppercase tracking-wider select-none">Têca</span>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onUpdateStock(product.id, v.size, StoreName.TECA, -1); }}
+                                                    disabled={!canManageStock || tStock <= 0}
+                                                    className={`w-7 h-7 rounded-lg font-bold flex items-center justify-center text-sm transition-all select-none active:scale-95 ${
+                                                        isDark 
+                                                            ? 'bg-white/10 hover:bg-white/20 text-white disabled:opacity-25' 
+                                                            : 'bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 disabled:opacity-30'
+                                                    }`}
+                                                >
+                                                    -
+                                                </button>
+                                                <span className="font-extrabold text-sm w-5 text-center">{tStock}</span>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onUpdateStock(product.id, v.size, StoreName.TECA, 1); }}
+                                                    disabled={!canManageStock}
+                                                    className={`w-7 h-7 rounded-lg font-bold flex items-center justify-center text-sm transition-all select-none active:scale-95 ${
+                                                        isDark 
+                                                            ? 'bg-white/10 hover:bg-white/20 text-white disabled:opacity-25' 
+                                                            : 'bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 disabled:opacity-30'
+                                                    }`}
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Ione stock adjustment row */}
+                                        <div className={`flex items-center justify-between h-[40px] px-3 rounded-xl border ${ioneBarClass} transition-all duration-200`}>
+                                            <span className="text-[11px] font-black uppercase tracking-wider select-none">Ione</span>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onUpdateStock(product.id, v.size, StoreName.IONE, -1); }}
+                                                    disabled={!canManageStock || iStock <= 0}
+                                                    className={`w-7 h-7 rounded-lg font-bold flex items-center justify-center text-sm transition-all select-none active:scale-95 ${
+                                                        isDark 
+                                                            ? 'bg-white/10 hover:bg-white/20 text-white disabled:opacity-25' 
+                                                            : 'bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 disabled:opacity-30'
+                                                    }`}
+                                                >
+                                                    -
+                                                </button>
+                                                <span className="font-extrabold text-sm w-5 text-center">{iStock}</span>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onUpdateStock(product.id, v.size, StoreName.IONE, 1); }}
+                                                    disabled={!canManageStock}
+                                                    className={`w-7 h-7 rounded-lg font-bold flex items-center justify-center text-sm transition-all select-none active:scale-95 ${
+                                                        isDark 
+                                                            ? 'bg-white/10 hover:bg-white/20 text-white disabled:opacity-25' 
+                                                            : 'bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 disabled:opacity-30'
+                                                    }`}
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            );
+                        })()
+                    ) : (
+                        // Collapsed state displaying 2 size buttons side-by-side and bottom expand button
+                        (() => {
+                            const hasMoreSizes = product.variations.length > 2;
+                            const displayedVariations = isSizesExpanded 
+                                ? product.variations 
+                                : product.variations.slice(0, 2);
+
+                            return (
+                                <motion.div 
+                                    key="grid"
+                                    initial={{ opacity: 0, scale: 0.98 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.98 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="w-full flex flex-col"
+                                >
+                                    <div className={`grid gap-2 w-full ${isSizesExpanded ? 'grid-cols-2 xs:grid-cols-3' : 'grid-cols-2'}`}>
+                                        {displayedVariations.map(v => {
+                                            const tStock = v.stock[StoreName.TECA] ?? 0;
+                                            const iStock = v.stock[StoreName.IONE] ?? 0;
+                                            const buttonColClass = getButtonClasses(tStock, iStock);
+                                            
+                                            return (
+                                                <button
+                                                    key={v.size}
+                                                    onClick={(e) => { e.stopPropagation(); onSelectVariation(product.id, v.size); }}
+                                                    className={`flex flex-col items-center justify-between p-2 h-20 rounded-2xl border transition-all duration-200 cursor-pointer text-center relative ${buttonColClass}`}
+                                                >
+                                                    <span className="text-xs font-black leading-none tracking-tight truncate max-w-full block mb-1">{v.size.replace(' (25x45)', '')}</span>
+                                                    
+                                                    {/* Side-by-side store labels with readable names */}
+                                                    <div className="flex items-center justify-center gap-1.5 w-full text-[9px] font-black leading-none">
+                                                        <span className={getStoreLabelClass(tStock, "teca")}>Têca: {tStock}</span>
+                                                        <span className="text-gray-300/40 dark:text-white/10 text-[8px]">|</span>
+                                                        <span className={getStoreLabelClass(iStock, "ione")}>Ione: {iStock}</span>
+                                                    </div>
+                                                    
+                                                    {/* Total and its number */}
+                                                    <div className={`text-[10px] font-black leading-none mt-1 ${isDark ? 'text-purple-300/90' : 'text-purple-700/90'}`}>
+                                                        Total: {tStock + iStock}
+                                                    </div>
+                                                </button>
+                                            );
+                                         })}
+                                    </div>
+
+                                    {/* Toggle expand button in the lower part of the card, occupying all that lower part */}
+                                    {hasMoreSizes && (
+                                         <button
+                                             onClick={(e) => { e.stopPropagation(); setIsSizesExpanded(!isSizesExpanded); }}
+                                             className={`w-full mt-2 flex items-center justify-center py-2 px-4 rounded-xl border transition-all duration-200 cursor-pointer text-center ${
+                                                 isDark 
+                                                     ? 'bg-purple-900/10 border-dashed border-purple-500/30 text-purple-300 hover:bg-purple-900/20' 
+                                                     : 'bg-purple-50/50 border-dashed border-purple-200 text-purple-700 hover:bg-purple-100 shadow-sm'
+                                             }`}
+                                         >
+                                             {isSizesExpanded ? (
+                                                 <>
+                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1.5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7" />
+                                                     </svg>
+                                                     <span className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-300">Menos tamanhos</span>
+                                                 </>
+                                             ) : (
+                                                 <>
+                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1.5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                                                     </svg>
+                                                     <span className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-300">Ver mais {product.variations.length - 2} tamanhos</span>
+                                                 </>
+                                             )}
+                                         </button>
+                                    )}
+                                </motion.div>
+                            );
+                        })()
+                    )}
+                </AnimatePresence>
             </div>
         </div>
     );
@@ -300,44 +460,34 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   const [isColorFilterOpen, setIsColorFilterOpen] = useState(false);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
-  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
-  const isHeaderVisibleRef = useRef(isHeaderVisible);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const lastScrollY = useRef(0);
   const ticking = useRef(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const lastPushedOpacityRef = useRef<number>(0);
 
   useEffect(() => {
     setSearchIconOpacity(0);
+    lastPushedOpacityRef.current = 0;
     return () => {
       setSearchIconOpacity(0);
     };
   }, []);
-
-  useEffect(() => {
-    isHeaderVisibleRef.current = isHeaderVisible;
-  }, [isHeaderVisible]);
 
    const handleScroll = () => {
     if (!ticking.current) {
         window.requestAnimationFrame(() => {
             if (scrollContainerRef.current) {
                 const currentScrollY = scrollContainerRef.current.scrollTop;
-                const headerVisible = isHeaderVisibleRef.current;
-        
-                if (currentScrollY > 100) {
-                    if (currentScrollY > lastScrollY.current) {
-                        if (headerVisible) setIsHeaderVisible(false);
-                    } else {
-                        if (!headerVisible) setIsHeaderVisible(true);
-                    }
-                } else {
-                    if (!headerVisible) setIsHeaderVisible(true);
-                }
                 
                 const opacity = Math.min(currentScrollY / 200, 1);
-                const roundedOpacity = Math.round(opacity * 10) / 10;
-                setSearchIconOpacity(roundedOpacity);
+                // Steps of 0.25: updates at most 5 stages across entire scroll height!
+                const roundedOpacity = Math.round(opacity * 4) / 4;
+                
+                if (lastPushedOpacityRef.current !== roundedOpacity) {
+                    lastPushedOpacityRef.current = roundedOpacity;
+                    setSearchIconOpacity(roundedOpacity);
+                }
                 
                 lastScrollY.current = currentScrollY <= 0 ? 0 : currentScrollY;
             }
@@ -363,25 +513,16 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({
   }, [hasFetchError]);
 
 
-    useEffect(() => {
-        setSelectedVariations(prevSelections => {
-            const newSelections = { ...prevSelections };
-            let hasChanged = false;
-    
-            products.forEach(p => {
-                if (!newSelections[p.id] && p.variations && p.variations.length > 0) {
-                    const defaultVar = p.variations.find(v => v.size === CushionSize.SQUARE_40) || p.variations[0];
-                    newSelections[p.id] = defaultVar.size;
-                    hasChanged = true;
-                }
-            });
-            
-            return hasChanged ? newSelections : prevSelections;
+    const handleSelectVariation = useCallback((productId: string, size: CushionSize | undefined) => {
+        setSelectedVariations(prev => {
+            const next = { ...prev };
+            if (size === undefined) {
+                delete next[productId];
+            } else {
+                next[productId] = size;
+            }
+            return next;
         });
-    }, [products]);
-
-    const handleSelectVariation = useCallback((productId: string, size: CushionSize) => {
-        setSelectedVariations(prev => ({ ...prev, [productId]: size }));
     }, []);
     
     const categories = useMemo(() => {
@@ -582,10 +723,10 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({
            className="absolute bottom-28 left-0 right-0 p-6 z-20 pointer-events-none" 
          >
           {canManageStock ? (
-              <div className="flex justify-end pointer-events-auto">
+              <div className="flex justify-end pointer-events-none">
                   <button 
                       onClick={onAddProduct} 
-                      className="w-14 h-14 bg-fuchsia-600 text-white rounded-full shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-all duration-300 transform hover:scale-110 flex items-center justify-center"
+                      className="w-14 h-14 bg-fuchsia-600 text-white rounded-full shadow-lg shadow-fuchsia-600/30 hover:bg-fuchsia-700 transition-all duration-300 transform hover:scale-110 flex items-center justify-center pointer-events-auto"
                       aria-label="Adicionar novo item"
                   >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -594,7 +735,7 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({
                   </button>
               </div>
           ) : (
-              <div className={`text-center p-4 rounded-2xl ${isDark ? 'bg-black/20 text-gray-400' : 'bg-yellow-100 text-yellow-800'}`}>
+              <div className={`text-center p-4 rounded-2xl ${isDark ? 'bg-black/20 text-gray-400' : 'bg-yellow-100 text-yellow-800'} pointer-events-auto`}>
                   <p className="font-semibold">Modo somente leitura</p>
                   <p className="text-sm">Você não tem permissão para gerenciar o estoque.</p>
               </div>

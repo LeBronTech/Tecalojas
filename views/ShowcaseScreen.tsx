@@ -1494,6 +1494,7 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
   const [scrollTop, setScrollTop] = useState(0);
   
   const scrollContainerRef = useRef<HTMLElement>(null);
+  const lastPushedOpacityRef = useRef<number>(0);
   useEffect(() => {
       const el = scrollContainerRef.current;
       if (!el) return;
@@ -1511,8 +1512,12 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
           
           // Smooth but state-sparing search icon opacity transitions
           const opacity = Math.min(currentScrollTop / 200, 1);
-          const roundedOpacity = Math.round(opacity * 10) / 10;
-          setSearchIconOpacity(roundedOpacity);
+          // Steps of 0.25: updates at most 5 stages across entire scroll height!
+          const roundedOpacity = Math.round(opacity * 4) / 4;
+          if (lastPushedOpacityRef.current !== roundedOpacity) {
+              lastPushedOpacityRef.current = roundedOpacity;
+              setSearchIconOpacity(roundedOpacity);
+          }
       };
 
       el.addEventListener('scroll', handleScroll, { passive: true });

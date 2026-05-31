@@ -59,6 +59,8 @@ const App: React.FC = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [hasLoadedStockTab, setHasLoadedStockTab] = useState(false);
+  const [isStockTabLoading, setIsStockTabLoading] = useState(false);
   
   const lastReceivedCompositionsRef = React.useRef<string>("");
   const lastSavedCompositionsRef = React.useRef<string>("");
@@ -164,7 +166,16 @@ const App: React.FC = () => {
   const handleLogout = async () => { await api.signOut(); setIsMenuOpen(false); setCurrentUser(null); };
   
   const handleNavigate = (v: View) => {
-      setView(v);
+      if (v === View.STOCK && !hasLoadedStockTab) {
+          setIsStockTabLoading(true);
+          setView(View.STOCK);
+          setTimeout(() => {
+              setIsStockTabLoading(false);
+              setHasLoadedStockTab(true);
+          }, 1500);
+      } else {
+          setView(v);
+      }
       if (v === View.SALES) {
           setSalesTab('pos');
       }
@@ -263,6 +274,33 @@ const App: React.FC = () => {
                   banners={banners}
               />;
           case View.STOCK:
+              if (isStockTabLoading) {
+                  return (
+                      <div className={`h-full w-full flex flex-col items-center justify-center p-6 ${theme === 'dark' ? 'bg-[#130b1f]' : 'bg-gray-50'}`}>
+                          <img
+                              src={theme === 'dark' ? 'https://i.postimg.cc/qvgmgRpN/Cabe-alho-escuro.png' : 'https://i.postimg.cc/QtcYsyhQ/Cabe-alho-claro.png'}
+                              alt="Logo Têca & Ione"
+                              className="h-20 w-auto mb-8 animate-pulse"
+                          />
+                          <div className="w-64 h-2 bg-fuchsia-200 dark:bg-fuchsia-900 rounded-full overflow-hidden mb-6">
+                              <div className="h-full bg-fuchsia-500 animate-loading-bar"></div>
+                          </div>
+                          <div className="flex flex-col items-center">
+                              <p className={`font-semibold text-sm sm:text-base ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
+                                  Entrando no estoque...
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-2 text-xs sm:text-sm text-purple-600 dark:text-purple-400 font-medium">
+                                  <span>Carregando estoque, por favor aguarde</span>
+                                  <div className="flex items-center gap-1 h-3">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-purple-600 dark:bg-purple-400 animate-wave-1"></span>
+                                      <span className="w-1.5 h-1.5 rounded-full bg-purple-600 dark:bg-purple-400 animate-wave-2"></span>
+                                      <span className="w-1.5 h-1.5 rounded-full bg-purple-600 dark:bg-purple-400 animate-wave-3"></span>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  );
+              }
               return <StockManagementScreen 
                 products={products} 
                 onEditProduct={setEditingProduct} 
@@ -445,12 +483,22 @@ const App: React.FC = () => {
                   alt="Logo Têca & Ione"
                   className="h-24 w-auto mb-8 animate-pulse"
               />
-              <div className="w-64 h-2 bg-fuchsia-200 dark:bg-fuchsia-900 rounded-full overflow-hidden">
+              <div className="w-64 h-2 bg-fuchsia-200 dark:bg-fuchsia-900 rounded-full overflow-hidden mb-6">
                   <div className="h-full bg-fuchsia-500 animate-loading-bar"></div>
               </div>
-              <p className={`mt-4 font-medium text-sm sm:text-base ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Bem vindo a <span className="font-semibold text-purple-700 dark:text-purple-400 whitespace-nowrap">Têca Decorações</span>
-              </p>
+              <div className="flex flex-col items-center">
+                  <p className={`font-semibold text-sm sm:text-base ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Bem vindo a <span className="font-bold text-purple-700 dark:text-purple-400 whitespace-nowrap">Têca Decorações</span>
+                  </p>
+                  <p className={`mt-1.5 text-xs sm:text-sm font-medium flex items-center gap-1.5 ${theme === 'dark' ? 'text-gray-400/90' : 'text-gray-500'}`}>
+                      <span>Por favor, aguarde</span>
+                      <span className="flex items-center gap-1 h-2.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-500 animate-wave-1"></span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-500 animate-wave-2"></span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-500 animate-wave-3"></span>
+                      </span>
+                  </p>
+              </div>
           </div>
       ) : (
       <div className={`h-screen w-full flex flex-col overflow-hidden transition-colors duration-300 ${theme === 'dark' ? 'bg-[#130b1f] text-white' : 'bg-gray-50 text-gray-900'}`}>
