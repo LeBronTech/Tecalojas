@@ -55,6 +55,7 @@ const App: React.FC = () => {
   const [salesTab, setSalesTab] = useState<'pos' | 'history' | 'pending' | 'preorders'>('pos');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchIconOpacity, setSearchIconOpacity] = useState(0);   
   const [cart, setCart] = useState<CartItem[]>([]);
   const [savedCompositions, setSavedCompositions] = useState<SavedComposition[]>([]);
@@ -182,6 +183,7 @@ const App: React.FC = () => {
       setIsMenuOpen(false);
       setSearchIconOpacity(0);
       setIsSearchOpen(false);
+      setIsSearchFocused(false);
   };
 
   const handleAddToCart = (product: Product, variation: Variation, quantity: number, type: 'cover' | 'full', price: number, isPreOrder: boolean = false) => {
@@ -272,6 +274,7 @@ const App: React.FC = () => {
                   setSearchQuery={setSearchQuery}
                   setSearchIconOpacity={setSearchIconOpacity}
                   banners={banners}
+                  onSearchFocusChange={setIsSearchFocused}
               />;
           case View.STOCK:
               if (isStockTabLoading) {
@@ -317,6 +320,7 @@ const App: React.FC = () => {
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
                 setSearchIconOpacity={setSearchIconOpacity}
+                onSearchFocusChange={setIsSearchFocused}
             />;
           case View.ASSISTANT:
               return <AssistantScreen products={products} onEditProduct={setEditingProduct} onDeleteProduct={setDeletingProductId} canManageStock={isAdmin} onMenuClick={() => setIsMenuOpen(true)} />;
@@ -527,17 +531,19 @@ const App: React.FC = () => {
         
         {renderView()}
         
-        <BottomNav 
-            activeView={view} 
-            onNavigate={handleNavigate} 
-            hasItemsToRestock={products.some(p => p.variations.reduce((a,v) => a + (v.stock[StoreName.TECA]||0) + (v.stock[StoreName.IONE]||0), 0) <= 1)} 
-            isAdmin={isAdmin}
-            hasNewSaleRequests={saleRequests.some(r => r.status === 'pending')}
-            hasPendingSales={saleRequests.some(r => r.status === 'pending' && r.type !== 'preorder')}
-            hasPendingPreorders={saleRequests.some(r => r.status === 'pending' && r.type === 'preorder')}
-            salesTab={salesTab}
-            onSalesTabChange={setSalesTab}
-        />
+        {!isSearchFocused && (
+            <BottomNav 
+                activeView={view} 
+                onNavigate={handleNavigate} 
+                hasItemsToRestock={products.some(p => p.variations.reduce((a,v) => a + (v.stock[StoreName.TECA]||0) + (v.stock[StoreName.IONE]||0), 0) <= 1)} 
+                isAdmin={isAdmin}
+                hasNewSaleRequests={saleRequests.some(r => r.status === 'pending')}
+                hasPendingSales={saleRequests.some(r => r.status === 'pending' && r.type !== 'preorder')}
+                hasPendingPreorders={saleRequests.some(r => r.status === 'pending' && r.type === 'preorder')}
+                salesTab={salesTab}
+                onSalesTabChange={setSalesTab}
+            />
+        )}
 
         {isSignUpModalOpen && <SignUpModal onClose={() => setIsSignUpModalOpen(false)} onSignUp={handleSignUp} />}
         

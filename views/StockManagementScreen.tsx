@@ -431,6 +431,7 @@ interface StockManagementScreenProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   setSearchIconOpacity: (opacity: number) => void;
+  onSearchFocusChange?: (focused: boolean) => void;
 }
 
 const StockManagementScreen: React.FC<StockManagementScreenProps> = ({ 
@@ -448,7 +449,8 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({
   setIsSearchOpen,
   searchQuery,
   setSearchQuery,
-  setSearchIconOpacity
+  setSearchIconOpacity,
+  onSearchFocusChange
 }) => {
   const { theme } = useContext(ThemeContext);
   const isDark = theme === 'dark';
@@ -473,6 +475,10 @@ const StockManagementScreen: React.FC<StockManagementScreenProps> = ({
       setSearchIconOpacity(0);
     };
   }, []);
+
+  useEffect(() => {
+    onSearchFocusChange?.(isSearchFocused);
+  }, [isSearchFocused, onSearchFocusChange]);
 
    const handleScroll = () => {
     if (!ticking.current) {

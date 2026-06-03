@@ -1134,6 +1134,7 @@ interface ShowcaseScreenProps {
   isLoading?: boolean;
   productFamilies: ProductFamily[];
   banners?: Banner[];
+  onSearchFocusChange?: (focused: boolean) => void;
 }
 
 const isBelizeOrWaterblock = (slide: any) => {
@@ -1206,7 +1207,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
     cart, 
     isLoading = false, 
     productFamilies,
-    banners = []
+    banners = [],
+    onSearchFocusChange
 }) => {
   // WORKAROUND: Força a família "Linhons Vinho" a ser uma coleção para testes.
   const modifiedProductFamilies = useMemo(() => {
@@ -1476,10 +1478,15 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   const [isColorFilterOpen, setIsColorFilterOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [showSeparatedPillows, setShowSeparatedPillows] = useState<boolean>(() => {
+    return localStorage.getItem('showcase_separated_pillows') === 'true';
+  });
   const [selectedColors, setSelectedColors] = useState<string[]>(() => {
     const savedColors = localStorage.getItem('showcase_colors');
     return savedColors ? JSON.parse(savedColors) : [];
   });
+
+  const searchBarContainerRef = useRef<HTMLDivElement>(null);
 
   // --- SAVE FILTERS TO LOCALSTORAGE ---
   useEffect(() => {
@@ -1487,7 +1494,13 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
     localStorage.setItem('showcase_brand', selectedBrand);
     localStorage.setItem('showcase_fabric', selectedFabric);
     localStorage.setItem('showcase_colors', JSON.stringify(selectedColors));
-  }, [selectedCategory, selectedBrand, selectedFabric, selectedColors]);
+    localStorage.setItem('showcase_separated_pillows', showSeparatedPillows ? 'true' : 'false');
+  }, [selectedCategory, selectedBrand, selectedFabric, selectedColors, showSeparatedPillows]);
+
+  // --- REPORT SEARCH FOCUS ---
+  useEffect(() => {
+    onSearchFocusChange?.(isSearchFocused);
+  }, [isSearchFocused, onSearchFocusChange]);
 
   // --- INFINITE SCROLL STATE ---
   const [visibleCount, setVisibleCount] = useState(24); // Match App.tsx initial limit
@@ -1666,7 +1679,9 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
 
     const grouped: ShowcaseItem[] = [];
 
-    if (selectedBrand !== 'Todas' || selectedFabric !== 'Todos os Tecidos' || selectedColors.length > 0) {
+    if (showSeparatedPillows) {
+        grouped.push(...filtered.map(p => ({ type: 'single' as const, product: p })));
+    } else if (selectedBrand !== 'Todas' || selectedFabric !== 'Todos os Tecidos' || selectedColors.length > 0) {
         if (selectedColors.length > 0) {
             const collections: ShowcaseItem[] = [];
             const nonCollectionProducts: Product[] = [];
@@ -1820,12 +1835,12 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
             return getTime(itemB) - getTime(itemA);
         }
     });
-  }, [products, selectedCategory, selectedBrand, selectedFabric, selectedColors, sortOrder, getProductFamilyKey, searchQuery, modifiedProductFamilies]);
+  }, [products, selectedCategory, selectedBrand, selectedFabric, selectedColors, sortOrder, getProductFamilyKey, searchQuery, modifiedProductFamilies, showSeparatedPillows]);
 
   // Reset pagination when filters change
   useEffect(() => {
       setVisibleCount(24);
-  }, [selectedCategory, selectedBrand, selectedFabric, selectedColors, sortOrder, products.length]);
+  }, [selectedCategory, selectedBrand, selectedFabric, selectedColors, sortOrder, products.length, showSeparatedPillows]);
  
   // Intersection Observer for Infinite Scroll
   useEffect(() => {
@@ -1922,6 +1937,8 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
           setSelectedBrand={setSelectedBrand}
           subFilterWaterblock={subFilterWaterblock}
           setSubFilterWaterblock={setSubFilterWaterblock}
+          showSeparatedPillows={showSeparatedPillows}
+          setShowSeparatedPillows={setShowSeparatedPillows}
         />
 
         <div className="absolute inset-0 z-0 opacity-80 overflow-hidden">
@@ -1953,32 +1970,48 @@ const ShowcaseScreen: React.FC<ShowcaseScreenProps> = ({
               </div>
 
               {/* Barra de Busca Fixa (Sempre visível no início da vitrine, mais estreita e elegante) */}
-              <SearchBar 
-                isFloating={false}
-                isSearchOpen={isSearchOpen}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                isDark={isDark}
-                onFocusChange={setIsSearchFocused}
-                categories={categories}
-                selectedCategory={selectedCategory}
-                setSelectedCategory={setSelectedCategory}
-                availableFabrics={availableFabrics}
-                selectedFabric={selectedFabric}
-                setSelectedFabric={setSelectedFabric}
-                selectedColors={selectedColors}
-                setSelectedColors={setSelectedColors}
-                sortOrder={sortOrder}
-                setSortOrder={setSortOrder}
-                isFiltersExpanded={isFiltersExpanded}
-                setIsFiltersExpanded={setIsFiltersExpanded}
-                isColorFilterOpen={isColorFilterOpen}
-                setIsColorFilterOpen={setIsColorFilterOpen}
-                selectedBrand={selectedBrand}
-                setSelectedBrand={setSelectedBrand}
-                subFilterWaterblock={subFilterWaterblock}
-                setSubFilterWaterblock={setSubFilterWaterblock}
-              />
+              <div ref={searchBarContainerRef} className="w-full">
+                <SearchBar 
+                  isFloating={false}
+                  isSearchOpen={isSearchOpen}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  isDark={isDark}
+                  onFocusChange={(focused) => {
+                    setIsSearchFocused(focused);
+                    if (focused && scrollContainerRef.current && searchBarContainerRef.current) {
+                        const container = scrollContainerRef.current;
+                        const target = searchBarContainerRef.current;
+                        setTimeout(() => {
+                            container.scrollTo({
+                                top: target.offsetTop - 85,
+                                behavior: 'smooth'
+                            });
+                        }, 100);
+                    }
+                  }}
+                  categories={categories}
+                  selectedCategory={selectedCategory}
+                  setSelectedCategory={setSelectedCategory}
+                  availableFabrics={availableFabrics}
+                  selectedFabric={selectedFabric}
+                  setSelectedFabric={setSelectedFabric}
+                  selectedColors={selectedColors}
+                  setSelectedColors={setSelectedColors}
+                  sortOrder={sortOrder}
+                  setSortOrder={setSortOrder}
+                  isFiltersExpanded={isFiltersExpanded}
+                  setIsFiltersExpanded={setIsFiltersExpanded}
+                  isColorFilterOpen={isColorFilterOpen}
+                  setIsColorFilterOpen={setIsColorFilterOpen}
+                  selectedBrand={selectedBrand}
+                  setSelectedBrand={setSelectedBrand}
+                  subFilterWaterblock={subFilterWaterblock}
+                  setSubFilterWaterblock={setSubFilterWaterblock}
+                  showSeparatedPillows={showSeparatedPillows}
+                  setShowSeparatedPillows={setShowSeparatedPillows}
+                />
+              </div>
 
               {/* --- PREMIUM IA ENVIRONMENT BANNER CAROUSEL --- */}
               {activeBanners.length > 0 && (

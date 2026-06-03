@@ -47,6 +47,10 @@ interface SearchBarProps {
     setSelectedBrand?: (brand: string) => void;
     subFilterWaterblock?: boolean;
     setSubFilterWaterblock?: (w: boolean) => void;
+    
+    // Almofadas Separadas Filter Option
+    showSeparatedPillows?: boolean;
+    setShowSeparatedPillows?: (val: boolean) => void;
 }
 
 const SearchBar: React.FC<SearchBarProps> = ({
@@ -74,7 +78,9 @@ const SearchBar: React.FC<SearchBarProps> = ({
     selectedBrand = 'Todas',
     setSelectedBrand,
     subFilterWaterblock = false,
-    setSubFilterWaterblock = () => {}
+    setSubFilterWaterblock = () => {},
+    showSeparatedPillows = false,
+    setShowSeparatedPillows
 }) => {
     const isCategorySelected = selectedCategory !== 'Todas';
     const inputRef = useRef<HTMLInputElement>(null);
@@ -301,6 +307,39 @@ const SearchBar: React.FC<SearchBarProps> = ({
                                         );
                                     })}
                                 </div>
+                            </div>
+                        )}
+
+                        {/* 1.5 ALMOFADAS SEPARADAS TOGGLE OPTION */}
+                        {setShowSeparatedPillows && (
+                            <div className={`mb-3 flex items-center justify-between p-2.5 rounded-xl border ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-150 shadow-xs'}`}>
+                                <div className="flex items-center gap-2">
+                                    <div className={`p-1.5 rounded-lg ${isDark ? 'bg-fuchsia-500/10 text-fuchsia-400' : 'bg-purple-50 text-purple-600'}`}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                                        </svg>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>Almofadas Separadas</span>
+                                        <span className={`text-[10px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Ver produtos individualmente</span>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowSeparatedPillows(!showSeparatedPillows)}
+                                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                        showSeparatedPillows 
+                                            ? (isDark ? 'bg-[#c026d3]' : 'bg-[#7c3aed]') 
+                                            : (isDark ? 'bg-white/10' : 'bg-gray-200')
+                                    }`}
+                                >
+                                    <span
+                                        aria-hidden="true"
+                                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                            showSeparatedPillows ? 'translate-x-4' : 'translate-x-0'
+                                        }`}
+                                    />
+                                </button>
                             </div>
                         )}
 
