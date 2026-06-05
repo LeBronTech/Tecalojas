@@ -519,9 +519,20 @@ const CollectionCard: React.FC<{
 
     const displayedColorSubname = allHaveSameColor ? distinctColorNames[0] : '';
 
+    const activeProduct = useMemo(() => {
+        return validProducts[activeImageIndex] || collectionProducts[0] || item.products[0];
+    }, [validProducts, activeImageIndex, collectionProducts, item.products]);
+
+    const activeColors = useMemo(() => {
+        if (activeProduct && activeProduct.colors && activeProduct.colors.length > 0) {
+            return activeProduct.colors;
+        }
+        return collectionUniqueColors;
+    }, [activeProduct, collectionUniqueColors]);
+
     const cardBgStyle = useMemo(() => {
-        return getCardBgAndBorderStyle(collectionUniqueColors, isDark, isExpanded);
-    }, [collectionUniqueColors, isDark, isExpanded]);
+        return getCardBgAndBorderStyle(activeColors, isDark, isExpanded);
+    }, [activeColors, isDark, isExpanded]);
 
     return (
         <motion.div 
@@ -532,6 +543,7 @@ const CollectionCard: React.FC<{
             className={`flex flex-col overflow-visible scroll-mt-20 ${isExpanded ? `col-span-2 row-span-2 z-40 backdrop-blur-md rounded-3xl p-4 shadow-2xl` : 'rounded-3xl'}`}
             style={{
                 ...cardBgStyle,
+                transition: 'background 0.8s ease, border-color 0.8s ease, transform 0.3s ease, box-shadow 0.3s ease',
                 ...shouldAnimate && !isExpanded ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms` } : {}
             }}
         >
@@ -659,7 +671,7 @@ const CollectionCard: React.FC<{
                                     Clique e veja
                                 </div>
                                 <div className="flex flex-wrap items-center justify-center gap-1.5 px-2">
-                                    {collectionUniqueColors.map((col, colIdx) => (
+                                    {collectionUniqueColors.slice(0, 4).map((col, colIdx) => (
                                         <div 
                                             key={colIdx}
                                             className={`w-2.5 h-2.5 rounded-full border shadow-sm ${isDark ? 'border-white/20' : 'border-black/10'}`}
@@ -667,6 +679,9 @@ const CollectionCard: React.FC<{
                                             title={col.name}
                                         />
                                     ))}
+                                    {collectionUniqueColors.length > 4 && (
+                                        <span className={`text-[9px] font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{`+${collectionUniqueColors.length - 4}`}</span>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -770,9 +785,20 @@ const ProductGroupCard: React.FC<{
         return list;
     }, [group]);
 
+    const activeProduct = useMemo(() => {
+        return validProducts[activeImageIndex] || representativeProduct;
+    }, [validProducts, activeImageIndex, representativeProduct]);
+
+    const activeColors = useMemo(() => {
+        if (activeProduct && activeProduct.colors && activeProduct.colors.length > 0) {
+            return activeProduct.colors;
+        }
+        return groupUniqueColors;
+    }, [activeProduct, groupUniqueColors]);
+
     const cardBgStyle = useMemo(() => {
-        return getCardBgAndBorderStyle(groupUniqueColors, isDark, isExpanded);
-    }, [groupUniqueColors, isDark, isExpanded]);
+        return getCardBgAndBorderStyle(activeColors, isDark, isExpanded);
+    }, [activeColors, isDark, isExpanded]);
 
     return (
         <motion.div 
@@ -783,6 +809,7 @@ const ProductGroupCard: React.FC<{
             className={`flex flex-col overflow-visible scroll-mt-20 ${isExpanded ? `col-span-2 row-span-2 z-40 backdrop-blur-md rounded-3xl p-4 shadow-2xl` : 'rounded-3xl'}`}
             style={{
                 ...cardBgStyle,
+                transition: 'background 0.8s ease, border-color 0.8s ease, transform 0.3s ease, box-shadow 0.3s ease',
                 ...shouldAnimate && !isExpanded ? { animation: 'float-in 0.5s ease-out forwards', animationDelay: `${index * 50}ms` } : {}
             }}
         >
@@ -902,17 +929,17 @@ const ProductGroupCard: React.FC<{
                             <div className="text-[9px] text-fuchsia-500 font-medium pb-1.5">
                                 Clique e veja
                             </div>
-                            <div className="flex flex-wrap items-center justify-center gap-1 px-2">
-                                {group.slice(0, 7).map((p, idx) => (
+                            <div className="flex flex-wrap items-center justify-center gap-1.5 px-2">
+                                {groupUniqueColors.slice(0, 4).map((col, colIdx) => (
                                     <div 
-                                        key={idx}
+                                        key={colIdx}
                                         className={`w-2 h-2 rounded-full border shadow-xs ${isDark ? 'border-white/20' : 'border-black/10'}`}
-                                        style={{ backgroundColor: p.colors?.[0]?.hex || '#ccc' }}
-                                        title={p.colors?.[0]?.name}
+                                        style={{ backgroundColor: col.hex }}
+                                        title={col.name}
                                     />
                                 ))}
-                                {group.length > 7 && (
-                                    <span className={`text-[9px] font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{`+${group.length - 7}`}</span>
+                                {groupUniqueColors.length > 4 && (
+                                    <span className={`text-[9px] font-bold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{`+${groupUniqueColors.length - 4}`}</span>
                                 )}
                             </div>
                         </div>
